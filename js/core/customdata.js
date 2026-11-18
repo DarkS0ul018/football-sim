@@ -9,6 +9,21 @@ function cleanText(s, max = 40) {
     return String(s).replace(/[<>"&`]/g, '').trim().slice(0, max);
 }
 
+// Эмблема: только известные значения; картинка — только data:image (никаких внешних ссылок)
+function cleanCrest(crest) {
+    if (!crest || typeof crest !== 'object') return null;
+    const out = {};
+    ['shape', 'pattern', 'symbol'].forEach(k => {
+        if (typeof crest[k] === 'string' && /^[a-z]{1,20}$/.test(crest[k])) out[k] = crest[k];
+    });
+    if (typeof crest.image === 'string' && crest.image.length < 200000 &&
+        /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(crest.image)) out.image = crest.image;
+    return Object.keys(out).length ? out : null;
+}
+
+// Эмблемы из редактора: { [команда]: { shape, pattern, symbol, image } }
+let customCrests = {};
+
 // Копия стандартных данных — для сброса
 const DEFAULT_DATA = JSON.parse(JSON.stringify({
     world: worldTeams, russia: russianTeams, ratings: teamRatings, squads: SQUADS
@@ -63,7 +78,9 @@ function applyCustomData() {
     ['world', 'russia'].forEach(type => {
         SQUADS[type] = JSON.parse(JSON.stringify(DEFAULT_DATA.squads[type]));
     });
+    customCrests = {};
     Object.entries(custom).forEach(([name, o]) => {
+        if (o.crest) customCrests[name] = o.crest;
         const type = o.type || (DEFAULT_DATA.russia.names.includes(name) ? 'russia' : 'world');
         if (typeof o.rating === 'number') teamRatings[name] = o.rating;
         if (o.squad) SQUADS[type][name] = o.squad;
@@ -78,7 +95,8 @@ function saveTeamOverride(name, data) {
     const all = readCustomData();
     name = cleanText(name, 30);
     const squad = data.squad && Object.fromEntries(Object.entries(data.squad).map(([k, v]) => [k, v.map(s => cleanText(s)).filter(Boolean)]));
-    all.teams[name] = { ...data, squad, isNew: !isDefaultTeam(name) };
+    const crest = cleanCrest(data.crest);
+    all.teams[name] = { ...data, squad, crest: crest || undefined, isNew: !isDefaultTeam(name) };
     const ok = writeCustomData(all);
     applyCustomData();
     return ok;
@@ -120,6 +138,8 @@ function importCustomData(json) {
                     .map(s => cleanText(s)).filter(Boolean).slice(0, 30);
             });
         }
+        const crest = cleanCrest(o.crest);
+        if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);
         const cleanName = cleanText(name, 30);
         if (cleanName) teams[cleanName] = clean;

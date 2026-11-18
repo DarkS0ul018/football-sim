@@ -64,18 +64,19 @@ function renderEditorForm() {
         : editorTeamInfo(editor.selected);
     const custom = readCustomData().teams[t.name];
     const colors = Array.from(t.emoji).filter(ch => COLOR_EMOJI.includes(ch));
+    const crest = { shape: '', pattern: '', symbol: '', image: null, ...((custom && custom.crest) || {}) };
     const swatches = (idx) => COLOR_EMOJI.map(ch =>
         `<button type="button" class="swatch ${colors[idx] === ch ? 'active' : ''}" data-idx="${idx}" data-color="${ch}" style="background:${EMOJI_COLORS[ch]}" title="${ch}"></button>`).join('');
 
     form.innerHTML = `
         <div class="editor-head">
-            <span id="editor-crest">${crestHtml({ name: t.name || 'Новая', emoji: t.emoji }, 'lg')}</span>
+            <span id="editor-crest"></span>
             <div class="editor-head-fields">
                 <label>Название
                     <input type="text" id="ed-name" maxlength="30" value="${escapeHtml(t.name)}" ${editor.isNew ? '' : 'disabled'} placeholder="Например: Торпедо">
                 </label>
                 ${editor.isNew ? `<label>Лига
-                    <select id="ed-type"><option value="world" ${t.type === 'world' ? 'selected' : ''}>🌟 Мировые</option><option value="russia" ${t.type === 'russia' ? 'selected' : ''}>🇷🇺 Российские</option></select>
+                    <select id="ed-type"><option value="world" ${t.type === 'world' ? 'selected' : ''}>🌍 Европа</option><option value="russia" ${t.type === 'russia' ? 'selected' : ''}>🇷🇺 РПЛ</option></select>
                 </label>` : ''}
             </div>
         </div>
@@ -89,6 +90,18 @@ function renderEditorForm() {
             <div>Второй цвет<div class="swatches">${swatches(1)}</div></div>
         </div>
 
+        <div class="field-label">Эмблема</div>
+        <div class="editor-crest-options">
+            ${crestSelect('shape', 'Форма', CREST_SHAPES, crest.shape)}
+            ${crestSelect('pattern', 'Узор', CREST_PATTERNS, crest.pattern)}
+            ${crestSelect('symbol', 'Символ', CREST_SYMBOLS, crest.symbol)}
+        </div>
+        <div class="editor-crest-upload">
+            <label class="btn-secondary">Загрузить свою картинку<input type="file" id="ed-crest-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden></label>
+            <button type="button" class="btn-secondary" id="ed-crest-clear" ${crest.image ? '' : 'style="display:none"'}>Убрать картинку</button>
+            <span class="muted">PNG, JPG, WebP или SVG — картинка заменит нарисованную эмблему.</span>
+        </div>
+
         <div class="editor-squad">
             ${Object.keys(SQUAD_MINIMUM).map(line => `
                 <label>${LINE_NAMES[line][0].toUpperCase() + LINE_NAMES[line].slice(1)} <span class="muted">(сильнейшие сверху, мин. ${SQUAD_MINIMUM[line]})</span>
@@ -100,9 +113,9 @@ function renderEditorForm() {
         <div id="ed-check" class="editor-check"></div>
 
         <div class="editor-actions">
-            <button id="btn-ed-save" class="btn-primary btn-glow"><span class="btn-text">💾 Сохранить</span></button>
-            ${custom && !custom.isNew ? '<button id="btn-ed-reset" class="btn-secondary">↩️ Вернуть стандартные данные</button>' : ''}
-            ${custom && custom.isNew ? '<button id="btn-ed-delete" class="btn-secondary">🗑️ Удалить команду</button>' : ''}
+            <button id="btn-ed-save" class="btn-primary"><span class="btn-text">Сохранить</span></button>
+            ${custom && !custom.isNew ? '<button id="btn-ed-reset" class="btn-secondary">Вернуть стандартные данные</button>' : ''}
+            ${custom && custom.isNew ? '<button id="btn-ed-delete" class="btn-secondary">Удалить команду</button>' : ''}
         </div>`;
 
     const state2 = { colors: [colors[0] || '🔵', colors[1] || '⚪'] };
@@ -117,12 +130,13 @@ function renderEditorForm() {
             type: editor.isNew ? $('ed-type').value : t.type,
             emoji: currentEmoji(),
             rating: Number($('ed-rating').value),
-            squad
+            squad,
+            crest: { ...crest }
         };
     };
     const refresh = () => {
         const d = readForm();
-        $('editor-crest').innerHTML = crestHtml({ name: d.name || 'Новая', emoji: d.emoji }, 'lg');
+        $('editor-crest').innerHTML = crestPreview({ name: d.name || 'Новая', emoji: d.emoji }, d.crest);
         const check = validateTeamData(d.name, d.squad, d.rating, d.emoji);
         if (editor.isNew) {
             if (!d.name) check.errors.unshift('введите название');
@@ -142,12 +156,27 @@ function renderEditorForm() {
     });
     $('ed-rating').oninput = e => { setText('ed-rating-val', e.target.value); refresh(); };
     form.querySelectorAll('textarea, #ed-name').forEach(el => el.oninput = refresh);
+    form.querySelectorAll('.ed-crest-select').forEach(sel => sel.onchange = () => { crest[sel.dataset.key] = sel.value; refresh(); });
+    $('ed-crest-file').onchange = async e => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            crest.image = await imageFileToDataUrl(file);
+            $('ed-crest-clear').style.display = '';
+            refresh();
+        } catch (err) {
+            alert('Не удалось загрузить картинку: ' + err.message);
+        }
+        e.target.value = '';
+    };
+    $('ed-crest-clear').onclick = () => { crest.image = null; $('ed-crest-clear').style.display = 'none'; refresh(); };
     refresh();
 
     $('btn-ed-save').onclick = () => {
         const d = refresh();
         if ($('btn-ed-save').disabled) return;
-        if (!saveTeamOverride(d.name, { type: d.type, emoji: d.emoji, rating: d.rating, squad: d.squad })) {
+        const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
+        if (!saveTeamOverride(d.name, { type: d.type, emoji: d.emoji, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined })) {
             alert('Не удалось сохранить: хранилище браузера недоступно или переполнено');
             return;
         }
@@ -171,6 +200,46 @@ function renderEditorForm() {
         renderEditorList();
         renderEditorForm();
         validateSettings();
+    });
+}
+
+// Выпадающий список для формы/узора/символа эмблемы ('' — автоматически)
+function crestSelect(key, label, options, value) {
+    return `<label>${label}<select class="ed-crest-select" data-key="${key}">
+        <option value="">Автоматически</option>
+        ${Object.entries(options).map(([k, o]) => `<option value="${k}" ${k === value ? 'selected' : ''}>${o.label}</option>`).join('')}
+    </select></label>`;
+}
+
+function crestPreview(team, crest) {
+    if (crest.image) return `<span class="crest crest-lg"><img src="${crest.image}" alt=""></span>`;
+    const auto = getCrestConfig({ name: team.name, emoji: team.emoji });
+    const config = { shape: crest.shape || auto.shape, pattern: crest.pattern || auto.pattern, symbol: crest.symbol || auto.symbol };
+    return `<span class="crest crest-lg">${crestSvg(team, config)}</span>`;
+}
+
+// Картинка из файла → квадрат до 160px в data:URL (чтобы влезть в хранилище браузера)
+function imageFileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+        if (!/^image\//.test(file.type)) { reject(new Error('это не картинка')); return; }
+        if (file.size > 5 * 1024 * 1024) { reject(new Error('файл больше 5 МБ')); return; }
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+            const max = 160;
+            const k = Math.min(1, max / Math.max(img.width || max, img.height || max));
+            const w = Math.max(1, Math.round((img.width || max) * k)), h = Math.max(1, Math.round((img.height || max) * k));
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            URL.revokeObjectURL(url);
+            let data = canvas.toDataURL('image/png');
+            if (data.length > 150000) data = canvas.toDataURL('image/webp', 0.85);
+            if (data.length > 190000) { reject(new Error('картинка слишком большая даже после сжатия')); return; }
+            resolve(data);
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('браузер не смог прочитать файл')); };
+        img.src = url;
     });
 }
 

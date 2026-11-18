@@ -90,9 +90,9 @@ function updateConfetti() {
 
 // ===== ТАБЛИЦА БОМБАРДИРОВ (общая для дашборда и результатов) =====
 const STAT_TYPES = {
-    goals:   { header: '⚽ Голы',     value: p => p.goals,             cell: p => p.goals },
-    assists: { header: '🎯 Ассисты',  value: p => p.assists,           cell: p => p.assists },
-    total:   { header: '⚽+🎯 Гол+Пас', value: p => p.goals + p.assists, cell: p => `${p.goals} + ${p.assists}` }
+    goals:   { header: 'Голы',     value: p => p.goals,             cell: p => p.goals },
+    assists: { header: 'Передачи',  value: p => p.assists,           cell: p => p.assists },
+    total:   { header: 'Гол + пас', value: p => p.goals + p.assists, cell: p => `${p.goals} + ${p.assists}` }
 };
 
 // Возвращает true, если в таблице есть строки

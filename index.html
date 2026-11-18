@@ -3,152 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Football Sim Pro ⚽</title>
-    <link rel="stylesheet" href="css/style.css">
-    <link rel="stylesheet" href="css/visual.css">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <meta name="theme-color" content="#070d1a">
+    <title>Football Sim Pro</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%23b8f24a'/><text x='50' y='72' text-anchor='middle' font-size='64'>⚽</text></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-    <!-- Анимированный фон -->
-    <div class="animated-bg">
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="particle"></div>
-        <div class="football-particle">⚽</div>
-        <div class="football-particle">⚽</div>
-        <div class="football-particle">⚽</div>
-    </div>
-
-    <!-- Конфетти для голов -->
     <canvas id="confetti-canvas"></canvas>
 
-    <!-- Звук вкл/выкл -->
-    <button id="btn-sound" class="sound-toggle" type="button">🔊</button>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark"><span>⚽</span></span>
+            Football Sim Pro
+            <small class="muted">симулятор турниров</small>
+        </div>
+        <button id="btn-sound" class="sound-toggle" type="button">🔊</button>
+    </header>
 
-    <div class="app-container">
+    <main class="app-container">
         <!-- ЭКРАН 1: НАСТРОЙКИ -->
         <section id="screen-setup" class="screen active">
             <div class="screen-header">
-                <h1>🏆 Football Sim Pro</h1>
-                <p class="subtitle">Симулятор футбольного турнира</p>
-            </div>
-            
-            <div id="resume-card" class="card resume-card" style="display:none;">
-                <div class="resume-info">
-                    <div class="resume-label">💾 Сохранённый турнир</div>
-                    <div id="resume-title" class="resume-title"></div>
-                    <div id="resume-details" class="resume-details"></div>
-                </div>
-                <div class="resume-actions">
-                    <button id="btn-resume" class="btn-primary btn-glow">
-                        <span class="btn-icon">▶️</span>
-                        <span class="btn-text">Продолжить</span>
-                    </button>
-                    <button id="btn-discard-save" class="btn-secondary">🗑️ Удалить</button>
-                </div>
+                <span class="kicker">Новый турнир</span>
+                <h1>Соберите свой турнир</h1>
+                <p class="subtitle">Выберите формат, команды и режим — дальше можно играть каждый матч вживую.</p>
             </div>
 
-            <div class="setup-links">
-                <button id="btn-open-editor" class="btn-secondary">✏️ Редактор команд</button>
-            </div>
-
-            <details id="hall-card" class="card hall-card" style="display:none;">
-                <summary>🏛️ Зал славы <span id="hall-count" class="muted"></span></summary>
-                <div id="hall-content"></div>
-            </details>
-
-            <div class="card">
-                <div class="form-group">
-                    <label>🔢 Количество команд:</label>
-                    <select id="team-count">
-                        <option value="4">4 команды</option>
-                        <option value="8" selected>8 команд</option>
-                        <option value="12">12 команд (группы: + 2 лучших третьих)</option>
-                        <option value="16">16 команд</option>
-                        <option value="24">24 команды (группы: + 4 лучших третьих)</option>
-                        <option value="32">32 команды</option>
-                    </select>
+            <div class="setup-grid">
+                <div class="card">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="tournament-mode">Формат</label>
+                            <select id="tournament-mode">
+                                <option value="groups">Группы + плей-офф</option>
+                                <option value="knockout">Сразу плей-офф</option>
+                                <option value="league">Лига (каждый с каждым)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="team-count">Количество команд</label>
+                            <select id="team-count">
+                                <option value="4">4 команды</option>
+                                <option value="8" selected>8 команд</option>
+                                <option value="12">12 команд (+2 лучших третьих)</option>
+                                <option value="16">16 команд</option>
+                                <option value="24">24 команды (+4 лучших третьих)</option>
+                                <option value="32">32 команды</option>
+                            </select>
+                        </div>
+                    </div>
                     <div id="warning-msg" class="warning-msg"></div>
-                </div>
-                
-                <div class="form-group">
-                    <label>🏆 Формат турнира:</label>
-                    <select id="tournament-mode">
-                        <option value="groups">📊 Группы + Плей-офф</option>
-                        <option value="knockout">🔥 Сразу Плей-офф</option>
-                        <option value="league">📋 Лига (каждый с каждым)</option>
-                    </select>
-                </div>
 
-                <div class="form-group">
-                    <label>🌍 Тип команд:</label>
-                    <select id="team-type">
-                        <option value="world">🌟 Мировые команды</option>
-                        <option value="russia">🇷🇺 Российские команды</option>
-                        <option value="mixed">🌍🇷🇺 Смешанный режим</option>
-                    </select>
-                </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="team-type">Команды</label>
+                            <select id="team-type">
+                                <option value="world">🌍 Европейские клубы</option>
+                                <option value="russia">🇷🇺 Российская Премьер-лига</option>
+                                <option value="mixed">🌍 + 🇷🇺 Все вместе</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="game-mode">Режим</label>
+                            <select id="game-mode">
+                                <option value="simulator">Симулятор — все матчи</option>
+                                <option value="career">Карьера — одна команда</option>
+                            </select>
+                        </div>
+                    </div>
 
-                <div class="form-group">
-                    <label>🎮 Режим игры:</label>
-                    <select id="game-mode">
-                        <option value="simulator">🎯 Симулятор (все матчи вручную)</option>
-                        <option value="career">⭐ Карьера (играть за одну команду)</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>🎲 Режим симуляции:</label>
-                    <select id="sim-mode">
-                        <option value="realistic">📈 Реализм (рейтинги игроков и команд, фактор поля)</option>
-                        <option value="random">🎲 Чистый рандом (все игроки равны)</option>
-                    </select>
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
-                        <label>📅 Группы / лига:</label>
-                        <select id="group-legs">
-                            <option value="1">1 круг</option>
-                            <option value="2">2 круга (дома и в гостях)</option>
+                        <label for="sim-mode">Симуляция</label>
+                        <select id="sim-mode">
+                            <option value="realistic">Реализм — рейтинги игроков, фактор поля</option>
+                            <option value="random">Чистый рандом — все игроки равны</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>📅 Матчи в плей-офф:</label>
-                        <select id="playoff-legs">
-                            <option value="1">1 матч</option>
-                            <option value="2">2 матча</option>
-                        </select>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="group-legs">Группы / лига</label>
+                            <select id="group-legs">
+                                <option value="1">1 круг</option>
+                                <option value="2">2 круга (дома и в гостях)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="playoff-legs">Плей-офф</label>
+                            <select id="playoff-legs">
+                                <option value="1">1 матч</option>
+                                <option value="2">2 матча (дома и в гостях)</option>
+                            </select>
+                        </div>
                     </div>
+
+                    <button id="btn-start" class="btn-primary">
+                        <span class="btn-text">Далее</span>
+                        <span class="btn-icon">→</span>
+                    </button>
                 </div>
 
-                <button id="btn-start" class="btn-primary btn-glow">
-                    <span class="btn-text">Далее →</span>
-                    <span class="btn-icon">⚽</span>
-                </button>
+                <aside class="setup-aside">
+                    <div id="resume-card" class="card resume-card" style="display:none;">
+                        <div class="resume-info">
+                            <div class="resume-label">Сохранённый турнир</div>
+                            <div id="resume-title" class="resume-title"></div>
+                            <div id="resume-details" class="resume-details"></div>
+                        </div>
+                        <div class="resume-actions">
+                            <button id="btn-resume" class="btn-primary"><span class="btn-text">▶ Продолжить</span></button>
+                            <button id="btn-discard-save" class="btn-secondary">Удалить</button>
+                        </div>
+                    </div>
+
+                    <div class="setup-links">
+                        <button id="btn-open-editor" class="btn-secondary">✏️ Редактор команд и эмблем</button>
+                    </div>
+
+                    <details id="hall-card" class="card hall-card" style="display:none;">
+                        <summary>🏛️ Зал славы <span id="hall-count" class="muted"></span></summary>
+                        <div id="hall-content"></div>
+                    </details>
+                </aside>
             </div>
         </section>
 
         <!-- ЭКРАН: РЕДАКТОР КОМАНД -->
         <section id="screen-editor" class="screen">
             <div class="screen-header">
-                <h1>✏️ Редактор команд</h1>
-                <p class="subtitle">Правки сохраняются в этом браузере и действуют в новых турнирах</p>
+                <span class="kicker">Редактор</span>
+                <h1>Команды и эмблемы</h1>
+                <p class="subtitle">Правки сохраняются в этом браузере и действуют в новых турнирах.</p>
             </div>
 
             <div class="card editor-toolbar">
                 <div class="style-buttons" id="editor-type-tabs">
-                    <button class="style-btn active" data-type="world">🌟 Мировые</button>
-                    <button class="style-btn" data-type="russia">🇷🇺 Российские</button>
+                    <button class="style-btn active" data-type="world">🌍 Европа</button>
+                    <button class="style-btn" data-type="russia">🇷🇺 РПЛ</button>
                 </div>
                 <div class="editor-toolbar-actions">
-                    <button id="btn-editor-new" class="btn-secondary">➕ Новая команда</button>
-                    <button id="btn-editor-export" class="btn-secondary">📤 Экспорт</button>
-                    <label class="btn-secondary editor-import">📥 Импорт<input type="file" id="editor-import-file" accept=".json,application/json" hidden></label>
-                    <button id="btn-editor-reset-all" class="btn-secondary">♻️ Сбросить всё</button>
+                    <button id="btn-editor-new" class="btn-secondary">+ Новая команда</button>
+                    <button id="btn-editor-export" class="btn-secondary">Экспорт</button>
+                    <label class="btn-secondary editor-import">Импорт<input type="file" id="editor-import-file" accept=".json,application/json" hidden></label>
+                    <button id="btn-editor-reset-all" class="btn-secondary">Сбросить всё</button>
                 </div>
             </div>
 
@@ -161,115 +161,111 @@
                 </div>
             </div>
 
-            <button id="btn-editor-back" class="btn-secondary" style="margin-top:20px">← К настройкам</button>
+            <div class="screen-actions">
+                <button id="btn-editor-back" class="btn-secondary">← К настройкам</button>
+            </div>
         </section>
 
-        <!-- ЭКРАН 1.5: ВЫБОР КОМАНДЫ -->
+        <!-- ЭКРАН: ВЫБОР КОМАНДЫ (карьера) -->
         <section id="screen-team-select" class="screen">
             <div class="screen-header">
-                <h1>⚽ Выберите вашу команду</h1>
-                <p class="subtitle">Вы будете управлять только этой командой</p>
+                <span class="kicker">Карьера</span>
+                <h1>Выберите команду</h1>
+                <p class="subtitle">Вы будете управлять только ею: состав, тактика, решения по ходу матча.</p>
             </div>
             <div id="team-select-list" class="team-grid"></div>
             <button id="btn-back-setup" class="btn-secondary">← Назад</button>
         </section>
 
-        <!-- ЭКРАН 1.5: СПИСОК КОМАНД ТУРНИРА -->
+        <!-- ЭКРАН: УЧАСТНИКИ ТУРНИРА -->
         <section id="screen-teams-list" class="screen">
             <div class="screen-header">
-                <h1>📋 Участники турнира</h1>
-                <p class="subtitle">Список команд и их рейтинги</p>
+                <span class="kicker">Жеребьёвка</span>
+                <h1>Участники турнира</h1>
+                <p class="subtitle">Команды отсортированы по рейтингу.</p>
             </div>
-            
+
             <div class="card">
                 <div class="teams-list-header">
-                    <span style="width: 40px;">#</span>
-                    <span style="flex: 1;">Команда</span>
-                    <span style="width: 80px; text-align: center;">Рейтинг</span>
-                    <span style="width: 40px;">🏷️</span>
+                    <span>#</span>
+                    <span>Команда</span>
+                    <span>Рейтинг</span>
+                    <span>Класс</span>
                 </div>
                 <div id="teams-list-container" class="teams-list-container"></div>
             </div>
-            
-            <div style="display: flex; gap: 15px; margin-top: 20px;">
+
+            <div class="screen-actions">
                 <button id="btn-back-teams" class="btn-secondary">← Назад</button>
-                <button id="btn-start-tournament" class="btn-primary btn-glow">
-                    <span class="btn-icon">🏆</span>
+                <button id="btn-start-tournament" class="btn-primary">
                     <span class="btn-text">Начать турнир</span>
+                    <span class="btn-icon">→</span>
                 </button>
             </div>
         </section>
 
-
-        <!-- ЭКРАН 2: ГЛАВНЫЙ ДАШБОРД -->
+        <!-- ЭКРАН: ДАШБОРД ТУРНИРА -->
         <section id="screen-dashboard" class="screen">
             <header class="dashboard-header">
                 <div>
+                    <span class="kicker">Турнир</span>
                     <h2 id="dashboard-title">Групповой этап</h2>
                     <div id="user-team-badge" class="team-badge"></div>
                 </div>
-                <button id="btn-next-round" class="btn-secondary btn-glow" style="display:none;">
-                    <span>➡️ Следующий раунд</span>
+                <button id="btn-next-round" class="btn-secondary" style="display:none;">
+                    <span>Следующий раунд →</span>
                 </button>
             </header>
-            
-            <!-- Сетка плей-офф -->
+
             <div id="playoff-bracket" class="bracket-section">
                 <div class="bracket-wrapper">
                     <div class="bracket" id="bracket-container"></div>
                 </div>
             </div>
-            
-            <!-- Таблица бомбардиров -->
-            <div id="top-scorers-section" class="top-scorers-section" style="display: none;">
-                <h3>⚽ Топ бомбардиров</h3>
-                
+
+            <div id="content-area"></div>
+            <div id="matches-list"></div>
+
+            <div id="top-scorers-section" class="top-scorers-section" style="display: none; margin-top: 20px;">
+                <h3>Лучшие игроки</h3>
                 <div class="stats-tabs">
-                    <button class="stats-tab active" data-tab="goals">⚽ Голы</button>
-                    <button class="stats-tab" data-tab="assists">🎯 Ассисты</button>
-                    <button class="stats-tab" data-tab="total">⚽+🎯 Гол+Пас</button>
+                    <button class="stats-tab active" data-tab="goals">Голы</button>
+                    <button class="stats-tab" data-tab="assists">Передачи</button>
+                    <button class="stats-tab" data-tab="total">Гол + пас</button>
                 </div>
-                
                 <table class="stats-table">
                     <thead>
-                        <tr>
-                            <th>👤 Игрок</th>
-                            <th>🏷️ Команда</th>
-                            <th id="stat-header">⚽ Голы</th>
-                            <th>📊 Матчи</th>
-                        </tr>
+                        <tr><th>Игрок</th><th>Команда</th><th id="stat-header">Голы</th><th>Матчи</th></tr>
                     </thead>
                     <tbody id="top-scorers-list"></tbody>
                 </table>
             </div>
-            
-            <div id="content-area"></div>
-            <div id="matches-list"></div>
         </section>
 
-        <!-- ЭКРАН 2.5: ТАКТИКА ПЕРЕД МАТЧЕМ (карьера) -->
+        <!-- ЭКРАН: ТАКТИКА ПЕРЕД МАТЧЕМ (карьера) -->
         <section id="screen-tactics" class="screen">
             <div class="screen-header">
-                <h1>📋 Подготовка к матчу</h1>
+                <span class="kicker">Подготовка к матчу</span>
+                <h1>Тактика и состав</h1>
                 <p class="subtitle" id="tactics-opponent"></p>
             </div>
 
             <div class="card tactics-controls">
                 <div class="form-row">
                     <div class="form-group">
-                        <label>🧩 Схема:</label>
+                        <label for="tactics-formation">Схема</label>
                         <select id="tactics-formation"></select>
                     </div>
                     <div class="form-group">
-                        <label>🎯 Стиль игры:</label>
+                        <label>Стиль игры</label>
                         <div class="style-buttons" id="tactics-style"></div>
                         <div class="style-hint" id="tactics-style-hint"></div>
                     </div>
                 </div>
                 <div class="tactics-summary">
-                    <div>💪 Сила состава: <b id="tactics-strength"></b></div>
-                    <div>🆚 Соперник: <b id="tactics-opp-strength"></b></div>
-                    <button id="btn-auto-lineup" class="btn-secondary">🤖 Автосостав</button>
+                    <div>Сила состава: <b id="tactics-strength"></b></div>
+                    <div>Соперник: <b id="tactics-opp-strength"></b></div>
+                    <button id="btn-auto-lineup" class="btn-secondary">Автосостав</button>
                 </div>
                 <div id="tactics-warnings" class="tactics-warnings"></div>
             </div>
@@ -278,58 +274,60 @@
 
             <div class="tactics-grid">
                 <div class="card">
-                    <h3>🟢 Стартовый состав</h3>
+                    <h3>Стартовый состав</h3>
                     <div id="tactics-lineup" class="tactics-list"></div>
                 </div>
                 <div class="card">
-                    <h3>🪑 Запас</h3>
+                    <h3>Запас</h3>
                     <div id="tactics-reserves" class="tactics-list"></div>
                 </div>
             </div>
 
             <div class="tactics-actions">
                 <button id="btn-tactics-back" class="btn-secondary">← Назад</button>
-                <button id="btn-tactics-play" class="btn-primary btn-glow">
-                    <span class="btn-icon">⚽</span>
-                    <span class="btn-text">К матчу</span>
+                <button id="btn-tactics-play" class="btn-primary">
+                    <span class="btn-text">На поле</span>
+                    <span class="btn-icon">→</span>
                 </button>
             </div>
         </section>
 
-        <!-- ЭКРАН 3: ПРОСМОТР МАТЧА -->
+        <!-- ЭКРАН: МАТЧ -->
         <section id="screen-match" class="screen">
             <div class="match-header">
                 <button class="btn-back">← Назад</button>
                 <span class="match-stage" id="match-stage-info">Групповой этап</span>
                 <div class="match-controls-top">
-                    <label>⏱️ Скорость:</label>
-                    <input type="range" id="match-speed" min="1" max="10" value="5" style="width: 150px;">
+                    <label for="match-speed">Скорость</label>
+                    <input type="range" id="match-speed" min="1" max="10" value="5">
                     <span id="speed-value">5x</span>
                 </div>
             </div>
-            
-            <div class="match-layout">
-                <!-- Левая колонка: Поле -->
-                <div class="match-main">
-                    <div class="scoreboard-v2">
-                        <div class="team home">
-                            <div class="team-logo" id="team-1-logo">🔵</div>
-                            <h3 id="match-team-1">Team A</h3>
-                            <div class="score" id="score-1">0</div>
-                        </div>
-                        <div class="match-info">
-                            <div class="timer" id="match-time">00'</div>
-                            <div class="status" id="match-status">LIVE</div>
-                            <div class="vs">VS</div>
-                        </div>
-                        <div class="team away">
-                            <div class="team-logo" id="team-2-logo">🔴</div>
-                            <h3 id="match-team-2">Team B</h3>
-                            <div class="score" id="score-2">0</div>
-                        </div>
-                    </div>
 
-                    <!-- 2D ПОЛЕ -->
+            <div class="scoreboard-v2">
+                <div class="sb-team home">
+                    <h3 id="match-team-1">Хозяева</h3>
+                    <div class="team-logo" id="team-1-logo"></div>
+                </div>
+                <div class="sb-center">
+                    <div class="sb-score">
+                        <span class="score" id="score-1">0</span>
+                        <span class="sb-sep">:</span>
+                        <span class="score" id="score-2">0</span>
+                    </div>
+                    <div class="sb-clock">
+                        <span class="timer" id="match-time">00'</span>
+                        <span class="status" id="match-status">LIVE</span>
+                    </div>
+                </div>
+                <div class="sb-team away">
+                    <div class="team-logo" id="team-2-logo"></div>
+                    <h3 id="match-team-2">Гости</h3>
+                </div>
+            </div>
+
+            <div class="match-layout">
+                <div class="match-main">
                     <div class="field-container">
                         <div class="football-field" id="football-field">
                             <div class="field-markings"></div>
@@ -344,18 +342,29 @@
                             <div class="goal goal-right"></div>
                         </div>
                         <div class="field-legend">
-                            <div class="legend-item"><span class="dot team1"></span> <span id="team1-name">Team A</span></div>
-                            <div class="legend-item"><span class="dot team2"></span> <span id="team2-name">Team B</span></div>
-                            <div class="legend-item"><span class="dot ball">⚽</span> <span>Мяч</span></div>
+                            <div class="legend-item"><span class="dot team1"></span> <span id="team1-name"></span></div>
+                            <div class="legend-item"><span class="dot team2"></span> <span id="team2-name"></span></div>
+                            <div class="legend-item"><span class="dot ball"></span> <span>Мяч</span></div>
                         </div>
+                    </div>
+
+                    <div class="match-controls-bottom">
+                        <button id="btn-sim-match" class="btn-primary"><span class="btn-text">▶ Начать матч</span></button>
+                        <button id="btn-instant-match" class="btn-secondary"><span class="btn-text">Быстрый результат</span></button>
+                        <button id="btn-manage-match" class="btn-secondary" style="display:none;"><span class="btn-text">⏸ Пауза и управление</span></button>
+                        <button id="btn-next-match" class="btn-primary" style="display:none;"><span class="btn-text">Следующий матч →</span></button>
+                        <button id="btn-close-match" class="btn-secondary" style="display:none;"><span class="btn-text">Закрыть</span></button>
+                    </div>
+
+                    <div class="match-events-container">
+                        <h3>События</h3>
+                        <div class="events-list" id="events-list"></div>
                     </div>
                 </div>
 
-                <!-- Правая колонка: Статистика и события -->
                 <div class="match-sidebar">
-                    <!-- СТАТИСТИКА МАТЧА -->
                     <div class="match-stats-container">
-                        <h3>📊 Статистика</h3>
+                        <h3>Статистика</h3>
                         <div class="stats-grid">
                             <div class="stat-box">
                                 <div class="stat-label">Владение</div>
@@ -368,113 +377,56 @@
                                     <span id="possession-2">50%</span>
                                 </div>
                             </div>
-                            
                             <div class="stat-box">
                                 <div class="stat-label">Удары</div>
-                                <div class="stat-value-pair">
-                                    <span id="shots-1">0</span>
-                                    <span>-</span>
-                                    <span id="shots-2">0</span>
-                                </div>
+                                <div class="stat-value-pair"><span id="shots-1">0</span><span>-</span><span id="shots-2">0</span></div>
                             </div>
-                            
                             <div class="stat-box">
                                 <div class="stat-label">В створ</div>
-                                <div class="stat-value-pair">
-                                    <span id="shots-on-target-1">0</span>
-                                    <span>-</span>
-                                    <span id="shots-on-target-2">0</span>
-                                </div>
+                                <div class="stat-value-pair"><span id="shots-on-target-1">0</span><span>-</span><span id="shots-on-target-2">0</span></div>
                             </div>
-                            
                             <div class="stat-box">
                                 <div class="stat-label">Угловые</div>
-                                <div class="stat-value-pair">
-                                    <span id="corners-1">0</span>
-                                    <span>-</span>
-                                    <span id="corners-2">0</span>
-                                </div>
+                                <div class="stat-value-pair"><span id="corners-1">0</span><span>-</span><span id="corners-2">0</span></div>
                             </div>
-                            
                             <div class="stat-box">
                                 <div class="stat-label">Фолы</div>
-                                <div class="stat-value-pair">
-                                    <span id="fouls-1">0</span>
-                                    <span>-</span>
-                                    <span id="fouls-2">0</span>
-                                </div>
+                                <div class="stat-value-pair"><span id="fouls-1">0</span><span>-</span><span id="fouls-2">0</span></div>
                             </div>
-                            
                             <div class="stat-box">
                                 <div class="stat-label">Карточки</div>
                                 <div class="cards-display">
-                                    <div class="team-cards">
-                                        <span class="yellow-card" id="yellow-1">🟨 0</span>
-                                        <span class="red-card" id="red-1">🟥 0</span>
-                                    </div>
+                                    <div class="team-cards"><span class="yellow-card" id="yellow-1">🟨 0</span><span class="red-card" id="red-1">🟥 0</span></div>
                                     <span>-</span>
-                                    <div class="team-cards">
-                                        <span class="yellow-card" id="yellow-2">🟨 0</span>
-                                        <span class="red-card" id="red-2">🟥 0</span>
-                                    </div>
+                                    <div class="team-cards"><span class="yellow-card" id="yellow-2">🟨 0</span><span class="red-card" id="red-2">🟥 0</span></div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- СОСТАВЫ -->
                     <div class="lineups-container">
-                        <h3>👥 Составы</h3>
+                        <h3>Составы</h3>
                         <div class="lineups-grid" id="lineups"></div>
                     </div>
 
-                    <!-- ЗАМЕНЫ -->
                     <div class="substitutions-container" id="substitutions-panel" style="display: none;">
-                        <h3>🔄 Замены</h3>
+                        <h3>Замены</h3>
                         <div class="substitution-slots" id="substitution-slots"></div>
                     </div>
-
-                    <!-- СОБЫТИЯ МАТЧА -->
-                    <div class="match-events-container">
-                        <h3>📋 События</h3>
-                        <div class="events-list" id="events-list"></div>
-                    </div>
                 </div>
-            </div>
-
-            <div class="match-controls-bottom">
-                <button id="btn-sim-match" class="btn-primary btn-glow">
-                    <span class="btn-icon">⚽</span>
-                    <span class="btn-text">Начать матч</span>
-                </button>
-                <button id="btn-instant-match" class="btn-secondary btn-glow">
-                    <span class="btn-icon">🎲</span>
-                    <span class="btn-text">Быстрый результат</span>
-                </button>
-                <button id="btn-manage-match" class="btn-secondary" style="display:none;">
-                    <span class="btn-icon">⏸</span>
-                    <span class="btn-text">Пауза и управление</span>
-                </button>
-                <button id="btn-next-match" class="btn-primary btn-glow" style="display:none;">
-                    <span class="btn-icon">➡️</span>
-                    <span class="btn-text">Следующий матч</span>
-                </button>
-                <button id="btn-close-match" class="btn-secondary" style="display:none;">
-                    <span class="btn-text">Закрыть</span>
-                </button>
             </div>
         </section>
 
         <!-- ОКНО: УПРАВЛЕНИЕ ПО ХОДУ МАТЧА -->
         <div id="manage-overlay" class="overlay" style="display:none;">
             <div class="overlay-panel">
-                <h2>⏸ Пауза · <span id="manage-minute"></span></h2>
+                <h2>Пауза · <span id="manage-minute"></span></h2>
                 <div class="manage-section">
-                    <h4>🎯 Стиль игры</h4>
+                    <h4>Стиль игры</h4>
                     <div class="style-buttons" id="manage-style"></div>
                 </div>
                 <div class="manage-section">
-                    <h4>🔄 Замена <span id="manage-subs-left" class="muted"></span></h4>
+                    <h4>Замена <span id="manage-subs-left" class="muted"></span></h4>
                     <div class="manage-subs">
                         <div>
                             <div class="muted">Уходит:</div>
@@ -485,17 +437,17 @@
                             <div id="manage-in" class="tactics-list compact"></div>
                         </div>
                     </div>
-                    <button id="btn-manage-sub" class="btn-secondary" disabled>🔄 Провести замену</button>
+                    <button id="btn-manage-sub" class="btn-secondary" disabled>Провести замену</button>
                     <label class="checkbox-row"><input type="checkbox" id="manage-autosubs"> Тренерский штаб делает замены сам</label>
                 </div>
-                <button id="btn-manage-resume" class="btn-primary btn-glow"><span class="btn-text">▶️ Продолжить матч</span></button>
+                <button id="btn-manage-resume" class="btn-primary"><span class="btn-text">▶ Продолжить матч</span></button>
             </div>
         </div>
 
-        <!-- ОКНО: СЕРИЯ ПЕНАЛЬТИ С УЧАСТИЕМ ИГРОКА -->
+        <!-- ОКНО: СЕРИЯ ПЕНАЛЬТИ -->
         <div id="shootout-overlay" class="overlay" style="display:none;">
             <div class="overlay-panel shootout-panel">
-                <h2>🎯 Серия пенальти</h2>
+                <h2>Серия пенальти</h2>
                 <div class="shootout-score">
                     <div><span id="so-team1"></span><div id="so-kicks1" class="so-kicks"></div></div>
                     <div class="so-total" id="so-total">0 : 0</div>
@@ -508,25 +460,20 @@
                 </div>
                 <div id="so-prompt" class="so-prompt"></div>
                 <div id="so-last" class="so-last"></div>
-                <button id="btn-so-continue" class="btn-primary btn-glow" style="display:none;"><span class="btn-text">Продолжить</span></button>
+                <button id="btn-so-continue" class="btn-primary" style="display:none;"><span class="btn-text">Продолжить</span></button>
             </div>
         </div>
 
-        <!-- ЭКРАН 4: РЕЗУЛЬТАТЫ -->
+        <!-- ЭКРАН: РЕЗУЛЬТАТЫ -->
         <section id="screen-results" class="screen">
-            <div class="screen-header">
-                <h1>🏆 Турнир завершен!</h1>
-            </div>
-            
             <div class="champion-box-v2">
                 <div class="trophy-animation">🏆</div>
                 <h2>Чемпион турнира</h2>
                 <h1 id="champion-name" class="champion-name"></h1>
-                <div class="champion-confetti"></div>
             </div>
-            
+
             <div id="career-card" class="card career-card" style="display:none;">
-                <h3>⭐ Ваша карьера</h3>
+                <h3>Ваша карьера</h3>
                 <div class="career-result" id="career-result"></div>
                 <table class="stats-table">
                     <thead>
@@ -534,72 +481,56 @@
                     </thead>
                     <tbody id="career-history"></tbody>
                 </table>
-                <button id="btn-next-season" class="btn-primary btn-glow" style="margin-top:15px;">
-                    <span class="btn-icon">📅</span>
-                    <span class="btn-text">Следующий сезон</span>
+                <button id="btn-next-season" class="btn-primary" style="margin-top:16px; width:100%;">
+                    <span class="btn-text">Следующий сезон →</span>
                 </button>
             </div>
 
+            <div class="card">
+                <h3>Награды турнира</h3>
+                <div class="awards-grid" id="tournament-awards"></div>
+            </div>
+
             <div class="card" id="tournament-path-card">
-                <h3 id="tournament-path-title">📊 Путь к победе</h3>
+                <h3 id="tournament-path-title">Путь к трофею</h3>
                 <div id="tournament-path"></div>
             </div>
-            
+
             <div class="card">
-                <h3>📈 Статистика команд</h3>
+                <h3>Итоговая статистика команд</h3>
                 <table class="stats-table">
                     <thead>
-                        <tr>
-                            <th>Команда</th>
-                            <th>И</th>
-                            <th>В</th>
-                            <th>О</th>
-                            <th>Голы</th>
-                        </tr>
+                        <tr><th>Команда</th><th>И</th><th>В</th><th>О</th><th>Мячи</th></tr>
                     </thead>
                     <tbody id="teams-stats"></tbody>
                 </table>
             </div>
-            
-            <!-- Таблица бомбардиров турнира -->
+
             <div class="card">
-                <h3>⚽ Статистика игроков</h3>
-                
+                <h3>Статистика игроков</h3>
                 <div class="stats-tabs">
-                    <button class="stats-tab active" data-tab="goals">⚽ Голы</button>
-                    <button class="stats-tab" data-tab="assists">🎯 Ассисты</button>
-                    <button class="stats-tab" data-tab="total">⚽+🎯 Гол+Пас</button>
+                    <button class="stats-tab active" data-tab="goals">Голы</button>
+                    <button class="stats-tab" data-tab="assists">Передачи</button>
+                    <button class="stats-tab" data-tab="total">Гол + пас</button>
                 </div>
-                
                 <table class="stats-table">
                     <thead>
-                        <tr>
-                            <th>👤 Игрок</th>
-                            <th>🏷️ Команда</th>
-                            <th id="stat-header-results">⚽ Голы</th>
-                            <th>📊 Матчи</th>
-                        </tr>
+                        <tr><th>Игрок</th><th>Команда</th><th id="stat-header-results">Голы</th><th>Матчи</th></tr>
                     </thead>
                     <tbody id="full-scorers-list"></tbody>
                 </table>
             </div>
-            
-            <div class="card">
-                <h3>🏅 Награды турнира</h3>
-                <div class="awards-grid" id="tournament-awards"></div>
-            </div>
 
             <div class="card">
-                <h3>🏆 Достижения</h3>
+                <h3>Достижения</h3>
                 <div class="achievements-grid" id="achievements-list"></div>
             </div>
 
-            <button id="btn-restart" class="btn-primary btn-glow">
-                <span class="btn-icon">🔄</span>
+            <button id="btn-restart" class="btn-primary">
                 <span class="btn-text">Новый турнир</span>
             </button>
         </section>
-    </div>
+    </main>
 
     <!-- Данные -->
     <script src="js/data/teams.js"></script>
@@ -617,6 +548,7 @@
     <!-- Интерфейс -->
     <script src="js/ui/common.js"></script>
     <script src="js/ui/kits.js"></script>
+    <script src="js/ui/crests.js"></script>
     <script src="js/ui/sound.js"></script>
     <script src="js/ui/pitch.js"></script>
     <script src="js/ui/setup.js"></script>

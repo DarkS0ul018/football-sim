@@ -38,17 +38,7 @@ function getTeamColors(team) {
     return (teamColorCache[key] = { primary, secondary, text: textOn(primary) });
 }
 
-// Короткое название для эмблемы: ManCity → MC, PSG → PSG, Спартак → СПА
-function teamInitials(name) {
-    const caps = name.match(/[A-ZА-ЯЁ]/g) || [];
-    if (caps.length >= 2) return caps.slice(0, 3).join('');
-    return name.replace(/[^A-Za-zА-Яа-яЁё]/g, '').slice(0, 3).toUpperCase();
-}
-
-function crestHtml(team, size = 'sm') {
-    const c = getTeamColors(team);
-    return `<span class="crest crest-${size}" style="--c1:${c.primary};--c2:${c.secondary};--ct:${c.text}" title="${team.name}"><span>${teamInitials(team.name)}</span></span>`;
-}
+// Эмблемы — см. js/ui/crests.js
 
 // Форма на матч: если цвета похожи — гости в запасной (цвета наоборот или нейтральные)
 function getMatchKits(m) {
