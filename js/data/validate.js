@@ -56,6 +56,15 @@ function validateGameData() {
     playerTeams.forEach((teams, player) => {
         if (teams.length > 1) report.crossTeam.push(`«${player}» числится в нескольких командах: ${teams.join(', ')}`);
     });
+    // Сколько игроков с настоящим возрастом
+    if (typeof knownAge === 'function') {
+        report.teams.forEach(t => {
+            const squad = SQUADS[t.type] && SQUADS[t.type][t.name];
+            const all = squad ? Object.values(squad).flat() : [];
+            t.withAge = all.filter(p => knownAge(t.name, p) !== null).length;
+        });
+        report.summary.withAge = report.teams.reduce((s, t) => s + (t.withAge || 0), 0);
+    }
     report.summary.teams = report.teams.length;
     report.summary.players = playerTeams.size;
     report.summary.errors = report.teams.reduce((s, t) => s + t.errors.length, 0);

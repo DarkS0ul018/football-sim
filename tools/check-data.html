@@ -31,6 +31,7 @@
 
     <script src="../js/data/teams.js"></script>
     <script src="../js/data/squads.js"></script>
+    <script src="../js/data/ages.js"></script>
     <script src="../js/data/validate.js"></script>
     <script>
         const report = validateGameData();
@@ -38,6 +39,7 @@
         document.getElementById('summary').innerHTML = `
             <div class="pill">Команд: <b>${s.teams}</b></div>
             <div class="pill">Игроков: <b>${s.players}</b></div>
+            <div class="pill">С настоящим возрастом: <b>${s.withAge ?? 0}</b> (${Math.round((s.withAge || 0) / s.players * 100)}%)</div>
             <div class="pill ${s.errors ? 'err' : 'okc'}">Ошибок: <b>${s.errors}</b></div>
             <div class="pill ${s.warnings ? 'warn' : 'okc'}">Замечаний: <b>${s.warnings}</b></div>`;
         document.getElementById('cross').innerHTML = report.crossTeam.length
@@ -47,7 +49,7 @@
             document.getElementById('teams').innerHTML = report.teams
                 .filter(t => !only || t.errors.length || t.warnings.length)
                 .map(t => `<div class="team ${t.errors.length || t.warnings.length ? '' : 'ok'}">
-                    <h3>${t.emoji} ${t.name} <span class="muted">${t.type === 'russia' ? 'Россия' : 'Мир'} · рейтинг ${t.rating} · игроков ${t.players}</span>
+                    <h3>${t.emoji} ${t.name} <span class="muted">${t.type === 'russia' ? 'Россия' : 'Мир'} · рейтинг ${t.rating} · игроков ${t.players} · с возрастом ${t.withAge ?? 0}</span>
                         ${!t.errors.length && !t.warnings.length ? '<span class="okc">✓</span>' : ''}</h3>
                     ${t.errors.length || t.warnings.length ? `<ul>${t.errors.map(e => `<li class="err">${e}</li>`).join('')}${t.warnings.map(w => `<li class="warn">${w}</li>`).join('')}</ul>` : ''}
                 </div>`).join('') || '<div class="okc">Замечаний нет 🎉</div>';

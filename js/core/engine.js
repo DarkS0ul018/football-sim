@@ -32,9 +32,11 @@ function getTeamRoster(teamName, teamRating) {
     return careerPlayers ? applyCareerRoster(teamName, base) : base;
 }
 
-// Возраст по умолчанию: 18–34, всегда одинаковый для игрока
+// Возраст: настоящий (js/data/ages.js), а если год рождения неизвестен — условный 20–31,
+// всегда одинаковый для игрока
 function baseAge(teamName, playerName) {
-    return 18 + Math.floor(hashString('age:' + teamName + playerName) * 17);
+    const real = typeof knownAge === 'function' ? knownAge(teamName, playerName) : null;
+    return real ?? 20 + Math.floor(hashString('age:' + teamName + playerName) * 12);
 }
 
 function buildBaseRoster(teamName, teamRating) {
