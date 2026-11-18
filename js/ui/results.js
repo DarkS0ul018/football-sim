@@ -100,8 +100,10 @@ function renderCareerCard() {
 function showResults(champion) {
     state.champion = champion;
     clearSave(); // турнир завершён — продолжать нечего
+    recordTournamentInHall(champion);
+    playSound('whistle-end');
 
-    setText('champion-name', teamLabel(champion));
+    setHtml('champion-name', crestHtml(champion, 'xl') + ' ' + champion.name);
     const isLeague = state.settings.mode === 'league';
     $('tournament-path-card').style.display = isLeague ? 'none' : 'block';
     renderTournamentPath();

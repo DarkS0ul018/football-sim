@@ -38,8 +38,9 @@ function getUserResult() {
 }
 
 function formatLabel(settings) {
-    if (settings.mode === 'league') return `Лига, ${settings.count} команд`;
-    if (settings.mode === 'groups') return `Группы + плей-офф, ${settings.count} команд`;
+    const mode = settings.originalMode || settings.mode; // после групп mode меняется на knockout
+    if (mode === 'league') return `Лига, ${settings.count} команд`;
+    if (mode === 'groups') return `Группы + плей-офф, ${settings.count} команд`;
     return `Плей-офф, ${settings.count} команд`;
 }
 

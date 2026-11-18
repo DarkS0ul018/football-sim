@@ -46,6 +46,7 @@ function getStageTitle() {
 function createTournament(settings, teamsPool, userTeamName = null) {
     state.settings = { ...settings, originalMode: settings.originalMode || settings.mode };
     state.seasonRecorded = false;
+    state.hallRecorded = false;
     state.teams = teamsPool.map((d, i) => new Team(i, d.name, d.emoji, d.rating));
     state.matches = [];
     state.groups = [];

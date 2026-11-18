@@ -32,8 +32,14 @@ function userRowStyle(teamId) {
     return state.userTeam && teamId === state.userTeam.id ? USER_ROW_STYLE : '';
 }
 
+// Эмблема + название (HTML — вставлять через innerHTML)
 function teamLabel(team) {
-    return `${team.emoji || '⚽'} ${team.name}`;
+    return `${crestHtml(team)} <span class="team-label-name">${team.name}</span>`;
+}
+
+function setHtml(id, html) {
+    const el = $(id);
+    if (el) el.innerHTML = html;
 }
 
 // ===== КОНФЕТТИ =====

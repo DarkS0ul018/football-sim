@@ -6,6 +6,7 @@ initStatTabs();
 initSetupScreens();
 initMatchScreen();
 initTacticsScreen();
+initSound();
 
 $('btn-next-season').addEventListener('click', () => {
     startNextSeason();

@@ -32,7 +32,7 @@ function renderUserBadge() {
     const badge = $('user-team-badge');
     if (isCareer() && state.userTeam) {
         badge.style.display = 'inline-block';
-        badge.innerText = `${teamLabel(state.userTeam)}${state.userTeamEliminated ? ' · выбыла' : ''}`;
+        badge.innerHTML = `${teamLabel(state.userTeam)}${state.userTeamEliminated ? ' · выбыла' : ''}`;
     } else {
         badge.style.display = 'none';
     }

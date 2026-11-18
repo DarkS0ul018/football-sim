@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Football Sim Pro ⚽</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/visual.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -23,6 +24,9 @@
 
     <!-- Конфетти для голов -->
     <canvas id="confetti-canvas"></canvas>
+
+    <!-- Звук вкл/выкл -->
+    <button id="btn-sound" class="sound-toggle" type="button">🔊</button>
 
     <div class="app-container">
         <!-- ЭКРАН 1: НАСТРОЙКИ -->
@@ -46,6 +50,11 @@
                     <button id="btn-discard-save" class="btn-secondary">🗑️ Удалить</button>
                 </div>
             </div>
+
+            <details id="hall-card" class="card hall-card" style="display:none;">
+                <summary>🏛️ Зал славы <span id="hall-count" class="muted"></span></summary>
+                <div id="hall-content"></div>
+            </details>
 
             <div class="card">
                 <div class="form-group">
@@ -288,6 +297,13 @@
                     <div class="field-container">
                         <div class="football-field" id="football-field">
                             <div class="field-markings"></div>
+                            <div class="pitch-line pa pa-left"></div>
+                            <div class="pitch-line pa pa-right"></div>
+                            <div class="pitch-line ga ga-left"></div>
+                            <div class="pitch-line ga ga-right"></div>
+                            <div class="pitch-spot spot-center"></div>
+                            <div class="pitch-spot spot-left"></div>
+                            <div class="pitch-spot spot-right"></div>
                             <div class="goal goal-left"></div>
                             <div class="goal goal-right"></div>
                         </div>
@@ -557,10 +573,14 @@
     <script src="js/core/engine.js"></script>
     <script src="js/core/squad.js"></script>
     <script src="js/core/career.js"></script>
+    <script src="js/core/halloffame.js"></script>
     <script src="js/core/tournament.js"></script>
     <script src="js/core/storage.js"></script>
     <!-- Интерфейс -->
     <script src="js/ui/common.js"></script>
+    <script src="js/ui/kits.js"></script>
+    <script src="js/ui/sound.js"></script>
+    <script src="js/ui/pitch.js"></script>
     <script src="js/ui/setup.js"></script>
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/tactics.js"></script>

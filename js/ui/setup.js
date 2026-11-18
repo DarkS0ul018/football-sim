@@ -87,7 +87,7 @@ function showTeamSelect(settings) {
     careerTeamsPool.forEach(teamData => {
         const card = document.createElement('div');
         card.className = 'team-select-card';
-        card.innerHTML = `<span class="team-emoji">${teamData.emoji}</span><h3>${teamData.name}</h3><div class="rating">Рейтинг: ${teamData.rating}</div>`;
+        card.innerHTML = `<span class="team-emoji">${crestHtml(teamData, 'lg')}</span><h3>${teamData.name}</h3><div class="rating">Рейтинг: ${teamData.rating}</div>`;
         card.onclick = () => {
             list.querySelectorAll('.team-select-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
@@ -119,7 +119,7 @@ function renderTeamsList() {
             <div class="team-list-item ${isUser ? 'user-team' : ''}">
                 <span class="team-num">${index + 1}.</span>
                 <div class="team-info">
-                    <span class="team-emoji">${team.emoji}</span>
+                    <span class="team-emoji">${crestHtml(team)}</span>
                     <span class="team-name">${team.name}${isUser ? ' ⚽' : ''}</span>
                 </div>
                 <span class="team-rating ${ratingClass}">${team.rating}</span>
@@ -128,7 +128,48 @@ function renderTeamsList() {
     }).join('');
 }
 
+// ----- Зал славы -----
+function renderHall() {
+    const hall = readHall();
+    const card = $('hall-card');
+    if (!hall.tournaments.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    setText('hall-count', `· турниров: ${hall.tournaments.length}`);
+    const crest = (t) => t ? `${crestHtml(t)} ${t.name}` : '—';
+    const titles = Object.entries(hall.titles).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const r = hall.records;
+    $('hall-content').innerHTML = `
+        <div class="hall-grid">
+            <div>
+                <h4>🏆 Больше всего титулов</h4>
+                ${titles.map(([name, n], i) => `<div class="hall-row"><span>${i + 1}. ${crest({ name, emoji: (hall.emojis || {})[name] || '' })}</span><b>${n}</b></div>`).join('')}
+            </div>
+            <div>
+                <h4>📈 Рекорды</h4>
+                ${r.biggestWin ? `<div class="hall-row"><span>Крупнейшая победа</span><b>${r.biggestWin.text}</b></div>` : ''}
+                ${r.mostGoals ? `<div class="hall-row"><span>Самый результативный матч</span><b>${r.mostGoals.text}</b></div>` : ''}
+                ${r.topScorer ? `<div class="hall-row"><span>Бомбардир турнира</span><b>${r.topScorer.text}</b></div>` : ''}
+            </div>
+        </div>
+        <h4>📜 Последние турниры</h4>
+        <div class="hall-list">
+            ${hall.tournaments.slice(0, 10).map(t => `
+                <div class="hall-row">
+                    <span class="muted">${t.date} · ${t.format}</span>
+                    <span>🥇 ${crest(t.champion)}${t.runnerUp ? ` <span class="muted">· 🥈 ${t.runnerUp.name}</span>` : ''}</span>
+                </div>`).join('')}
+        </div>
+        <button id="btn-clear-hall" class="btn-secondary hall-clear">🗑️ Очистить зал славы</button>`;
+    $('btn-clear-hall').onclick = () => {
+        if (!confirm('Очистить зал славы и историю карьеры?')) return;
+        clearHall();
+        clearCareer();
+        renderHall();
+    };
+}
+
 function initSetupScreens() {
+    renderHall();
     ['team-count', 'tournament-mode', 'team-type'].forEach(id => $(id).addEventListener('change', validateSettings));
     validateSettings();
     renderResumeCard();

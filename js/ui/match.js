@@ -23,6 +23,7 @@ function stopMatchTimers() {
     onSpeedChange = null;
     simStep = null;
     $('btn-manage-match').style.display = 'none';
+    stopCrowd();
 }
 
 let simStep = null;     // функция шага живого матча (для паузы)
@@ -41,6 +42,7 @@ function openManagePanel() {
     if (!simStep || !currentSim) return;
     clearInterval(simulationInterval);
     isPaused = true;
+    stopCrowd();
     manageOut = manageIn = null;
     renderManagePanel();
     $('manage-overlay').style.display = 'flex';
@@ -96,6 +98,7 @@ function doManualSub() {
 function resumeMatch() {
     $('manage-overlay').style.display = 'none';
     isPaused = false;
+    startCrowd();
     if (simStep) simulationInterval = setInterval(simStep, getMatchInterval());
 }
 
@@ -121,7 +124,7 @@ function addMatchEvent(match, minute, type, text, team = null) {
     const timeLabel = typeof minute === 'number' ? `${minute}'` : (minute || '');
     const isTeam1 = team && team.id === match.team1.id;
     const color = team ? (isTeam1 ? 'var(--accent-primary)' : 'var(--highlight)') : 'var(--text-muted)';
-    const emoji = team ? (team.emoji || (isTeam1 ? '🔵' : '🔴')) : '•';
+    const emoji = team ? crestHtml(team, 'xs') : '•';
     el.innerHTML = `<span class="event-time">${timeLabel}</span><span class="event-icon">${EVENT_ICONS[type] || '•'}</span><span class="event-team" style="color:${color};font-weight:600">${emoji}</span><span class="event-text">${text}</span>`;
     list.prepend(el);
 }
@@ -130,46 +133,8 @@ function showSimEvent(m, ev, prefix = '') {
     addMatchEvent(m, ev.minute, ev.type, prefix + ev.text, ev.team);
 }
 
-// ----- Поле -----
-function renderPlayers(sim) {
-    const field = $('football-field');
-    field.querySelectorAll('.player').forEach(el => el.remove());
-    ['team1', 'team2'].forEach(side => {
-        sim.sides[side].onPitch.forEach((p, i) => {
-            const el = document.createElement('div');
-            el.className = `player ${side} ${p.position === 'GK' ? 'goalkeeper' : ''}`;
-            el.style.cssText = `left:${p.x}%;top:${p.y}%;z-index:${10 + i}`;
-            el.innerText = p.number;
-            el.id = `player-${p.teamId}-${p.number}`;
-            el.title = `${p.name} · ${p.position} · ${p.rating}`;
-            field.appendChild(el);
-        });
-    });
-}
+// ----- Поле: см. js/ui/pitch.js -----
 
-function renderField(sim) {
-    const field = $('football-field');
-    field.querySelector('.ball')?.remove();
-    renderPlayers(sim);
-    const ball = document.createElement('div');
-    ball.className = 'ball';
-    ball.id = 'match-ball';
-    ball.innerText = '⚽';
-    ball.style.cssText = 'left:50%;top:50%;z-index:100';
-    field.appendChild(ball);
-    setText('team1-name', sim.match.team1.name);
-    setText('team2-name', sim.match.team2.name);
-}
-
-function moveElement(id, x, y) {
-    const el = $(id);
-    if (el) { el.style.left = `${x}%`; el.style.top = `${y}%`; }
-}
-
-function highlightPlayer(player) {
-    document.querySelectorAll('.player.has-ball').forEach(el => el.classList.remove('has-ball'));
-    if (player) $(`player-${player.teamId}-${player.number}`)?.classList.add('has-ball');
-}
 
 // ----- Составы -----
 function renderLineups(sim) {
@@ -226,6 +191,7 @@ function renderSubstitutions(sim) {
 }
 
 function celebrateGoal(side) {
+    playSound('goal');
     const sb = document.querySelector('.scoreboard-v2');
     if (sb) { const r = sb.getBoundingClientRect(); createConfetti(r.left + r.width / 2, r.top); }
     const el = $(side === 'team1' ? 'score-1' : 'score-2');
@@ -258,8 +224,6 @@ function openMatchScreen(match) {
 
     setText('match-team-1', match.team1.name);
     setText('match-team-2', match.team2.name);
-    setText('team-1-logo', match.team1.emoji || '⚽');
-    setText('team-2-logo', match.team2.emoji || '⚽');
     updateScoreboard(match);
     setText('match-time', "00'");
     setText('match-status', 'LIVE');
@@ -281,59 +245,26 @@ function beginMatch(runner) {
 // ----- Живая симуляция -----
 function startSimulation(m) {
     let sim = currentSim;
-    let ballX = 50, ballY = 50;
-
-    function updatePlayerPositions() {
-        const owner = sim.attackingSide;
-        ['team1', 'team2'].forEach(side => {
-            const dir = side === 'team1' ? 1 : -1; // team1 атакует вправо, team2 — влево
-            sim.sides[side].onPitch.forEach(p => {
-                let tx = p.baseX, ty = p.baseY;
-                if (owner === side) {
-                    if (p.position === 'FWD') tx += 15 * dir;
-                    else if (p.position === 'MID') tx += 10 * dir;
-                    else if (p.position === 'DEF') tx += 5 * dir;
-                } else {
-                    if (p.position === 'DEF') tx -= 5 * dir;
-                    else if (p.position === 'MID') tx -= 8 * dir;
-                }
-                if (p.position === 'GK') ty = Math.max(30, Math.min(70, ballY));
-                else ty += (ballY - 50) * 0.25;
-                p.x = Math.max(5, Math.min(95, p.x + (tx - p.x) * 0.3));
-                p.y = Math.max(5, Math.min(95, p.y + (ty - p.y) * 0.3));
-                moveElement(`player-${p.teamId}-${p.number}`, p.x, p.y);
-            });
-        });
-    }
-
-    function moveBall(events) {
-        const goal = events.find(e => e.type === 'goal');
-        if (goal) { ballX = 50; ballY = 50; }
-        else {
-            const goalX = sim.attackingSide === 'team1' ? 90 : 10;
-            ballX += (goalX - ballX) * 0.15 + (Math.random() - 0.5) * 6;
-            ballY += (50 - ballY) * 0.05 + (Math.random() - 0.5) * 8;
-        }
-        ballX = Math.max(5, Math.min(95, ballX));
-        ballY = Math.max(5, Math.min(95, ballY));
-        moveElement('match-ball', ballX, ballY);
-        const carrier = events.find(e => e.player)?.player;
-        highlightPlayer(carrier || null);
-    }
+    playSound('whistle-long');
+    startCrowd();
 
     function step() {
         const events = sim.step();
         let lineupChanged = false;
+        const ms = getMatchInterval();
         events.forEach(ev => {
-            showSimEvent(m, ev);
-            if (ev.type === 'goal') { updateScoreboard(m); celebrateGoal(ev.side); }
+            // Голы показываем, когда мяч долетит до ворот
+            // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
+            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); }, ms * 0.85);
+            else showSimEvent(m, ev);
             if (ev.lineupChanged) lineupChanged = true;
+            if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
         if (lineupChanged || events.some(e => e.type === 'card-yellow')) renderLineups(sim);
 
-        moveBall(events);
-        updatePlayerPositions();
+        animateMinute(sim, events, ms);
+        crowdIntensity(sim);
         setText('match-time', sim.minute + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
         updateStatsDisplay(sim);
@@ -343,11 +274,14 @@ function startSimulation(m) {
             addMatchEvent(m, 90, 'half', `Конец 1-го матча: ${m.leg1.t1}:${m.leg1.t2}`, null);
             setText('match-status', '2-й матч');
             sim = prepareLeg(m, 2);
-            ballX = 50; ballY = 50;
             updateScoreboard(m);
+            playSound('whistle-long');
             return;
         }
         stopMatchTimers();
+        updateScoreboard(m);
+        playSound('whistle-end');
+        stopCrowd();
         concludeMatch(m, sim, true);
     }
 
@@ -409,8 +343,8 @@ function playInteractiveShootout(m, sim, onDone) {
     const so = new Shootout(m, sim);
     const mySide = userSide(m);
     const overlay = $('shootout-overlay');
-    setText('so-team1', teamLabel(m.team1));
-    setText('so-team2', teamLabel(m.team2));
+    setHtml('so-team1', teamLabel(m.team1));
+    setHtml('so-team2', teamLabel(m.team2));
     setText('so-last', '');
     overlay.style.display = 'flex';
 
@@ -452,6 +386,8 @@ function playInteractiveShootout(m, sim, onDone) {
             zones.forEach(x => x.onclick = null);
             const dir = z.dataset.dir;
             const kick = userKicks ? so.kick(dir, randomDiveDir()) : so.kick(randomShotDir(), dir);
+            playSound('kick');
+            setTimeout(() => playSound(kick.scored ? 'pen-goal' : 'save'), 250);
             overlay.querySelector(`.so-zone[data-dir="${kick.shotDir}"]`).classList.add('shot');
             overlay.querySelector(`.so-zone[data-dir="${kick.diveDir}"]`).classList.add('dive');
             const team = kick.side === 'team1' ? m.team1 : m.team2;
@@ -472,6 +408,8 @@ function animateShootout(m, shootout, onDone) {
         if (i >= shootout.kicks.length) { onDone(); return; }
         const k = shootout.kicks[i++];
         if (k.scored) { if (k.side === 'team1') s1++; else s2++; }
+        playSound('kick');
+        setTimeout(() => playSound(k.scored ? 'pen-goal' : 'save'), 250);
         const team = k.side === 'team1' ? m.team1 : m.team2;
         addMatchEvent(m, 'ПЕН', k.scored ? 'penalty-goal' : 'penalty-miss', `${k.player || 'Удар ' + k.number}: ${k.scored ? 'ГОЛ!' : 'МИМО!'}`, team);
         setText('match-time', `ПЕН ${s1}:${s2}`);

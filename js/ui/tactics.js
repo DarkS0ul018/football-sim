@@ -32,13 +32,13 @@ function openTactics(match) {
     const homeSide = getHomeSide(match, leg);
     const isHome = homeSide && (homeSide === 'team1' ? match.team1 : match.team2).id === team.id;
     const venue = !homeSide ? 'нейтральное поле' : (isHome ? 'дома 🏠' : 'в гостях');
-    setText('tactics-opponent', `${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}`);
+    setHtml('tactics-opponent', `${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}`);
 
     const changes = validateLineup(team);
     $('tactics-warnings').innerHTML = changes.map(c => `<div>⚠️ ${c}</div>`).join('');
 
     prepareTeamForMatch(opp); // соперник выбирает состав (видим его силу)
-    setText('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)}`);
+    setHtml('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)}`);
 
     $('tactics-formation').innerHTML = Object.keys(FORMATIONS).map(f => `<option value="${f}">${f}</option>`).join('');
     renderTactics();
