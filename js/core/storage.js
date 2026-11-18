@@ -3,7 +3,7 @@
 // Сохраняем только «между матчами»: живой матч, прерванный перезагрузкой, просто начнётся заново.
 
 const SAVE_KEY = 'footballSimPro.save';
-const SAVE_VERSION = 1;
+const SAVE_VERSION = 2; // v2: группы с тай-брейками, доп. время
 
 function serializeMatch(m) {
     return {
@@ -12,7 +12,7 @@ function serializeMatch(m) {
         isFinished: m.isFinished, isFinal: m.isFinal,
         leg1: m.leg1, leg2: m.leg2, currentLeg: m.currentLeg,
         score1: m.score1, score2: m.score2, penalties: m.penalties,
-        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated
+        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated, extraTime: m.extraTime
     };
 }
 
@@ -23,7 +23,7 @@ function deserializeMatch(d, teamById) {
         leg1: d.leg1, leg2: d.leg2, currentLeg: d.currentLeg,
         score1: d.score1, score2: d.score2, penalties: d.penalties,
         winner: d.winner === null ? null : teamById(d.winner),
-        isAutoSimulated: d.isAutoSimulated
+        isAutoSimulated: d.isAutoSimulated, extraTime: !!d.extraTime
     });
     return m;
 }
@@ -47,6 +47,7 @@ function saveGame() {
         settings: state.settings,
         teams: state.teams.map(t => ({ id: t.id, name: t.name, emoji: t.emoji, rating: t.rating, stats: t.stats })),
         groups: state.groups.map(g => g.map(t => t.id)),
+        groupMatches: state.settings.mode === 'groups' ? [] : state.groupMatches.map(ref),
         currentMatches: state.matches.map(ref),
         history: state.tournamentHistory.map(r => ({ round: r.round, roundIndex: r.roundIndex, matches: r.matches.map(ref) })),
         matches: all,
@@ -81,6 +82,7 @@ function loadGame() {
 
     const matches = data.matches.map(d => deserializeMatch(d, teamById));
     state.groups = data.groups.map(g => g.map(teamById));
+    state.groupMatches = (data.groupMatches || []).map(i => matches[i]);
     state.tournamentHistory = data.history.map(r => ({ round: r.round, roundIndex: r.roundIndex, matches: r.matches.map(i => matches[i]) }));
     // Если текущий этап — раунд плей-офф, state.matches должен быть тем же массивом, что и в истории
     const last = state.tournamentHistory[state.tournamentHistory.length - 1];

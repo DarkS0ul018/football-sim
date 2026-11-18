@@ -38,14 +38,23 @@ function renderUserBadge() {
 }
 
 // ----- Группы -----
+const QUALIFY_LABELS = { winner: 'Выход в плей-офф', runner: 'Выход в плей-офф', third: 'Проходит как лучшая третья команда' };
+
 function renderGroupTables() {
-    $('content-area').innerHTML = state.groups.map((group, idx) => `
+    const format = getGroupFormat(state.settings.count);
+    const q = getQualification();
+    const legend = `<div class="group-legend">
+        <span><i class="qualify-dot winner"></i> выходят в плей-офф</span>
+        ${format && format.thirds ? `<span><i class="qualify-dot third"></i> лучшие третьи (${format.thirds} из ${format.groups})</span>` : ''}
+        <span class="group-legend-note">При равенстве очков: личные встречи → разница мячей → забитые</span>
+    </div>`;
+    $('content-area').innerHTML = legend + state.groups.map((group, idx) => `
         <div class="table-container">
             <h4>Группа ${String.fromCharCode(65 + idx)}</h4>
             <table>
                 <tr><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>О</th><th>РМ</th></tr>
                 ${sortGroup(group).map(t => `
-                    <tr style="${userRowStyle(t.id)}">
+                    <tr class="${q[t.id] ? 'qualify-' + q[t.id] : ''}" style="${userRowStyle(t.id)}" title="${QUALIFY_LABELS[q[t.id]] || ''}">
                         <td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td><b>${t.stats.points}</b></td><td>${t.stats.gf - t.stats.ga}</td>
@@ -95,7 +104,8 @@ function renderBracket() {
             const legs = m.legs === 2 && m.isFinished
                 ? `<div class="bracket-match-info"><div>1-й: ${m.leg1.t1}:${m.leg1.t2}</div><div>2-й: ${m.leg2.t1}:${m.leg2.t2}</div><div style="margin-top:5px;font-weight:bold;color:var(--gold)">Итого: ${agg.t1}:${agg.t2}</div></div>`
                 : (m.isFinal ? '<div class="bracket-match-info final-label">🏆 ГЛАВНЫЙ МАТЧ</div>' : '');
-            const auto = m.isAutoSimulated ? '<span style="font-size:10px;color:#888">🤖 Авто</span>' : '';
+            const auto = (m.extraTime ? '<span style="font-size:10px;color:var(--gold);margin-right:6px">⏱️ д.в.</span>' : '')
+                + (m.isAutoSimulated ? '<span style="font-size:10px;color:#888">🤖 Авто</span>' : '');
 
             el.innerHTML = `
                 <div class="bracket-team ${cls(m.team1)}"><span style="flex:1">${teamLabel(m.team1)}</span><span class="bracket-score">${m.isFinished ? agg.t1 : '-'}</span></div>

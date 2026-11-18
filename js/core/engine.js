@@ -1,125 +1,420 @@
-// ===== ДВИЖОК МАТЧА: составы, счёт, события, пенальти =====
-// Здесь нет работы с DOM — только расчёты. Отрисовкой занимается js/ui/match.js.
+// ===== ДВИЖОК МАТЧА =====
+// Один поминутный движок для всего: живой матч, «быстрый результат» и автосимуляция
+// прогоняют одну и ту же MatchSimulation — разница только в том, показываем ли мы минуты.
+// Здесь нет работы с DOM.
 
-// ----- Составы -----
-const FORMATION_4_4_2 = {
-    goalkeepers: [{ x: 8, y: 50 }],
-    defenders:   [{ x: 20, y: 25 }, { x: 18, y: 42 }, { x: 18, y: 58 }, { x: 20, y: 75 }],
-    midfielders: [{ x: 40, y: 30 }, { x: 38, y: 50 }, { x: 38, y: 70 }, { x: 45, y: 50 }],
-    forwards:    [{ x: 60, y: 40 }, { x: 60, y: 60 }]
+// ----- Ростер команды (20 игроков: 11 в старте + 9 на скамейке) -----
+const FORMATION = { GK: 1, DEF: 4, MID: 4, FWD: 2 };
+const LINE_KEYS = { GK: 'goalkeepers', DEF: 'defenders', MID: 'midfielders', FWD: 'forwards' };
+const BASE_POSITIONS = {
+    GK:  [{ x: 8, y: 50 }],
+    DEF: [{ x: 20, y: 22 }, { x: 18, y: 41 }, { x: 18, y: 59 }, { x: 20, y: 78 }],
+    MID: [{ x: 40, y: 25 }, { x: 37, y: 43 }, { x: 37, y: 57 }, { x: 40, y: 75 }],
+    FWD: [{ x: 58, y: 40 }, { x: 58, y: 60 }]
 };
-const POSITION_CODES = { goalkeepers: 'GK', defenders: 'DEF', midfielders: 'MID', forwards: 'FWD' };
+const BENCH_SIZE = 9;
+const MAX_SUBS = 5;
 
-// isHome: хозяева играют слева направо, гости — зеркально
-function generateTeamSquad(teamName, teamId, isHome = true) {
+function hashString(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return (h >>> 0) / 4294967295; // 0..1, всегда одинаково для одной строки
+}
+
+const rosterCache = {};
+
+// Детерминированный ростер: одинаковый в каждом матче и после перезагрузки.
+function getTeamRoster(teamName, teamRating) {
+    const key = `${teamName}|${teamRating}`;
+    if (rosterCache[key]) return rosterCache[key];
+
     const origin = getTeamOrigin(teamName);
-    const playersData = (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName])
-        || fallbackPlayerNames[origin];
+    const data = (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName]) || fallbackPlayerNames[origin];
+    const used = new Set();
+    const unique = list => (list || []).filter(n => !used.has(n) && used.add(n));
+    const lines = {};
+    Object.keys(LINE_KEYS).forEach(pos => { lines[pos] = unique(data[LINE_KEYS[pos]]); });
 
-    const squad = [];
-    let number = 1;
-    Object.keys(FORMATION_4_4_2).forEach(line => {
-        FORMATION_4_4_2[line].forEach((pos, idx) => {
-            const name = playersData[line] && playersData[line][idx];
-            if (!name) return;
-            const x = isHome ? pos.x : 100 - pos.x;
-            squad.push({
-                number: number++, name, position: POSITION_CODES[line],
-                x, y: pos.y, baseX: x, baseY: pos.y,
-                isGoalkeeper: line === 'goalkeepers',
-                team: teamId
-            });
-        });
+    // Если в линии не хватает игроков (в данных бывают повторы) — добираем из других линий
+    const starters = [];
+    Object.keys(FORMATION).forEach(pos => {
+        const take = lines[pos].splice(0, FORMATION[pos]).map(name => ({ name, position: pos }));
+        while (take.length < FORMATION[pos]) {
+            const donor = ['MID', 'DEF', 'FWD'].find(p => p !== 'GK' && lines[p].length > (pos === 'GK' ? 99 : 0));
+            const name = donor ? lines[donor].shift() : `Игрок ${starters.length + take.length + 1}`;
+            take.push({ name, position: pos });
+        }
+        starters.push(...take);
     });
-    return squad;
-}
 
-function ensureSquads(match) {
-    if (!match.squad1) {
-        match.squad1 = generateTeamSquad(match.team1.name, match.team1.id, true);
-        match.squad2 = generateTeamSquad(match.team2.name, match.team2.id, false);
+    // Скамейка: запасной вратарь + лучшие из остальных по порядку в заявке
+    const benchPool = [];
+    if (lines.GK.length) benchPool.push({ name: lines.GK.shift(), position: 'GK' });
+    const maxLen = Math.max(lines.DEF.length, lines.MID.length, lines.FWD.length);
+    for (let i = 0; i < maxLen && benchPool.length < BENCH_SIZE; i++) {
+        ['DEF', 'MID', 'FWD'].forEach(pos => {
+            if (lines[pos][i] && benchPool.length < BENCH_SIZE) benchPool.push({ name: lines[pos][i], position: pos });
+        });
     }
-}
 
-function fieldPlayersOf(squad) {
-    return squad.filter(p => p.position !== 'GK');
-}
-
-// ----- Кто забил / отдал пас (взвешенно по позициям) -----
-function pickFromGroups(groups, roll) {
-    for (const [threshold, list] of groups) {
-        if (roll < threshold && list.length > 0) return list[Math.floor(Math.random() * list.length)];
-    }
-    const any = groups.flatMap(g => g[1]);
-    return any.length ? any[Math.floor(Math.random() * any.length)] : null;
-}
-
-function selectGoalScorer(fieldPlayers) {
-    const by = pos => fieldPlayers.filter(p => p.position === pos);
-    // 70% нападающие, 25% полузащитники, 5% защитники
-    return pickFromGroups([[70, by('FWD')], [95, by('MID')], [101, by('DEF')]], Math.random() * 100)
-        || fieldPlayers[0];
-}
-
-function selectAssistProvider(fieldPlayers, scorer) {
-    const by = pos => fieldPlayers.filter(p => p.position === pos && p.number !== scorer.number);
-    // 45% нападающие, 45% полузащитники, 10% защитники
-    return pickFromGroups([[45, by('FWD')], [90, by('MID')], [101, by('DEF')]], Math.random() * 100);
-}
-
-// Записывает гол (и ассист с вероятностью 85%) в статистику игроков
-function recordGoal(teamId, fieldPlayers) {
-    const scorer = selectGoalScorer(fieldPlayers);
-    addPlayerStat(teamId, scorer.number, 'goals');
-    let assister = null;
-    if (Math.random() < 0.85) {
-        assister = selectAssistProvider(fieldPlayers, scorer);
-        if (assister) addPlayerStat(teamId, assister.number, 'assists');
-    }
-    return { scorer, assister };
-}
-
-// ----- Счёт -----
-function scoreForTeam(teamRating, opponentRating) {
-    if (state.settings.simMode === 'random') {
-        return Math.floor(Math.random() * 7); // кубик 0-6
-    }
-    // Реализм: ожидаемые голы по разнице рейтингов + распределение Пуассона
-    const expected = Math.max(0.3, 1.4 + ((teamRating || 75) - (opponentRating || 75)) * 0.08);
-    const L = Math.exp(-expected);
-    let k = 0, p = 1;
-    do { k++; p *= Math.random(); } while (p > L);
-    return Math.min(7, k - 1);
-}
-
-// Вероятность, что эпизод разыгрывает team1 (в «реализме» зависит от рейтинга)
-function getTeam1EdgeProbability(m) {
-    if (state.settings.simMode !== 'realistic') return 0.5;
-    const diff = (m.team1.rating || 75) - (m.team2.rating || 75);
-    return Math.max(0.25, Math.min(0.75, 0.5 + diff * 0.015));
-}
-
-// Мгновенно рассчитывает счёт оставшихся таймов/матчей и записывает голы игрокам
-function simulateMatchScore(m) {
-    ensureSquads(m);
-    const f1 = fieldPlayersOf(m.squad1), f2 = fieldPlayersOf(m.squad2);
-    const play = (leg) => {
-        leg.t1 = scoreForTeam(m.team1.rating, m.team2.rating);
-        leg.t2 = scoreForTeam(m.team2.rating, m.team1.rating);
-        for (let i = 0; i < leg.t1; i++) recordGoal(m.team1.id, f1);
-        for (let i = 0; i < leg.t2; i++) recordGoal(m.team2.id, f2);
+    const lineIndex = {};
+    const rate = (p, isStarter) => {
+        const idx = lineIndex[p.position] = (lineIndex[p.position] ?? -1) + 1;
+        const noise = (hashString(teamName + p.name) - 0.5) * 8; // ±4
+        const base = isStarter ? teamRating + 3 - idx * 0.8 : teamRating - 5 - idx * 0.6;
+        return Math.round(Math.max(50, Math.min(99, base + noise)));
     };
-    if (m.legs === 2) {
-        if (m.currentLeg === 1) play(m.leg1);
-        play(m.leg2);
-        m.currentLeg = 2;
-    } else {
-        const leg = { t1: 0, t2: 0 };
-        play(leg);
-        m.score1 = leg.t1; m.score2 = leg.t2;
+
+    let number = 1;
+    const roster = starters.map(p => ({ ...p, number: number++, rating: rate(p, true), starter: true }));
+    Object.keys(lineIndex).forEach(k => delete lineIndex[k]); // у скамейки своя нумерация по линиям
+    roster.push(...benchPool.map(p => ({ ...p, number: number++, rating: rate(p, false), starter: false })));
+    rosterCache[key] = roster;
+    return roster;
+}
+
+// Короткая сводка состава (для статистики игроков)
+function generateTeamSquad(teamName, teamId) {
+    const team = getTeamById(teamId);
+    return getTeamRoster(teamName, team ? team.rating : (teamRatings[teamName] || 75));
+}
+
+// ----- Счёт и режимы -----
+function isRealistic() {
+    return state.settings.simMode !== 'random';
+}
+
+// В режиме «рандом» все игроки равны — исход решает только случай
+function effRating(p) {
+    return isRealistic() ? p.rating : 75;
+}
+
+function clamp(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+}
+
+function weightedPick(list, weightFn) {
+    const total = list.reduce((s, x) => s + weightFn(x), 0);
+    let r = Math.random() * total;
+    for (const x of list) { r -= weightFn(x); if (r <= 0) return x; }
+    return list[list.length - 1] || null;
+}
+
+// Счёт конкретной игры матча (для двухматчевых пар — leg1/leg2)
+function getLegScore(m, leg) {
+    if (m.legs === 2) return leg === 1 ? m.leg1 : m.leg2;
+    return { t1: m.score1, t2: m.score2 };
+}
+
+function setLegScore(m, leg, score) {
+    if (m.legs === 2) Object.assign(leg === 1 ? m.leg1 : m.leg2, score);
+    else { m.score1 = score.t1; m.score2 = score.t2; }
+}
+
+// Кто хозяин в игре: в первом матче пары — team1, во втором — team2, финал — нейтральное поле
+function getHomeSide(m, leg) {
+    if (m.isFinal) return null;
+    return m.legs === 2 && leg === 2 ? 'team2' : 'team1';
+}
+
+const SIDE_KEY = { team1: 't1', team2: 't2' };
+const otherSide = side => side === 'team1' ? 'team2' : 'team1';
+
+// ----- Симуляция одной игры -----
+class MatchSimulation {
+    constructor(match, leg = 1) {
+        this.match = match;
+        this.leg = leg;
+        this.minute = 0;
+        this.maxMinute = 90;
+        this.phase = 'regular';      // regular | extra | over
+        this.isOver = false;
+        this.homeSide = getHomeSide(match, leg);
+        this.score = { t1: 0, t2: 0 };
+        this.attackingSide = 'team1';
+        this.possessionTicks = { team1: 0, team2: 0 };
+        this.events = [];
+        // Доп. время возможно только в решающей игре плей-офф
+        this.allowExtraTime = match.stage === 'playoff' && (match.legs === 1 || leg === 2);
+        this.stats = {
+            possession: { team1: 50, team2: 50 },
+            shots: { team1: 0, team2: 0 },
+            shotsOnTarget: { team1: 0, team2: 0 },
+            corners: { team1: 0, team2: 0 },
+            fouls: { team1: 0, team2: 0 },
+            yellowCards: { team1: 0, team2: 0 },
+            redCards: { team1: 0, team2: 0 },
+            substitutions: { team1: [], team2: [] }
+        };
+        this.sides = {
+            team1: this.createSide(match.team1, 'team1'),
+            team2: this.createSide(match.team2, 'team2')
+        };
+    }
+
+    createSide(team, side) {
+        const roster = getTeamRoster(team.name, team.rating);
+        const mirror = side === 'team2'; // team1 всегда слева, team2 справа
+        const used = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+        const onPitch = roster.filter(p => p.starter).map(p => {
+            const pos = BASE_POSITIONS[p.position][used[p.position]++] || { x: 40, y: 50 };
+            const x = mirror ? 100 - pos.x : pos.x;
+            return { ...p, teamId: team.id, side, yellow: 0, x, y: pos.y, baseX: x, baseY: pos.y };
+        });
+        return {
+            team, side, onPitch,
+            bench: roster.filter(p => !p.starter).map(p => ({ ...p, teamId: team.id, side, yellow: 0 })),
+            subsUsed: 0,
+            sentOff: [],
+            subbedOff: [],
+            appeared: new Set(onPitch.map(p => p.number))
+        };
+    }
+
+    goalkeeper(side) {
+        return this.sides[side].onPitch.find(p => p.position === 'GK') || { name: 'полевой игрок', rating: 45 };
+    }
+
+    strength(side) {
+        const s = this.sides[side];
+        const players = s.onPitch;
+        const avg = players.reduce((sum, p) => sum + effRating(p), 0) / Math.max(1, players.length);
+        const missing = 11 - players.length;
+        return avg - missing * 4;
+    }
+
+    // Доля атак team1: зависит от силы составов и фактора своего поля
+    team1AttackProbability() {
+        let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.012;
+        if (isRealistic() && this.homeSide) p += this.homeSide === 'team1' ? 0.04 : -0.04;
+        return clamp(p, 0.3, 0.7);
+    }
+
+    log(type, side, text, extra = {}) {
+        const ev = { minute: this.minute, type, side, team: side ? this.sides[side].team : null, text, ...extra };
+        this.events.push(ev);
+        this.newEvents.push(ev);
+        return ev;
+    }
+
+    // Один шаг = одна игровая минута. Возвращает события этой минуты.
+    step() {
+        this.newEvents = [];
+        if (this.isOver) return this.newEvents;
+        this.minute++;
+
+        const p1 = this.team1AttackProbability();
+        const attack = Math.random() < 0.55;
+        this.attackingSide = Math.random() < p1 ? 'team1' : 'team2';
+        this.possessionTicks[this.attackingSide]++;
+        const t = this.possessionTicks;
+        this.stats.possession.team1 = Math.round(t.team1 / (t.team1 + t.team2) * 100);
+        this.stats.possession.team2 = 100 - this.stats.possession.team1;
+
+        if (attack) this.playAttack(this.attackingSide);
+        if (Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
+        this.aiSubstitutions();
+
+        if (this.minute === 45) this.log('half', null, `Перерыв: ${this.score.t1}:${this.score.t2}`);
+        if (this.minute >= this.maxMinute) this.endOfPeriod();
+        return this.newEvents;
+    }
+
+    playAttack(side) {
+        const roll = Math.random();
+        if (roll < 0.42) this.shot(side, 'open');
+        else if (roll < 0.60) {
+            this.stats.corners[side]++;
+            this.log('corner', side, 'Угловой');
+            if (Math.random() < 0.35) this.shot(side, 'corner');
+        } else if (roll < 0.92) this.foul(otherSide(side), side);
+    }
+
+    pickShooter(side, kind) {
+        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
+        const posWeight = kind === 'corner'
+            ? { FWD: 3, MID: 1, DEF: 3 }
+            : { FWD: 5, MID: 2.5, DEF: 0.7 };
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3));
+    }
+
+    pickAssister(side, scorer) {
+        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p.number !== scorer.number);
+        if (!field.length) return null;
+        const posWeight = { MID: 4, FWD: 3, DEF: 1.2 };
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 2));
+    }
+
+    shot(side, kind) {
+        const shooter = this.pickShooter(side, kind);
+        if (!shooter) return;
+        this.stats.shots[side]++;
+        const onTarget = Math.random() < clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
+        if (!onTarget) {
+            this.log('shot-off', side, `Удар мимо — ${shooter.name}`, { player: shooter });
+            return;
+        }
+        this.stats.shotsOnTarget[side]++;
+        const gk = this.goalkeeper(otherSide(side));
+        const pGoal = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004, 0.15, 0.45);
+        if (Math.random() < pGoal) {
+            const assister = Math.random() < 0.75 ? this.pickAssister(side, shooter) : null;
+            this.goal(side, shooter, assister, kind === 'corner' ? 'после углового' : '');
+        } else {
+            this.log('shot', side, `${gk.name} отражает удар (${shooter.name})`, { player: shooter });
+        }
+    }
+
+    goal(side, scorer, assister, note = '') {
+        this.score[SIDE_KEY[side]]++;
+        setLegScore(this.match, this.leg, this.score);
+        addPlayerStat(this.sides[side].team.id, scorer.number, 'goals');
+        if (assister) addPlayerStat(this.sides[side].team.id, assister.number, 'assists');
+        const parts = [`ГОЛ! ${scorer.name}`];
+        if (assister) parts.push(`пас: ${assister.name}`);
+        if (note) parts.push(note);
+        this.log('goal', side, parts.join(' · '), { player: scorer, assister });
+    }
+
+    foul(side, victimSide) {
+        const s = this.sides[side];
+        const offender = weightedPick(s.onPitch, p => ({ DEF: 3, MID: 2, FWD: 1, GK: 0.2 })[p.position]);
+        if (!offender) return;
+        this.stats.fouls[side]++;
+
+        const r = Math.random();
+        if (r < 0.004) this.sendOff(side, offender, 'Прямая красная карточка');
+        else if (r < 0.17) {
+            offender.yellow++;
+            this.stats.yellowCards[side]++;
+            addPlayerStat(s.team.id, offender.number, 'yellowCards');
+            if (offender.yellow >= 2) this.sendOff(side, offender, 'Вторая жёлтая — удаление');
+            else this.log('card-yellow', side, `Жёлтая карточка — ${offender.name}`, { player: offender });
+        } else {
+            this.log('foul', side, `Фол — ${offender.name}`, { player: offender });
+        }
+
+        // Нарушение в штрафной — пенальти
+        if (Math.random() < 0.02) this.penaltyKick(victimSide);
+    }
+
+    penaltyKick(side) {
+        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
+        if (!field.length) return;
+        const taker = [...field].sort((a, b) => effRating(b) - effRating(a) || (a.position === 'FWD' ? -1 : 1))[0];
+        const gk = this.goalkeeper(otherSide(side));
+        this.stats.shots[side]++;
+        if (Math.random() < clamp(0.76 + (effRating(taker) - effRating(gk)) * 0.005, 0.6, 0.9)) {
+            this.stats.shotsOnTarget[side]++;
+            this.goal(side, taker, null, 'с пенальти');
+        } else {
+            this.log('penalty-miss', side, `Пенальти не забит — ${taker.name}`, { player: taker });
+        }
+    }
+
+    sendOff(side, player, text) {
+        const s = this.sides[side];
+        s.onPitch = s.onPitch.filter(p => p !== player);
+        s.sentOff.push(player);
+        this.stats.redCards[side]++;
+        addPlayerStat(s.team.id, player.number, 'redCards');
+        this.log('card-red', side, `${text} — ${player.name}`, { player, lineupChanged: true });
+
+        // Удалён вратарь: выпускаем запасного вместо полевого игрока
+        if (player.position === 'GK') {
+            const benchGk = s.bench.find(p => p.position === 'GK');
+            const victim = [...s.onPitch].filter(p => p.position !== 'GK').sort((a, b) => a.rating - b.rating)[0];
+            if (benchGk && victim && s.subsUsed < MAX_SUBS) this.substitute(side, victim, benchGk, 'вынужденная');
+        }
+    }
+
+    substitute(side, out, inPlayer, reason = '') {
+        const s = this.sides[side];
+        const idx = s.onPitch.indexOf(out);
+        if (idx === -1 || s.subsUsed >= MAX_SUBS) return false;
+        const fresh = { ...inPlayer, yellow: 0, x: out.x, y: out.y, baseX: out.baseX, baseY: out.baseY };
+        if (fresh.position === 'GK') {
+            // Запасной вратарь встаёт в ворота, а не на место ушедшего полевого
+            fresh.baseX = side === 'team2' ? 92 : 8;
+            fresh.baseY = 50;
+        }
+        s.onPitch[idx] = fresh;
+        s.bench = s.bench.filter(p => p !== inPlayer);
+        s.subbedOff.push(out);
+        s.subsUsed++;
+        s.appeared.add(fresh.number);
+        this.stats.substitutions[side].push({ out: out.name, in: fresh.name, minute: this.minute });
+        this.log('substitution', side, `Замена${reason ? ' (' + reason + ')' : ''}: ${out.name} → ${fresh.name}`, { lineupChanged: true });
+        return true;
+    }
+
+    bestBenchFor(side, position) {
+        const bench = this.sides[side].bench.filter(p => p.position !== 'GK');
+        const same = bench.filter(p => p.position === position);
+        return [...(same.length ? same : bench)].sort((a, b) => b.rating - a.rating)[0] || null;
+    }
+
+    injury(side) {
+        const s = this.sides[side];
+        const field = s.onPitch.filter(p => p.position !== 'GK');
+        if (!field.length) return;
+        const player = field[Math.floor(Math.random() * field.length)];
+        this.log('injury', side, `Травма — ${player.name}`, { player });
+        const replacement = this.bestBenchFor(side, player.position);
+        if (replacement) this.substitute(side, player, replacement, 'травма');
+    }
+
+    // Тренеры делают 3-5 замен во втором тайме
+    aiSubstitutions() {
+        ['team1', 'team2'].forEach(side => {
+            const s = this.sides[side];
+            if (this.minute < 55 || s.subsUsed >= MAX_SUBS) return;
+            const chance = s.subsUsed < 3 ? 0.06 : (this.minute > 75 ? 0.03 : 0);
+            if (Math.random() >= chance) return;
+            const candidates = s.onPitch.filter(p => p.position !== 'GK' && p.starter);
+            if (!candidates.length) return;
+            const out = candidates.sort((a, b) => a.rating - b.rating)[Math.floor(Math.random() * Math.min(3, candidates.length))];
+            const inPlayer = this.bestBenchFor(side, out.position);
+            if (inPlayer) this.substitute(side, out, inPlayer);
+        });
+    }
+
+    aggregateTied() {
+        const m = this.match;
+        if (m.legs === 2) return m.leg1.t1 + this.score.t1 === m.leg1.t2 + this.score.t2;
+        return this.score.t1 === this.score.t2;
+    }
+
+    endOfPeriod() {
+        if (this.phase === 'regular' && this.allowExtraTime && this.aggregateTied()) {
+            this.phase = 'extra';
+            this.maxMinute = 120;
+            this.log('half', null, 'Ничья — назначено дополнительное время');
+            return;
+        }
+        this.finish();
+    }
+
+    finish() {
+        if (this.isOver) return;
+        if (this.phase === 'extra') this.match.extraTime = true;
+        this.isOver = true;
+        this.phase = 'over';
+        setLegScore(this.match, this.leg, this.score);
+        ['team1', 'team2'].forEach(side => {
+            const s = this.sides[side];
+            s.appeared.forEach(num => addPlayerStat(s.team.id, num, 'matches'));
+        });
+        this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;
+    }
+
+    runToEnd() {
+        while (!this.isOver) this.step();
+        return this;
     }
 }
 
+// ----- Результат, победитель -----
 function needsShootout(m) {
     const agg = m.aggregateScore;
     return m.stage === 'playoff' && agg.t1 === agg.t2;
@@ -130,32 +425,55 @@ function winnerByScore(m) {
     return agg.t1 > agg.t2 ? m.team1 : (agg.t2 > agg.t1 ? m.team2 : null);
 }
 
-// ----- Серия пенальти -----
-// Возвращает полную последовательность ударов; анимировать её — задача UI.
-function computeShootout(m) {
-    const chance = (team, opp) => state.settings.simMode === 'realistic'
-        ? Math.max(0.5, Math.min(0.9, 0.75 + (team.rating - opp.rating) * 0.008))
-        : 0.75;
-    const p1 = chance(m.team1, m.team2), p2 = chance(m.team2, m.team1);
-    const kicks = [];
-    let k1 = 0, k2 = 0, s1 = 0, s2 = 0, winner = null;
-
-    while (!winner) {
-        const first = k1 === k2;
-        const scored = Math.random() < (first ? p1 : p2);
-        if (first) { k1++; if (scored) s1++; } else { k2++; if (scored) s2++; }
-        kicks.push({ side: first ? 'team1' : 'team2', team: (first ? m.team1 : m.team2).name, scored, number: first ? k1 : k2 });
-
-        if (k1 <= 5 && k2 <= 5) {
-            // Досрочное окончание основной серии
-            if (s1 > s2 + (5 - k2)) winner = m.team1;
-            else if (s2 > s1 + (5 - k1)) winner = m.team2;
-        } else if (k1 === k2 && s1 !== s2) {
-            winner = s1 > s2 ? m.team1 : m.team2; // «до первого промаха»
-        }
-        if (!winner && kicks.length >= 40) winner = Math.random() < 0.5 ? m.team1 : m.team2;
+// Прогоняет все оставшиеся игры матча. Возвращает симуляцию последней игры.
+function simulateRemainingLegs(m) {
+    let sim = null;
+    const lastLeg = m.legs === 2 ? 2 : 1;
+    for (let leg = m.legs === 2 ? m.currentLeg : 1; leg <= lastLeg; leg++) {
+        sim = new MatchSimulation(m, leg).runToEnd();
+        m.lastSims = (m.lastSims || []).concat(sim);
     }
-    return { kicks, t1: s1, t2: s2, winner };
+    return sim;
+}
+
+// ----- Серия пенальти -----
+// Бьют игроки, оставшиеся на поле (лучшие — первыми). Возвращает всю серию; анимировать её — задача UI.
+function computeShootout(m, sim) {
+    const takersFor = side => {
+        const onPitch = sim ? sim.sides[side].onPitch : getTeamRoster((side === 'team1' ? m.team1 : m.team2).name, (side === 'team1' ? m.team1 : m.team2).rating).filter(p => p.starter);
+        const field = onPitch.filter(p => p.position !== 'GK').sort((a, b) => effRating(b) - effRating(a));
+        const gk = onPitch.filter(p => p.position === 'GK');
+        return [...field, ...gk];
+    };
+    const gkOf = side => {
+        const onPitch = sim ? sim.sides[side].onPitch : [];
+        return onPitch.find(p => p.position === 'GK') || { rating: 70 };
+    };
+    const takers = { team1: takersFor('team1'), team2: takersFor('team2') };
+    const keepers = { team1: gkOf('team1'), team2: gkOf('team2') };
+    const chance = (taker, gk) => isRealistic() ? clamp(0.75 + (effRating(taker) - effRating(gk)) * 0.006, 0.55, 0.92) : 0.75;
+
+    const kicks = [];
+    const n = { team1: 0, team2: 0 }, s = { team1: 0, team2: 0 };
+    let winner = null;
+    while (!winner) {
+        const side = n.team1 === n.team2 ? 'team1' : 'team2';
+        const list = takers[side];
+        const taker = list[n[side] % list.length] || { name: '—', rating: 75 };
+        const scored = Math.random() < chance(taker, keepers[otherSide(side)]);
+        n[side]++;
+        if (scored) s[side]++;
+        kicks.push({ side, team: (side === 'team1' ? m.team1 : m.team2).name, player: taker.name, scored, number: n[side] });
+
+        if (n.team1 <= 5 && n.team2 <= 5) {
+            if (s.team1 > s.team2 + (5 - n.team2)) winner = m.team1;
+            else if (s.team2 > s.team1 + (5 - n.team1)) winner = m.team2;
+        } else if (n.team1 === n.team2 && s.team1 !== s.team2) {
+            winner = s.team1 > s.team2 ? m.team1 : m.team2;
+        }
+        if (!winner && kicks.length >= 60) winner = Math.random() < 0.5 ? m.team1 : m.team2;
+    }
+    return { kicks, t1: s.team1, t2: s.team2, winner };
 }
 
 function applyShootout(m, shootout) {
@@ -166,9 +484,7 @@ function applyShootout(m, shootout) {
 function completeMatch(m, winner) {
     m.isFinished = true;
     m.winner = winner;
-    ensureSquads(m);
-    m.squad1.forEach(p => addPlayerStat(m.team1.id, p.number, 'matches'));
-    m.squad2.forEach(p => addPlayerStat(m.team2.id, p.number, 'matches'));
+    m.lastSims = null; // симуляции больше не нужны
 
     const agg = m.aggregateScore;
     const isDraw = agg.t1 === agg.t2;
@@ -181,87 +497,17 @@ function completeMatch(m, winner) {
 }
 
 function autoSimulateMatch(m) {
-    simulateMatchScore(m);
+    const sim = simulateRemainingLegs(m);
     let winner = winnerByScore(m);
     if (needsShootout(m)) {
-        const shootout = computeShootout(m);
+        const shootout = computeShootout(m, sim);
         applyShootout(m, shootout);
         winner = shootout.winner;
     }
     m.isAutoSimulated = true;
     completeMatch(m, winner);
-    m.squad1 = m.squad2 = null; // экономим память — составы легко пересоздать
 }
 
 function autoSimulateAllRemainingMatches(filter = () => true) {
     state.matches.forEach(m => { if (!m.isFinished && filter(m)) autoSimulateMatch(m); });
-}
-
-// ----- События живого матча -----
-function initMatchStats(match) {
-    match.stats = {
-        possession: { team1: 50, team2: 50 },
-        shots: { team1: 0, team2: 0 },
-        shotsOnTarget: { team1: 0, team2: 0 },
-        corners: { team1: 0, team2: 0 },
-        fouls: { team1: 0, team2: 0 },
-        yellowCards: { team1: 0, team2: 0 },
-        redCards: { team1: 0, team2: 0 },
-        substitutions: { team1: [], team2: [] }
-    };
-}
-
-// Генерирует случайное событие минуты и обновляет match.stats.
-// Возвращает { type, side, team, ... } или null.
-function generateRandomEvent(match, min) {
-    const rand = Math.random();
-    const side = Math.random() < getTeam1EdgeProbability(match) ? 'team1' : 'team2';
-    const team = side === 'team1' ? match.team1 : match.team2;
-    const s = match.stats;
-
-    // Команда в большинстве атакует чаще
-    const redDiff = s.redCards.team1 - s.redCards.team2;
-    let adv = 0;
-    if (redDiff < 0) adv = side === 'team1' ? 0.1 : -0.1;
-    else if (redDiff > 0) adv = side === 'team2' ? 0.1 : -0.1;
-
-    if (rand < 0.15 + adv) {
-        s.shots[side]++;
-        if (Math.random() < 0.4) {
-            s.shotsOnTarget[side]++;
-            return { type: Math.random() < 0.5 ? 'goal' : 'shot', side, team };
-        }
-        return { type: 'shot-off', side, team };
-    }
-    if (rand < 0.20) {
-        s.corners[side]++;
-        return { type: 'corner', side, team };
-    }
-    if (rand < 0.30) {
-        s.fouls[side]++;
-        if (Math.random() < 0.2) {
-            const card = Math.random() < 0.85 ? 'yellow' : 'red';
-            if (card === 'yellow') s.yellowCards[side]++; else s.redCards[side]++;
-            return { type: `card-${card}`, side, team };
-        }
-        return { type: 'foul', side, team };
-    }
-    if (min > 60 && rand < 0.33 && s.substitutions[side].length < 3) {
-        const squad = side === 'team1' ? match.squad1 : match.squad2;
-        const out = squad[Math.floor(Math.random() * squad.length)];
-        const inNumber = 12 + s.substitutions[side].length;
-        s.substitutions[side].push({ out: out.number, in: inNumber, minute: min });
-        return { type: 'substitution', side, team, out: out.number, in: inNumber };
-    }
-    return null;
-}
-
-// Гол в живом матче: обновляет счёт текущей игры и статистику игроков
-function applyLiveGoal(m, side) {
-    const team = side === 'team1' ? m.team1 : m.team2;
-    const squad = side === 'team1' ? m.squad1 : m.squad2;
-    const key = side === 'team1' ? 't1' : 't2';
-    if (m.legs === 2) (m.currentLeg === 1 ? m.leg1 : m.leg2)[key]++;
-    else if (side === 'team1') m.score1++; else m.score2++;
-    return recordGoal(team.id, fieldPlayersOf(squad));
 }

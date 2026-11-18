@@ -53,7 +53,9 @@
                     <select id="team-count">
                         <option value="4">4 команды</option>
                         <option value="8" selected>8 команд</option>
+                        <option value="12">12 команд (группы: + 2 лучших третьих)</option>
                         <option value="16">16 команд</option>
+                        <option value="24">24 команды (группы: + 4 лучших третьих)</option>
                         <option value="32">32 команды</option>
                     </select>
                     <div id="warning-msg" class="warning-msg"></div>
@@ -87,8 +89,8 @@
                 <div class="form-group">
                     <label>🎲 Режим симуляции:</label>
                     <select id="sim-mode">
-                        <option value="random">🎲 Чистый рандом (Кубик 0-6)</option>
-                        <option value="realistic">📈 Реализм (Учет рейтинга)</option>
+                        <option value="realistic">📈 Реализм (рейтинги игроков и команд, фактор поля)</option>
+                        <option value="random">🎲 Чистый рандом (все игроки равны)</option>
                     </select>
                 </div>
 
@@ -316,6 +318,12 @@
                                 </div>
                             </div>
                         </div>
+                    </div>
+
+                    <!-- СОСТАВЫ -->
+                    <div class="lineups-container">
+                        <h3>👥 Составы</h3>
+                        <div class="lineups-grid" id="lineups"></div>
                     </div>
 
                     <!-- ЗАМЕНЫ -->

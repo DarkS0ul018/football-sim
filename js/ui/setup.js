@@ -22,10 +22,10 @@ function validateSettings() {
     const maxTeams = getTeamsData(teamType).names.length;
 
     let error = null;
-    // Плей-офф работает только на степенях двойки (4, 8, 16, 32)
-    if (!(count >= 2 && (count & (count - 1)) === 0)) error = '⚠️ Количество команд должно быть 4, 8, 16 или 32';
-    else if (count > maxTeams) error = `⚠️ Максимум ${maxTeams} команд для этого типа`;
-    else if (mode === 'groups' && count < 8) error = '⚠️ Для групп нужно минимум 8 команд';
+    const isPowerOfTwo = count >= 2 && (count & (count - 1)) === 0;
+    if (count > maxTeams) error = `⚠️ Максимум ${maxTeams} команд для этого типа`;
+    else if (mode === 'knockout' && !isPowerOfTwo) error = '⚠️ Сразу плей-офф: нужно 4, 8, 16 или 32 команды';
+    else if (mode === 'groups' && !getGroupFormat(count)) error = '⚠️ Для групп: 8, 12, 16, 24 или 32 команды';
 
     warning.style.display = error ? 'block' : 'none';
     warning.innerText = error || '';

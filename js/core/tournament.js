@@ -27,6 +27,7 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     state.teams = teamsPool.map((d, i) => new Team(i, d.name, d.emoji, d.rating));
     state.matches = [];
     state.groups = [];
+    state.groupMatches = [];
     state.tournamentHistory = [];
     state.currentRound = 0;
     state.userTeamEliminated = false;
@@ -87,17 +88,65 @@ function createKnockoutRound(teams, pairs = null) {
     state.tournamentHistory.push({ round: roundName, roundIndex, matches: state.matches });
 }
 
-// Победитель группы X играет со вторым местом группы X+1
+// ----- Формат группового этапа -----
+// Из групп по 4 выходят двое лучших + (если нужно) лучшие третьи, чтобы в плей-офф было 4/8/16 команд.
+// 8 → 2 группы, 4 в плей-офф; 12 → 3 группы, 6 + 2 третьих = 8; 24 → 6 групп, 12 + 4 третьих = 16.
+function getGroupFormat(count) {
+    if (count < 8 || count % 4 !== 0) return null;
+    const groups = count / 4;
+    let qualifiers = 1;
+    while (qualifiers < groups * 2) qualifiers *= 2;
+    const thirds = qualifiers - groups * 2;
+    if (thirds > groups) return null;
+    return { groups, qualifiers, thirds };
+}
+
+// Кто проходит дальше: { [teamId]: 'winner' | 'runner' | 'third' }
+function getQualification() {
+    const format = getGroupFormat(state.settings.count) || { thirds: 0 };
+    const result = {};
+    const thirds = [];
+    state.groups.forEach(group => {
+        const sorted = sortGroup([...group]);
+        result[sorted[0].id] = 'winner';
+        result[sorted[1].id] = 'runner';
+        if (sorted[2]) thirds.push(sorted[2]);
+    });
+    thirds.sort(compareAcrossGroups).slice(0, format.thirds).forEach(t => { result[t.id] = 'third'; });
+    return result;
+}
+
+// Посев: победители групп играют с вторыми/третьими местами, команды из одной группы по возможности не встречаются
 function createPlayoffPairsFromGroups() {
-    state.groups.forEach(sortGroup);
-    const n = state.groups.length;
-    return state.groups.map((group, i) => [group[0], state.groups[(i + 1) % n][1]]);
+    state.groups.forEach(g => sortGroup(g));
+    const groupOf = new Map();
+    state.groups.forEach((g, i) => g.forEach(t => groupOf.set(t.id, i)));
+
+    const q = getQualification();
+    const byPlace = place => state.teams.filter(t => q[t.id] === place).sort(compareAcrossGroups);
+    const seeds = [...byPlace('winner'), ...byPlace('runner'), ...byPlace('third')];
+
+    const half = seeds.length / 2;
+    const high = seeds.slice(0, half);
+    const low = seeds.slice(half).reverse(); // сильнейший играет со слабейшим
+    const clash = (i) => groupOf.get(high[i].id) === groupOf.get(low[i].id);
+    for (let i = 0; i < half; i++) {
+        if (!clash(i)) continue;
+        for (let j = 0; j < half; j++) {
+            if (j === i) continue;
+            [low[i], low[j]] = [low[j], low[i]];
+            if (!clash(i) && !clash(j)) break;
+            [low[i], low[j]] = [low[j], low[i]];
+        }
+    }
+    return high.map((t, i) => [t, low[i]]);
 }
 
 // Переходит к следующему этапу. Возвращает чемпиона, если турнир завершён.
 function advanceStage() {
     if (state.settings.mode === 'groups') {
         const pairs = createPlayoffPairsFromGroups();
+        state.groupMatches = state.matches;
         state.settings.mode = 'knockout';
         createKnockoutRound(null, pairs);
     } else {

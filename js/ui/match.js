@@ -1,9 +1,11 @@
 // ===== ЭКРАН МАТЧА: поле, живая симуляция, быстрый результат, пенальти =====
+// Вся логика игры — в MatchSimulation (js/core/engine.js). Здесь только показ.
 
 let simulationInterval = null;
 let pendingTimers = [];
 let currentMatchSpeed = 5;
 let onSpeedChange = null;
+let currentSim = null; // симуляция игры, показанной на экране
 
 function getMatchInterval() {
     // 1x = 1 сек на игровую минуту, 10x = 0.1 сек
@@ -31,8 +33,8 @@ function setMatchInProgress(inProgress) {
 
 // ----- Лента событий -----
 const EVENT_ICONS = {
-    'goal': '⚽', 'shot': '🎯', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
-    'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄',
+    'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
+    'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
     'half': '⏱️', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁'
 };
 
@@ -48,42 +50,39 @@ function addMatchEvent(match, minute, type, text, team = null) {
     list.prepend(el);
 }
 
-const EVENT_TEXTS = {
-    'shot': () => 'Удар в створ — вратарь на месте',
-    'shot-off': () => 'Удар мимо',
-    'corner': () => 'Угловой',
-    'foul': () => 'Фол',
-    'card-yellow': () => 'Жёлтая карточка',
-    'card-red': () => 'Красная карточка',
-    'substitution': e => `Замена: ${e.out} → ${e.in}`
-};
+function showSimEvent(m, ev, prefix = '') {
+    addMatchEvent(m, ev.minute, ev.type, prefix + ev.text, ev.team);
+}
 
 // ----- Поле -----
-function renderField(match) {
+function renderPlayers(sim) {
     const field = $('football-field');
-    field.querySelectorAll('.player, .ball').forEach(el => el.remove());
-
-    [[match.squad1, 'team1', match.team1], [match.squad2, 'team2', match.team2]].forEach(([squad, cls, team]) => {
-        squad.forEach((player, i) => {
+    field.querySelectorAll('.player').forEach(el => el.remove());
+    ['team1', 'team2'].forEach(side => {
+        sim.sides[side].onPitch.forEach((p, i) => {
             const el = document.createElement('div');
-            el.className = `player ${cls} ${player.isGoalkeeper ? 'goalkeeper' : ''}`;
-            el.style.cssText = `left:${player.x}%;top:${player.y}%;z-index:${10 + i}`;
-            el.innerText = player.number;
-            el.id = `player-${team.id}-${player.number}`;
-            el.title = `${player.name} (#${player.number})`;
+            el.className = `player ${side} ${p.position === 'GK' ? 'goalkeeper' : ''}`;
+            el.style.cssText = `left:${p.x}%;top:${p.y}%;z-index:${10 + i}`;
+            el.innerText = p.number;
+            el.id = `player-${p.teamId}-${p.number}`;
+            el.title = `${p.name} · ${p.position} · ${p.rating}`;
             field.appendChild(el);
         });
     });
+}
 
+function renderField(sim) {
+    const field = $('football-field');
+    field.querySelector('.ball')?.remove();
+    renderPlayers(sim);
     const ball = document.createElement('div');
     ball.className = 'ball';
     ball.id = 'match-ball';
     ball.innerText = '⚽';
     ball.style.cssText = 'left:50%;top:50%;z-index:100';
     field.appendChild(ball);
-
-    setText('team1-name', match.team1.name);
-    setText('team2-name', match.team2.name);
+    setText('team1-name', sim.match.team1.name);
+    setText('team2-name', sim.match.team2.name);
 }
 
 function moveElement(id, x, y) {
@@ -91,15 +90,35 @@ function moveElement(id, x, y) {
     if (el) { el.style.left = `${x}%`; el.style.top = `${y}%`; }
 }
 
-function highlightPlayerWithBall(teamId, num) {
+function highlightPlayer(player) {
     document.querySelectorAll('.player.has-ball').forEach(el => el.classList.remove('has-ball'));
-    $(`player-${teamId}-${num}`)?.classList.add('has-ball');
+    if (player) $(`player-${player.teamId}-${player.number}`)?.classList.add('has-ball');
+}
+
+// ----- Составы -----
+function renderLineups(sim) {
+    const row = (p, cls = '') => {
+        const cards = p.yellow ? ' 🟨' : '';
+        return `<div class="lineup-player ${cls}"><span class="lp-num">${p.number}</span><span class="lp-pos">${p.position}</span><span class="lp-name" title="${p.name}">${p.name}${cards}</span><span class="lp-rating">${p.rating}</span></div>`;
+    };
+    $('lineups').innerHTML = ['team1', 'team2'].map(side => {
+        const s = sim.sides[side];
+        const color = side === 'team1' ? 'var(--accent-primary)' : 'var(--highlight)';
+        const home = sim.homeSide === side ? ' 🏠' : '';
+        const off = [...s.sentOff.map(p => row({ ...p, name: p.name + ' 🟥' }, 'off')), ...s.subbedOff.map(p => row({ ...p, name: p.name + ' ↩' }, 'off'))];
+        return `<div>
+            <div class="lineup-team-name" style="color:${color}">${teamLabel(s.team)}${home}</div>
+            ${s.onPitch.map(p => row(p)).join('')}
+            ${off.length ? `<div class="lineup-subtitle">Ушли с поля</div>${off.join('')}` : ''}
+            <div class="lineup-subtitle">Запасные (замен ${s.subsUsed}/${MAX_SUBS})</div>
+            ${s.bench.map(p => row(p, 'bench')).join('')}
+        </div>`;
+    }).join('');
 }
 
 // ----- Статистика и табло -----
-function updateStatsDisplay(match) {
-    const s = match.stats;
-    if (!s) return;
+function updateStatsDisplay(sim) {
+    const s = sim.stats;
     const p1 = Math.max(0, Math.min(100, s.possession.team1));
     $('possession-bar-1').style.width = p1 + '%';
     $('possession-bar-2').style.width = (100 - p1) + '%';
@@ -122,12 +141,12 @@ function updateScoreboard(m) {
     setText('score-2', score.t2);
 }
 
-function renderSubstitutions(match) {
-    const s1 = match.stats.substitutions.team1, s2 = match.stats.substitutions.team2;
+function renderSubstitutions(sim) {
+    const s1 = sim.stats.substitutions.team1, s2 = sim.stats.substitutions.team2;
     $('substitutions-panel').style.display = (s1.length || s2.length) ? 'block' : 'none';
     const column = (team, subs, color) => `<div><strong style="color:${color};margin-bottom:10px;display:block">${team.name}</strong>${subs.map(s =>
-        `<div class="sub-slot used"><span class="sub-number">${s.out}</span><span class="sub-player">→ ${s.in}</span><span class="sub-time">${s.minute}'</span></div>`).join('')}</div>`;
-    $('substitution-slots').innerHTML = column(match.team1, s1, 'var(--accent-primary)') + column(match.team2, s2, 'var(--highlight)');
+        `<div class="sub-slot used"><span class="sub-player">${s.out} → ${s.in}</span><span class="sub-time">${s.minute}'</span></div>`).join('')}</div>`;
+    $('substitution-slots').innerHTML = column(sim.match.team1, s1, 'var(--accent-primary)') + column(sim.match.team2, s2, 'var(--highlight)');
 }
 
 function celebrateGoal(side) {
@@ -138,28 +157,38 @@ function celebrateGoal(side) {
     later(() => el.classList.remove('goal-animation'), 500);
 }
 
+function legLabel(m, leg) {
+    if (m.legs !== 2) return m.isFinal ? 'Финал · нейтральное поле' : m.roundName;
+    const home = leg === 2 ? m.team2 : m.team1;
+    return `${m.roundName} · ${leg}-й матч · дома: ${home.name}`;
+}
+
+// Готовит экран к новой игре (первая игра матча или второй матч пары)
+function prepareLeg(m, leg) {
+    currentSim = new MatchSimulation(m, leg);
+    setText('match-stage-info', legLabel(m, leg));
+    renderField(currentSim);
+    renderLineups(currentSim);
+    renderSubstitutions(currentSim);
+    updateStatsDisplay(currentSim);
+    return currentSim;
+}
+
 // ----- Открытие матча -----
 function openMatchScreen(match) {
     stopMatchTimers();
     state.activeMatch = match;
     $('events-list').innerHTML = '';
-    $('substitutions-panel').style.display = 'none';
-    $('substitution-slots').innerHTML = '';
 
     setText('match-team-1', match.team1.name);
     setText('match-team-2', match.team2.name);
     setText('team-1-logo', match.team1.emoji || '⚽');
     setText('team-2-logo', match.team2.emoji || '⚽');
-    setText('score-1', '0');
-    setText('score-2', '0');
+    updateScoreboard(match);
     setText('match-time', "00'");
     setText('match-status', 'LIVE');
-    setText('match-stage-info', match.roundName);
 
-    ensureSquads(match);
-    initMatchStats(match);
-    renderField(match);
-    updateStatsDisplay(match);
+    prepareLeg(match, match.legs === 2 ? match.currentLeg : 1);
     setMatchInProgress(false);
 
     setVisible(['btn-sim-match', 'btn-instant-match'], true);
@@ -175,91 +204,75 @@ function beginMatch(runner) {
 
 // ----- Живая симуляция -----
 function startSimulation(m) {
-    let min = 0, ballX = 50, ballY = 50, ballOwner = null;
-    const possessionTicks = { team1: 0, team2: 0 };
+    let sim = currentSim;
+    let ballX = 50, ballY = 50;
 
     function updatePlayerPositions() {
-        [...m.squad1, ...m.squad2].forEach(p => {
-            let tx = p.baseX, ty = p.baseY;
-            const isTeam1 = p.team === m.team1.id;
-            const dir = isTeam1 ? 1 : -1; // team1 атакует вправо, team2 — влево
-            if (ballOwner === (isTeam1 ? 'team1' : 'team2')) {
-                if (p.position === 'FWD') tx += 15 * dir;
-                else if (p.position === 'MID') tx += 10 * dir;
-                else if (p.position === 'DEF') tx += 5 * dir;
-            } else if (ballOwner) {
-                if (p.position === 'DEF') tx -= 5 * dir;
-                else if (p.position === 'MID') tx -= 8 * dir;
-            }
-            if (p.isGoalkeeper) ty = Math.max(30, Math.min(70, ballY));
-            else ty += (ballY - 50) * 0.25;
-            p.x = Math.max(5, Math.min(95, p.x + (tx - p.x) * 0.3));
-            p.y = Math.max(5, Math.min(95, p.y + (ty - p.y) * 0.3));
-            moveElement(`player-${p.team}-${p.number}`, p.x, p.y);
+        const owner = sim.attackingSide;
+        ['team1', 'team2'].forEach(side => {
+            const dir = side === 'team1' ? 1 : -1; // team1 атакует вправо, team2 — влево
+            sim.sides[side].onPitch.forEach(p => {
+                let tx = p.baseX, ty = p.baseY;
+                if (owner === side) {
+                    if (p.position === 'FWD') tx += 15 * dir;
+                    else if (p.position === 'MID') tx += 10 * dir;
+                    else if (p.position === 'DEF') tx += 5 * dir;
+                } else {
+                    if (p.position === 'DEF') tx -= 5 * dir;
+                    else if (p.position === 'MID') tx -= 8 * dir;
+                }
+                if (p.position === 'GK') ty = Math.max(30, Math.min(70, ballY));
+                else ty += (ballY - 50) * 0.25;
+                p.x = Math.max(5, Math.min(95, p.x + (tx - p.x) * 0.3));
+                p.y = Math.max(5, Math.min(95, p.y + (ty - p.y) * 0.3));
+                moveElement(`player-${p.teamId}-${p.number}`, p.x, p.y);
+            });
         });
     }
 
-    function moveBall() {
-        if (ballOwner) {
-            const goalX = ballOwner === 'team1' ? 90 : 10;
-            ballX += (goalX - ballX) * 0.02 + (Math.random() - 0.5) * 3;
-            ballY += (50 - ballY) * 0.01 + (Math.random() - 0.5) * 3;
+    function moveBall(events) {
+        const goal = events.find(e => e.type === 'goal');
+        if (goal) { ballX = 50; ballY = 50; }
+        else {
+            const goalX = sim.attackingSide === 'team1' ? 90 : 10;
+            ballX += (goalX - ballX) * 0.15 + (Math.random() - 0.5) * 6;
+            ballY += (50 - ballY) * 0.05 + (Math.random() - 0.5) * 8;
         }
         ballX = Math.max(5, Math.min(95, ballX));
         ballY = Math.max(5, Math.min(95, ballY));
         moveElement('match-ball', ballX, ballY);
+        const carrier = events.find(e => e.player)?.player;
+        highlightPlayer(carrier || null);
     }
 
-    function changePossession() {
-        // В «реализме» сильная команда владеет мячом чаще
-        if (!ballOwner || Math.random() < 0.15) {
-            ballOwner = Math.random() < getTeam1EdgeProbability(m) ? 'team1' : 'team2';
-            const squad = ballOwner === 'team1' ? m.squad1 : m.squad2;
-            const pwb = squad[Math.floor(Math.random() * squad.length)];
-            highlightPlayerWithBall(ballOwner === 'team1' ? m.team1.id : m.team2.id, pwb.number);
-        }
-        possessionTicks[ballOwner]++;
-        m.stats.possession.team1 = Math.round(possessionTicks.team1 / (possessionTicks.team1 + possessionTicks.team2) * 100);
-        m.stats.possession.team2 = 100 - m.stats.possession.team1;
-    }
+    function step() {
+        const events = sim.step();
+        let lineupChanged = false;
+        events.forEach(ev => {
+            showSimEvent(m, ev);
+            if (ev.type === 'goal') { updateScoreboard(m); celebrateGoal(ev.side); }
+            if (ev.lineupChanged) lineupChanged = true;
+        });
+        if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
+        if (lineupChanged || events.some(e => e.type === 'card-yellow')) renderLineups(sim);
 
-    function handleEvent(event) {
-        if (event.type === 'goal') {
-            const { scorer } = applyLiveGoal(m, event.side);
-            updateScoreboard(m);
-            celebrateGoal(event.side);
-            addMatchEvent(m, min, 'goal', `ГОЛ! #${scorer.number} ${scorer.name} (${scorer.position})`, event.team);
-            ballX = 50; ballY = 50;
-            ballOwner = event.side === 'team1' ? 'team2' : 'team1'; // розыгрыш с центра
-            return;
-        }
-        addMatchEvent(m, min, event.type, EVENT_TEXTS[event.type](event), event.team);
-        if (event.type === 'substitution') renderSubstitutions(m);
-    }
+        moveBall(events);
+        updatePlayerPositions();
+        setText('match-time', sim.minute + "'");
+        if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
+        updateStatsDisplay(sim);
 
-    function endOfRegularTime() {
-        if (m.legs === 2 && m.currentLeg === 1) {
-            setText('match-status', '2-й матч');
+        if (!sim.isOver) return;
+        if (m.legs === 2 && sim.leg === 1) {
             addMatchEvent(m, 90, 'half', `Конец 1-го матча: ${m.leg1.t1}:${m.leg1.t2}`, null);
-            m.currentLeg = 2;
-            min = 0;
+            setText('match-status', '2-й матч');
+            sim = prepareLeg(m, 2);
+            ballX = 50; ballY = 50;
             updateScoreboard(m);
             return;
         }
         stopMatchTimers();
-        concludeMatch(m);
-    }
-
-    function step() {
-        min++;
-        if (min > 90) { endOfRegularTime(); return; }
-        moveBall();
-        updatePlayerPositions();
-        changePossession();
-        const event = generateRandomEvent(m, min);
-        if (event) handleEvent(event);
-        setText('match-time', min + "'");
-        updateStatsDisplay(m);
+        concludeMatch(m, sim);
     }
 
     onSpeedChange = () => {
@@ -269,42 +282,40 @@ function startSimulation(m) {
     simulationInterval = setInterval(step, getMatchInterval());
 }
 
-// ----- Быстрый результат -----
-function instantResult(m) {
-    const firstLegPending = m.legs === 2 && m.currentLeg === 1;
-    simulateMatchScore(m);
-    const log = text => addMatchEvent(m, '', 'half', text, null);
+// ----- Быстрый результат: тот же движок, но без показа по минутам -----
+const KEY_EVENTS = new Set(['goal', 'card-red', 'penalty-miss', 'injury']);
 
-    if (firstLegPending) {
-        setText('score-1', m.leg1.t1);
-        setText('score-2', m.leg1.t2);
-        setText('match-time', 'FT (1-й матч)');
-        log(`🎲 1-й матч: ${m.team1.name} ${m.leg1.t1}:${m.leg1.t2} ${m.team2.name}`);
-        later(() => {
-            log('📊 Переход ко 2-му матчу...');
-            setText('match-time', "00' (2-й матч)");
-            later(() => {
-                updateScoreboard(m);
-                setText('match-time', 'FT');
-                log(`🎲 2-й матч: ${m.team1.name} ${m.leg2.t1}:${m.leg2.t2} ${m.team2.name}`);
-                const agg = m.aggregateScore;
-                log(`📊 Итого: ${agg.t1}:${agg.t2}`);
-                later(() => concludeMatch(m), 1000);
-            }, 1500);
-        }, 1000);
-    } else {
-        updateScoreboard(m);
-        setText('match-time', 'FT');
-        const agg = m.aggregateScore;
-        log(`🎲 ${m.team1.name} ${agg.t1}:${agg.t2} ${m.team2.name}`);
-        later(() => concludeMatch(m), 1000);
+function instantResult(m) {
+    const legs = [];
+    let sim = currentSim;
+    while (true) {
+        sim.runToEnd();
+        legs.push(sim);
+        if (m.legs === 2 && sim.leg === 1) sim = new MatchSimulation(m, 2);
+        else break;
     }
+    currentSim = sim;
+
+    legs.forEach(s => {
+        const prefix = m.legs === 2 ? `[${s.leg}-й матч] ` : '';
+        s.events.filter(e => KEY_EVENTS.has(e.type) || (e.type === 'half' && e.text.includes('дополнительное'))).forEach(e => showSimEvent(m, e, prefix));
+        if (m.legs === 2) addMatchEvent(m, '', 'half', `${s.leg}-й матч: ${m.team1.name} ${s.score.t1}:${s.score.t2} ${m.team2.name}`, null);
+    });
+
+    renderPlayers(sim);
+    renderLineups(sim);
+    renderSubstitutions(sim);
+    updateStatsDisplay(sim);
+    updateScoreboard(m);
+    setText('match-stage-info', legLabel(m, sim.leg));
+    setText('match-time', m.extraTime ? 'FT (д.в.)' : 'FT');
+    later(() => concludeMatch(m, sim), 600);
 }
 
-// После основного времени: либо пенальти, либо сразу итог
-function concludeMatch(m) {
+// После основного (и дополнительного) времени: либо пенальти, либо сразу итог
+function concludeMatch(m, sim) {
     if (!needsShootout(m)) { finishMatch(m, winnerByScore(m)); return; }
-    const shootout = computeShootout(m);
+    const shootout = computeShootout(m, sim);
     addMatchEvent(m, '', 'penalties', 'Серия пенальти!', null);
     setText('match-status', 'ПЕНАЛЬТИ');
     animateShootout(m, shootout, () => {
@@ -320,7 +331,7 @@ function animateShootout(m, shootout, onDone) {
         const k = shootout.kicks[i++];
         if (k.scored) { if (k.side === 'team1') s1++; else s2++; }
         const team = k.side === 'team1' ? m.team1 : m.team2;
-        addMatchEvent(m, 'ПЕН', k.scored ? 'penalty-goal' : 'penalty-miss', `Удар ${k.number}: ${k.scored ? 'ГОЛ!' : 'МИМО!'}`, team);
+        addMatchEvent(m, 'ПЕН', k.scored ? 'penalty-goal' : 'penalty-miss', `${k.player || 'Удар ' + k.number}: ${k.scored ? 'ГОЛ!' : 'МИМО!'}`, team);
         setText('match-time', `ПЕН ${s1}:${s2}`);
         later(next, 1000);
     };
@@ -334,9 +345,10 @@ function finishMatch(m, winner) {
 
     const agg = m.aggregateScore;
     const prefix = m.isFinal ? '🏆 ФИНАЛ | ' : (m.legs === 2 ? `(${m.leg1.t1}:${m.leg1.t2}, ${m.leg2.t1}:${m.leg2.t2}) | ` : '');
+    const et = m.extraTime ? ' (д.в.)' : '';
     const pen = m.penalties.kicks.length ? ` (пен. ${m.penalties.t1}:${m.penalties.t2})` : '';
     const text = winner
-        ? `${prefix}${winner.name} победил ${agg.t1}:${agg.t2}${pen}`
+        ? `${prefix}${winner.name} победил ${agg.t1}:${agg.t2}${et}${pen}`
         : `${prefix}Ничья ${agg.t1}:${agg.t2}${m.stage === 'group' ? ' (по 1 очку)' : ''}`;
     addMatchEvent(m, 'FT', 'finish', text, null);
     if (isUserMatch(m) && state.userTeamEliminated) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
