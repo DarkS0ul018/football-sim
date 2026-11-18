@@ -283,22 +283,34 @@ function startSimulation(m) {
     playSound('whistle-long');
     startCrowd();
 
+    // Атака с ударом показывается две минуты: следующий шаг движка пропускается
+    let holdTicks = 0;
+    const SHOT_ENDS = ['goal', 'save', 'off', 'penalty-goal', 'penalty-miss'];
+
     function step() {
+        if (holdTicks > 0) { holdTicks--; return; }
         const events = sim.step();
         let lineupChanged = false;
         const ms = getMatchInterval();
+        const isShot = sim.play && sim.play.end && SHOT_ENDS.includes(sim.play.end.type);
+        const span = isShot && !sim.isOver ? 2 : 1;
+        if (span > 1) holdTicks = span - 1;
+
         events.forEach(ev => {
-            // Голы показываем, когда мяч долетит до ворот
-            // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
-            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); }, ms * 0.85);
-            else showSimEvent(m, ev);
             if (ev.lineupChanged) lineupChanged = true;
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
         if (lineupChanged || events.some(e => e.type === 'card-yellow' || e.type === 'tactic')) renderLineups(sim);
 
-        animateMinute(sim, events, ms);
+        const plan = animateMinute(sim, events, ms, span) || {};
+        // Голы показываем, когда мяч влетит в ворота
+        // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
+        const goalDelay = plan.goalAt != null ? plan.goalAt + 60 : ms * span * 0.85; // +60 мс: табло меняется, когда мяч уже в сетке
+        events.forEach(ev => {
+            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); }, goalDelay);
+            else showSimEvent(m, ev);
+        });
         crowdIntensity(sim);
         setText('match-time', sim.minute + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');

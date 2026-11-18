@@ -306,7 +306,23 @@ function recordFrame(holder) {
 }
 
 // Розыгрыш минуты строится по описанию из движка (sim.play): те же игроки, что в ленте событий
-function animateMinute(sim, events, ms) {
+// Мгновенно доигрывает недошедший до конца розыгрыш: мяч в последнюю точку, все события срабатывают
+// (иначе гол, начатый в прошлой минуте, мог потеряться — без повтора, сетки и титра)
+function flushPendingPath() {
+    const pending = pitch.path;
+    if (!pending.length) return;
+    pitch.path = [];
+    pending.forEach(seg => {
+        const x = seg.follow && seg.follow.x !== undefined ? seg.follow.x : seg.x;
+        const y = seg.follow && seg.follow.y !== undefined ? seg.follow.y : seg.y;
+        placeBall(x, y);
+        if (seg.onArrive) seg.onArrive();
+    });
+}
+
+// span — сколько игровых минут длится показ (атака с ударом — 2)
+function animateMinute(sim, events, ms, span = 1) {
+    flushPendingPath(); // прошлый розыгрыш не успел закончиться — доигрываем его мгновенно (гол не потеряется)
     clearPitchTimers();
     pitch.sim = sim;
     pitch.msPerMinute = ms;
@@ -342,7 +358,7 @@ function animateMinute(sim, events, ms) {
 
     // Бьющий заранее бежит в зону удара; если не успевает — бьёт издали, откуда добежал
     if (shooter && !String(end.type).startsWith('penalty')) {
-        const depth = { FWD: [80, 10], MID: [73, 12], DEF: [76, 10] }[shooter.position] || [75, 10];
+        const depth = { FWD: [83, 8], MID: [80, 9], DEF: [80, 8] }[shooter.position] || [81, 8]; // из штрафной
         const want = play.kind === 'corner'
             ? { r: 87 + Math.random() * 4, y: 42 + Math.random() * 16 }
             : { r: depth[0] + Math.random() * depth[1], y: clampv(shooter.y, 28, 72) };
@@ -399,7 +415,7 @@ function animateMinute(sim, events, ms) {
     if (!wps.length) return;
 
     // Длительность отрезков пропорциональна длине передачи (в сумме — почти вся минута)
-    const budget = ms * 0.85;
+    const budget = ms * span * 0.85; // атака с ударом идёт дольше (span = 2): бьющий успевает в штрафную
     let from = { ...pitch.ball };
     const lens = wps.map(w => { const d = Math.hypot(w.x - from.x, (w.y - from.y) * 0.66) + 4; from = w; return d; });
     const total = lens.reduce((a, b) => a + b, 0);
@@ -447,6 +463,10 @@ function animateMinute(sim, events, ms) {
         }
     }));
     pitch.focus = { x: wps[0].x, y: wps[0].y };
+    // Когда мяч влетит в ворота (для показа гола на табло ровно в этот момент)
+    let acc = 0, goalAt = null;
+    pitch.path.forEach((seg, i) => { acc += seg.dur; if (wps[i].goal && goalAt === null) goalAt = acc; });
+    return { goalAt };
 }
 
 function onGoalAnimation(sim, ev) {
