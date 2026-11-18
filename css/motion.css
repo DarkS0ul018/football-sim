@@ -1,0 +1,233 @@
+/* =====================================================================
+   АНИМАЦИИ И ЭФФЕКТЫ
+   Подключается после app.css. При системной настройке «уменьшить движение» всё отключается.
+   ===================================================================== */
+
+/* ----- Фон: лучи прожекторов и лёгкое зерно ----- */
+body::before,
+body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: -1; /* за контентом: окна паузы и пенальти остаются поверх всего */
+}
+body::before {
+    background:
+        conic-gradient(from 200deg at 12% -10%, transparent 0deg, rgba(184, 242, 74, 0.07) 12deg, transparent 26deg),
+        conic-gradient(from 160deg at 88% -10%, transparent 0deg, rgba(79, 168, 255, 0.08) 14deg, transparent 30deg);
+    animation: floodlights 18s ease-in-out infinite alternate;
+    transform-origin: 50% 0;
+}
+body::after {
+    opacity: 0.05;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+@keyframes floodlights {
+    0%   { transform: rotate(-3deg) scaleX(1); opacity: 0.8; }
+    50%  { opacity: 1; }
+    100% { transform: rotate(3deg) scaleX(1.08); opacity: 0.85; }
+}
+.app-container { position: relative; }
+
+/* ----- Появление элементов каскадом ----- */
+.rise {
+    animation: riseIn 0.5s cubic-bezier(.2, .8, .2, 1) backwards;
+    animation-delay: calc(var(--i, 0) * 45ms);
+}
+@keyframes riseIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.985); }
+    to   { opacity: 1; transform: none; }
+}
+.screen-header .kicker { animation: kickerIn 0.5s cubic-bezier(.2, .8, .2, 1) both; }
+.screen-header h1, .dashboard-header h2 { animation: titleIn 0.6s cubic-bezier(.2, .8, .2, 1) both; animation-delay: 60ms; }
+.screen-header .subtitle { animation: riseIn 0.6s ease both; animation-delay: 140ms; }
+@keyframes kickerIn {
+    from { opacity: 0; clip-path: polygon(0 0, 0 0, 0 100%, 0 100%); }
+    to   { opacity: 1; clip-path: polygon(0 0, 100% 0, calc(100% - 8px) 100%, 0 100%); }
+}
+@keyframes titleIn {
+    from { opacity: 0; transform: translateX(-18px); letter-spacing: 0.08em; }
+    to   { opacity: 1; transform: none; }
+}
+
+/* ----- Кнопки: блик и отклик ----- */
+.btn-primary { position: relative; overflow: hidden; isolation: isolate; }
+.btn-primary::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; left: -60%;
+    width: 45%;
+    background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+    transform: skewX(-20deg);
+    z-index: -1;
+    transition: none;
+}
+.btn-primary:hover:not(:disabled)::after { animation: sheen 0.8s ease; }
+#btn-start::after, #btn-start-tournament::after, #btn-sim-match::after { animation: sheen 3.2s ease-in-out infinite 1.5s; }
+@keyframes sheen { from { left: -60%; } to { left: 130%; } }
+.btn-primary:hover:not(:disabled), .btn-secondary:hover:not(:disabled) { transform: translateY(-1px); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(184, 242, 74, 0.25); }
+.btn-primary, .btn-secondary { transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s, box-shadow 0.2s; }
+
+/* ----- Карточки: подъём и подсветка ----- */
+.team-select-card, .bracket-match, .award-card, .achievement-card, .tr-stat, .editor-team, .match-result {
+    transition: transform 0.2s cubic-bezier(.2, .8, .2, 1), border-color 0.2s, box-shadow 0.2s, background 0.2s;
+}
+.team-select-card:hover, .award-card:hover, .tr-stat:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(184, 242, 74, 0.25);
+}
+.bracket-match:not(.played):hover { transform: translateX(3px); box-shadow: -3px 0 0 var(--accent); }
+.team-select-card .crest, .award-card .award-icon { transition: transform 0.3s cubic-bezier(.2, .8, .2, 1.4); }
+.team-select-card:hover .crest { transform: scale(1.08) rotate(-3deg); }
+.team-select-card.selected { animation: pickPop 0.35s cubic-bezier(.2, .8, .2, 1.4); }
+@keyframes pickPop { 0% { transform: scale(0.94); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.picker-order { animation: pickPop 0.35s cubic-bezier(.2, .8, .2, 1.4); }
+
+/* Строки таблиц */
+.table-container tr, .stats-table tbody tr { transition: background 0.15s; }
+.table-container tr:hover td, .stats-table tbody tr:hover td { background: rgba(184, 242, 74, 0.05); }
+
+/* Заголовки секций: акцентная черта */
+.card > h3, .match-stats-container h3, .lineups-container h3, .match-events-container h3, .top-scorers-section h3 { position: relative; padding-left: 12px; }
+.card > h3::before, .match-stats-container h3::before, .lineups-container h3::before, .match-events-container h3::before, .top-scorers-section h3::before {
+    content: '';
+    position: absolute; left: 0; top: 2px; bottom: 2px; width: 4px;
+    background: var(--accent);
+    transform: skewX(-12deg);
+}
+
+/* Логотип в шапке */
+.brand-mark { transition: transform 0.4s cubic-bezier(.2, .8, .2, 1.4); }
+.brand:hover .brand-mark { transform: skewX(-8deg) rotate(-8deg) scale(1.08); }
+.brand-mark span { display: inline-block; animation: ballSpin 6s linear infinite; }
+@keyframes ballSpin { to { transform: skewX(8deg) rotate(360deg); } }
+
+/* ----- Табло ----- */
+.status { position: relative; padding-left: 16px; }
+.status::before {
+    content: '';
+    position: absolute; left: 5px; top: 50%;
+    width: 6px; height: 6px; margin-top: -3px;
+    border-radius: 50%;
+    background: #fff;
+    animation: livePulse 1.2s ease-in-out infinite;
+}
+@keyframes livePulse { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.3; transform: scale(0.6); } }
+.sb-score { perspective: 300px; }
+.score.flip { animation: scoreFlip 0.6s cubic-bezier(.2, .8, .2, 1); }
+@keyframes scoreFlip {
+    0%   { transform: rotateX(0); }
+    45%  { transform: rotateX(90deg); opacity: 0.2; }
+    55%  { transform: rotateX(-90deg); opacity: 0.2; }
+    100% { transform: rotateX(0); opacity: 1; }
+}
+.scoreboard-v2.goal-flash { animation: boardFlash 1.2s ease-out; }
+.scoreboard-v2.goal-flash .sb-score { animation: scoreBoxPulse 1.2s ease-out; }
+@keyframes boardFlash {
+    0%   { box-shadow: 0 0 0 0 rgba(184, 242, 74, 0.9); }
+    30%  { box-shadow: 0 0 0 6px rgba(184, 242, 74, 0.35), 0 0 60px rgba(184, 242, 74, 0.5); transform: scale(1.01); }
+    100% { box-shadow: var(--shadow); transform: none; }
+}
+@keyframes scoreBoxPulse { 0%, 100% { filter: none; } 25% { filter: brightness(1.35); } }
+.team-logo .crest { transition: transform 0.3s; }
+.scoreboard-v2 .team-logo .crest { animation: crestBreath 4s ease-in-out infinite; }
+@keyframes crestBreath { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+
+/* Лента событий: гол вспыхивает */
+.event-item.goal { animation: eventIn 0.3s ease-out, goalRow 1.4s ease-out; }
+@keyframes goalRow { 0% { background: rgba(184, 242, 74, 0.45); } 100% { background: rgba(184, 242, 74, 0.12); } }
+
+/* ----- Интро перед матчем (как в трансляции) ----- */
+.match-intro {
+    position: fixed; inset: 0; z-index: 6000;
+    display: grid; grid-template-columns: 1fr 1fr;
+    pointer-events: none; overflow: hidden;
+    background: #070d1a; /* подложка: на стыке половин не просвечивает страница */
+    animation: introOut 0.45s ease-in forwards; animation-delay: 1.7s;
+}
+.match-intro .mi-side {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    color: #fff; text-align: center; padding: 20px;
+    font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.04em;
+}
+.match-intro .mi-side h2 { font-size: clamp(1.4rem, 4vw, 3rem); text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5); }
+.match-intro .mi-home {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--kit1, #4fa8ff) 85%, #000), color-mix(in srgb, var(--kit1, #4fa8ff) 45%, #070d1a));
+    clip-path: polygon(0 0, 100% 0, 88% 100%, 0 100%);
+    animation: introLeft 0.55s cubic-bezier(.2, .8, .2, 1) both;
+}
+.match-intro .mi-away {
+    background: linear-gradient(225deg, color-mix(in srgb, var(--kit2, #ff3b55) 85%, #000), color-mix(in srgb, var(--kit2, #ff3b55) 45%, #070d1a));
+    clip-path: polygon(12% 0, 100% 0, 100% 100%, 0 100%);
+    margin-left: -12%;
+    animation: introRight 0.55s cubic-bezier(.2, .8, .2, 1) both;
+}
+.match-intro .crest { --size: clamp(80px, 16vw, 150px); animation: introCrest 0.7s cubic-bezier(.2, .8, .2, 1.4) both; animation-delay: 0.25s; }
+.match-intro .mi-vs {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+}
+.match-intro .mi-vs b {
+    font-family: var(--font-display); font-size: clamp(2.5rem, 7vw, 5rem); font-weight: 700;
+    color: var(--accent-ink); background: var(--accent);
+    padding: 0 22px; transform: skewX(-10deg);
+    animation: introVs 0.5s cubic-bezier(.2, .8, .2, 1.4) both; animation-delay: 0.45s;
+}
+.match-intro .mi-vs small {
+    font-family: var(--font-display); letter-spacing: 0.18em; text-transform: uppercase;
+    color: #fff; background: rgba(7, 13, 26, 0.85); padding: 3px 12px;
+    animation: riseIn 0.4s ease both; animation-delay: 0.65s;
+}
+@keyframes introLeft { from { transform: translateX(-100%); } to { transform: none; } }
+@keyframes introRight { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes introCrest { from { opacity: 0; transform: scale(0.4) rotate(-12deg); } to { opacity: 1; transform: none; } }
+@keyframes introVs { from { opacity: 0; transform: skewX(-10deg) scale(2.2); } to { opacity: 1; transform: skewX(-10deg) scale(1); } }
+@keyframes introOut { to { opacity: 0; transform: scale(1.04); } }
+
+/* ----- Чемпион ----- */
+.champion-box-v2 { isolation: isolate; }
+.champion-box-v2::before {
+    content: '';
+    position: absolute; left: 50%; top: 58%;
+    width: 900px; height: 900px; margin: -450px 0 0 -450px;
+    background: repeating-conic-gradient(from 0deg, rgba(245, 200, 75, 0.10) 0deg 8deg, transparent 8deg 22deg);
+    border-radius: 50%;
+    animation: raysSpin 40s linear infinite;
+    z-index: -1;
+    mask-image: radial-gradient(circle, #000 20%, transparent 60%);
+    -webkit-mask-image: radial-gradient(circle, #000 20%, transparent 60%);
+}
+@keyframes raysSpin { to { transform: rotate(360deg); } }
+.screen.active .champion-name .crest { animation: championCrest 0.9s cubic-bezier(.2, .8, .2, 1.5) both; animation-delay: 0.2s; }
+.screen.active .champion-name { animation: riseIn 0.7s ease both; animation-delay: 0.35s; }
+@keyframes championCrest { from { opacity: 0; transform: scale(0.3) rotate(-25deg); } to { opacity: 1; transform: none; } }
+.screen.active .award-card { animation: flipIn 0.6s cubic-bezier(.2, .8, .2, 1) backwards; animation-delay: calc(var(--i, 0) * 90ms + 300ms); }
+@keyframes flipIn { from { opacity: 0; transform: perspective(600px) rotateY(80deg); } to { opacity: 1; transform: none; } }
+.achievement-card.unlocked { animation: unlockGlow 2.4s ease-in-out infinite; }
+@keyframes unlockGlow { 0%, 100% { box-shadow: 0 0 0 0 rgba(184, 242, 74, 0); } 50% { box-shadow: 0 0 18px 0 rgba(184, 242, 74, 0.25); } }
+
+/* Прогресс плей-офф: текущий этап мерцает */
+.progress-step.active:not(.completed) { animation: stepGlow 2s ease-in-out infinite; }
+@keyframes stepGlow { 0%, 100% { filter: none; } 50% { filter: brightness(1.18); } }
+
+/* Переход между экранами */
+.screen.active { animation: screenIn 0.4s cubic-bezier(.2, .8, .2, 1); }
+
+@media (max-width: 720px) {
+    .match-intro .crest { --size: 64px; }
+    .match-intro .mi-side { gap: 8px; padding-top: 140px; }
+}
+
+/* ----- Уважение к настройке «уменьшить движение» ----- */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        animation-delay: 0ms !important;
+        transition-duration: 0.01ms !important;
+    }
+    .match-intro { display: none !important; }
+}
