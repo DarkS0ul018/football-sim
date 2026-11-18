@@ -151,6 +151,7 @@ class MatchSimulation {
         this.attackingSide = 'team1';
         this.possessionTicks = { team1: 0, team2: 0 };
         this.events = [];
+        this.newEvents = []; // события текущей минуты (есть и до первого шага — для смены тактики в паузе)
         // Доп. время возможно только в решающей игре плей-офф
         this.allowExtraTime = match.stage === 'playoff' && (match.legs === 1 || leg === 2);
         this.stats = {
