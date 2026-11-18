@@ -1,0 +1,8 @@
+﻿# Резервные копии и локальные настройки Claude
+_backup/
+.claude/
+
+# Системный мусор
+Thumbs.db
+desktop.ini
+.DS_Store

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Football Sim Pro ⚽</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="css/style.css">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚽</text></svg>">
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
@@ -32,6 +32,21 @@
                 <p class="subtitle">Симулятор футбольного турнира</p>
             </div>
             
+            <div id="resume-card" class="card resume-card" style="display:none;">
+                <div class="resume-info">
+                    <div class="resume-label">💾 Сохранённый турнир</div>
+                    <div id="resume-title" class="resume-title"></div>
+                    <div id="resume-details" class="resume-details"></div>
+                </div>
+                <div class="resume-actions">
+                    <button id="btn-resume" class="btn-primary btn-glow">
+                        <span class="btn-icon">▶️</span>
+                        <span class="btn-text">Продолжить</span>
+                    </button>
+                    <button id="btn-discard-save" class="btn-secondary">🗑️ Удалить</button>
+                </div>
+            </div>
+
             <div class="card">
                 <div class="form-group">
                     <label>🔢 Количество команд:</label>
@@ -410,6 +425,20 @@
         </section>
     </div>
 
-    <script src="script.js"></script>
+    <!-- Данные -->
+    <script src="js/data/teams.js"></script>
+    <script src="js/data/squads.js"></script>
+    <!-- Логика (без DOM) -->
+    <script src="js/core/state.js"></script>
+    <script src="js/core/engine.js"></script>
+    <script src="js/core/tournament.js"></script>
+    <script src="js/core/storage.js"></script>
+    <!-- Интерфейс -->
+    <script src="js/ui/common.js"></script>
+    <script src="js/ui/setup.js"></script>
+    <script src="js/ui/dashboard.js"></script>
+    <script src="js/ui/match.js"></script>
+    <script src="js/ui/results.js"></script>
+    <script src="js/main.js"></script>
 </body>
 </html>

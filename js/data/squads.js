@@ -1,4 +1,6 @@
-{
+// Составы команд. Хранятся в .js (а не .json), чтобы игра открывалась двойным кликом без сервера.
+// Формат: SQUADS[тип][команда] = { goalkeepers, defenders, midfielders, forwards }
+const SQUADS = {
   "russia": {
     "Спартак": {
       "goalkeepers": ["Селихов", "Ребров", "Акмурзин"],
@@ -303,4 +305,4 @@
       "forwards": ["Gimenez", "Stengs", "Calvert-Lewin", "Timber", "Hwang", "Ueda"]
     }
   }
-}
+};
