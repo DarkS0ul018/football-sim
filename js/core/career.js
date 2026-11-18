@@ -20,6 +20,148 @@ function clearCareer() {
     try { localStorage.removeItem(CAREER_KEY); } catch (e) { /* ignore */ }
 }
 
+// ===== РЕЕСТР ИГРОКОВ КАРЬЕРЫ =====
+// Всё, что изменилось относительно стандартных данных: рост/спад рейтинга, возраст, переходы.
+// Ключ — «исходный клуб|имя», поле team — где игрок сейчас.
+let careerPlayers = null; // активен только в карьере (иначе null)
+
+function playerKey(origTeam, name) {
+    return `${origTeam}|${name}`;
+}
+
+// Применяет реестр к стандартному составу команды
+function applyCareerRoster(teamName, base) {
+    const reg = careerPlayers;
+    const list = [];
+    base.forEach(p => {
+        const e = reg[playerKey(p.origTeam || teamName, p.name)];
+        if (e && e.team !== teamName) return;         // продан в другой клуб
+        list.push(e ? { ...p, rating: e.rating, age: e.age } : p);
+    });
+    Object.values(reg).forEach(e => {               // пришедшие из других клубов
+        if (e.team === teamName && e.origTeam !== teamName) {
+            list.push({ name: e.name, position: e.position, rating: e.rating, age: e.age, origTeam: e.origTeam, starter: false });
+        }
+    });
+    return list.map((p, i) => ({ ...p, number: i + 1 }));
+}
+
+// Включает реестр карьеры для команды игрока (при старте турнира)
+function activateCareerPlayers(userTeamName) {
+    const career = readCareer();
+    careerPlayers = career.teamName === userTeamName ? (career.players || {}) : {};
+}
+
+// ----- Развитие игроков -----
+function developmentRange(age) {
+    if (age <= 20) return [2, 5];
+    if (age <= 23) return [1, 3];
+    if (age <= 27) return [-1, 2];
+    if (age <= 30) return [-2, 1];
+    if (age <= 33) return [-3, 0];
+    return [-4, -1];
+}
+
+// В конце сезона: все игроки турнира стареют на год и меняют рейтинг.
+// Возвращает изменения по команде игрока для показа.
+function developPlayers(career) {
+    career.players = career.players || {};
+    const changes = [];
+    state.teams.forEach(team => {
+        const roster = state.rosters ? state.rosters[team.name] : null;
+        if (!roster) return;
+        const teamMatches = Math.max(1, team.stats.played);
+        roster.forEach(p => {
+            const st = playerStats[`${team.id}-${p.number}`] || { matches: 0, goals: 0, assists: 0 };
+            const age = p.age || baseAge(team.name, p.name);
+            const [lo, hi] = developmentRange(age);
+            let delta = lo + Math.floor(Math.random() * (hi - lo + 1));
+            const share = st.matches / teamMatches;
+            if (age <= 27 && share >= 0.5) delta += 1;                 // игровая практика
+            if (age <= 25 && share < 0.15) delta -= 1;                  // без игры молодые не растут
+            if (age <= 29 && st.matches && (st.goals + st.assists) / st.matches >= 0.5) delta += 1; // результативность
+            const rating = Math.max(45, Math.min(97, p.rating + delta));
+            const origTeam = p.origTeam || team.name;
+            career.players[playerKey(origTeam, p.name)] = { team: team.name, origTeam, name: p.name, position: p.position, rating, age: age + 1 };
+            if (state.userTeam && team.id === state.userTeam.id) {
+                changes.push({ name: p.name, position: p.position, age: age + 1, before: p.rating, after: rating });
+            }
+        });
+    });
+    return changes.sort((a, b) => (b.after - b.before) - (a.after - a.before));
+}
+
+// ----- Финансы и трансферы -----
+// Стоимость игрока, млн €: растёт с рейтингом, молодые дороже, ветераны дешевле
+function playerValue(rating, age) {
+    const base = Math.pow(Math.max(1, rating - 60), 2.2) / 22;
+    const ageK = age <= 23 ? 1.3 : age <= 28 ? 1 : age <= 31 ? 0.7 : 0.4;
+    return Math.max(0.5, Math.round(base * ageK * 10) / 10);
+}
+
+function formatMoney(m) {
+    return m >= 10 ? `${Math.round(m)} млн €` : `${m.toFixed(1)} млн €`;
+}
+
+function seasonIncome(result) {
+    if (!result) return 20;
+    if (result.trophy) return 60;
+    if (result.place === 2) return 45;
+    if (/Полуфинал|1\/4|^[2-4] место/.test(result.text)) return 35;
+    return 25;
+}
+
+const SQUAD_MAX = 26;
+const SQUAD_LINE_MIN = { GK: 2, DEF: 5, MID: 5, FWD: 3 };
+
+// Текущий состав команды игрока с учётом реестра (для трансферного окна)
+function careerSquad(teamName) {
+    const saved = state.rosters;
+    state.rosters = null;
+    const rating = teamRatings[teamName] ?? 75;
+    const list = getTeamRoster(teamName, rating);
+    state.rosters = saved;
+    return list;
+}
+
+function canSell(teamName, player) {
+    const squad = careerSquad(teamName);
+    if (squad.length <= 18) return 'в составе должно остаться минимум 18 игроков';
+    const left = squad.filter(p => p.position === player.position).length - 1;
+    if (left < SQUAD_LINE_MIN[player.position]) return `нужно минимум ${SQUAD_LINE_MIN[player.position]} на позиции ${player.position}`;
+    return null;
+}
+
+function buyPlayer(career, userTeam, player, fromTeam) {
+    const price = playerValue(player.rating, player.age);
+    if (career.budget < price) return 'не хватает денег';
+    if (careerSquad(userTeam).length >= SQUAD_MAX) return `в составе уже ${SQUAD_MAX} игроков`;
+    const origTeam = player.origTeam || fromTeam;
+    career.players[playerKey(origTeam, player.name)] = { team: userTeam, origTeam, name: player.name, position: player.position, rating: player.rating, age: player.age };
+    career.budget = Math.round((career.budget - price) * 10) / 10;
+    career.transfers = (career.transfers || []).concat({ season: career.seasons.length + 1, type: 'in', name: player.name, team: fromTeam, price });
+    return null;
+}
+
+function sellPlayer(career, userTeam, player, pool) {
+    const reason = canSell(userTeam, player);
+    if (reason) return reason;
+    const buyers = pool.filter(n => n !== userTeam);
+    const buyer = buyers[Math.floor(Math.random() * buyers.length)];
+    const price = Math.round(playerValue(player.rating, player.age) * 0.8 * 10) / 10;
+    const origTeam = player.origTeam || userTeam;
+    career.players[playerKey(origTeam, player.name)] = { team: buyer, origTeam, name: player.name, position: player.position, rating: player.rating, age: player.age };
+    career.budget = Math.round((career.budget + price) * 10) / 10;
+    career.transfers = (career.transfers || []).concat({ season: career.seasons.length + 1, type: 'out', name: player.name, team: buyer, price });
+    return null;
+}
+
+// Рейтинг команды по её составу (для таблиц и выбора соперников)
+function rosterTeamRating(roster) {
+    const top = roster.map(p => p.rating).sort((a, b) => b - a).slice(0, 11);
+    return Math.round(top.reduce((a, b) => a + b, 0) / Math.max(1, top.length) - 3);
+}
+
 // Насколько далеко прошла команда игрока: { text, place, trophy }
 function getUserResult() {
     const team = state.userTeam;
@@ -56,7 +198,13 @@ function recordCareerSeason() {
     const career = readCareer();
     const team = state.userTeam;
     // Новая команда — новая карьера
-    if (career.teamName && career.teamName !== team.name) career.seasons = [];
+    if (career.teamName && career.teamName !== team.name) {
+        career.seasons = [];
+        career.players = {};
+        career.transfers = [];
+        delete career.budget;
+    }
+    if (typeof career.budget !== 'number') career.budget = Math.max(20, (team.rating - 60) * 3);
     career.teamName = team.name;
     career.teamEmoji = team.emoji;
     const goals = Object.values(playerStats).filter(p => p.teamId === team.id);
@@ -71,22 +219,42 @@ function recordCareerSeason() {
         goals: `${team.stats.gf}:${team.stats.ga}`,
         topScorer: top && top.goals ? `${top.name} (${top.goals})` : '—'
     });
+    // Развитие игроков и доход за сезон
+    career.lastDevelopment = developPlayers(career);
+    const income = seasonIncome(result);
+    career.lastIncome = income;
+    career.budget = Math.round((career.budget + income) * 10) / 10;
+    career.lastSettings = { ...state.settings, mode: state.settings.originalMode || state.settings.mode };
+    career.lastPool = state.teams.map(t => t.name);
     writeCareer(career);
+    careerPlayers = career.players;
     state.seasonRecorded = true;
 }
 
 // Следующий сезон с той же командой: лига — те же соперники, кубок — новые случайные
+// Рейтинги команд берутся по их текущим составам (после развития и трансферов)
 function startNextSeason() {
-    const settings = { ...state.settings, mode: state.settings.originalMode || state.settings.mode };
-    const userName = state.userTeam.name;
-    let pool;
+    const career = readCareer();
+    const settings = { ...(career.lastSettings || state.settings) };
+    settings.mode = settings.originalMode || settings.mode;
+    const userName = career.teamName || state.userTeam.name;
+    const emojiOf = name => {
+        const data = getTeamsData('mixed');
+        return data.emojis[data.names.indexOf(name)] || '⚪';
+    };
+    let names;
     if (settings.mode === 'league' || settings.mode === 'leaguePlayoff') {
-        pool = state.teams.map(t => ({ name: t.name, emoji: t.emoji, rating: t.rating }));
+        names = career.lastPool || state.teams.map(t => t.name);
     } else {
-        const user = state.teams.find(t => t.name === userName);
-        pool = [{ name: user.name, emoji: user.emoji, rating: user.rating },
-            ...pickRandomTeams(settings.teamType, settings.count + 1).filter(t => t.name !== userName).slice(0, settings.count - 1)];
+        names = [userName, ...pickRandomTeams(settings.teamType, settings.count + 1)
+            .map(t => t.name).filter(n => n !== userName).slice(0, settings.count - 1)];
     }
+    careerPlayers = career.players || {};
+    state.rosters = null;
+    const pool = names.map(name => ({
+        name, emoji: emojiOf(name),
+        rating: rosterTeamRating(getTeamRoster(name, teamRatings[name] ?? 75))
+    }));
     createTournament(settings, pool, userName);
     saveGame();
 }

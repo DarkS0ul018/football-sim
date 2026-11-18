@@ -428,10 +428,10 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .spot-center { left: 50%; }
 .spot-left { left: 10.5%; }
 .spot-right { left: 89.5%; }
-.goal { position: absolute; top: 50%; width: 2.2%; height: 11%; transform: translateY(-50%); z-index: 5; border: 2px solid #fff; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 2px, transparent 2px 6px); }
-.goal-left { left: 0; border-left: none; }
-.goal-right { right: 0; border-right: none; }
-.goal.net-shake { animation: netShake 0.6s ease-out; }
+.football-field > .goal { position: absolute; top: 50%; width: 2.2%; height: 11%; transform: translateY(-50%); z-index: 5; border: 2px solid #fff; background: repeating-linear-gradient(45deg, rgba(255,255,255,0.35) 0 2px, transparent 2px 6px); }
+.football-field > .goal-left { left: 0; border-left: none; }
+.football-field > .goal-right { right: 0; border-right: none; }
+.football-field > .goal.net-shake { animation: netShake 0.6s ease-out; }
 @keyframes netShake { 0%, 100% { transform: translateY(-50%) scaleX(1); } 25% { transform: translateY(-50%) scaleX(1.8); background-color: rgba(245,200,75,0.4); } 60% { transform: translateY(-50%) scaleX(0.9); } }
 
 .player {
@@ -739,3 +739,55 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
     .so-goal { left: 6%; width: 88%; }
     .so-total { font-size: 1.7rem; padding: 2px 10px; }
 }
+
+/* ----- Трансферное окно ----- */
+.tr-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.tr-stat { background: var(--surface); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 14px 16px; }
+.tr-stat small { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tr-stat b { font-family: var(--font-display); font-size: 1.6rem; }
+.tr-stat:first-child b { color: var(--accent); }
+.tr-dev summary { cursor: pointer; list-style: none; font-family: var(--font-display); font-size: 1.05rem; text-transform: uppercase; }
+.tr-dev summary::-webkit-details-marker { display: none; }
+.tr-dev-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 4px 16px; margin-top: 12px; }
+.tr-dev { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--line-soft); }
+.tr-dev .tr-diff { margin-left: auto; font-family: var(--font-display); min-width: 28px; text-align: right; }
+.tr-dev.up .tr-diff { color: var(--win); }
+.tr-dev.down .tr-diff { color: var(--loss); }
+.tr-grid { display: grid; grid-template-columns: 1fr 1.3fr; gap: 18px; }
+.tr-grid > * { min-width: 0; }
+.tr-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.tr-filters input[type=text] { grid-column: 1 / -1; }
+.tr-filters .checkbox-row { margin: 0; }
+.tr-list { display: flex; flex-direction: column; gap: 3px; max-height: 560px; overflow-y: auto; }
+.tr-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--radius-sm); background: var(--bg-2); font-size: 13px; }
+.tr-name { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.2; }
+.tr-name b, .tr-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-name small { color: var(--muted); font-size: 11px; }
+.tr-age { color: var(--text-2); font-size: 12px; white-space: nowrap; }
+.tr-price { min-width: 78px; text-align: right; font-family: var(--font-display); color: var(--gold); white-space: nowrap; }
+.tr-btn { min-height: 30px; padding: 4px 10px; font-size: 0.75rem; }
+@media (max-width: 900px) {
+    .tr-grid { grid-template-columns: 1fr; }
+    .tr-summary { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 500px) {
+    .tr-price { min-width: 60px; }
+    .tr-row .crest { display: none; }
+}
+
+/* ----- Повтор гола ----- */
+.football-field.replaying { box-shadow: inset 0 0 0 4px var(--accent); }
+.football-field.replaying .player, .football-field.replaying .ball { transition-duration: 0.8s !important; }
+.replay-badge {
+    position: absolute; top: 10px; left: 10px; z-index: 300; pointer-events: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 10px 4px 4px; border-radius: 4px; background: rgba(7, 13, 26, 0.85);
+    font-size: 13px; font-weight: 600;
+}
+.replay-badge span { font-family: var(--font-display); letter-spacing: 0.12em; padding: 1px 8px; background: var(--live); color: #fff; border-radius: 3px; animation: statusBlink 1s infinite; }
+@keyframes statusBlink { 50% { opacity: 0.5; } }
+.gt-replay {
+    padding: 3px 10px; border-radius: 4px; border: 1px solid var(--accent); background: transparent; color: var(--accent);
+    font-weight: 600; font-size: 12px; cursor: pointer;
+}
+.gt-replay:hover { background: var(--accent); color: var(--accent-ink); }

@@ -9,12 +9,10 @@ initSetupScreens();
 initMatchScreen();
 initTacticsScreen();
 initSound();
+initTransfersScreen();
 
-$('btn-next-season').addEventListener('click', () => {
-    startNextSeason();
-    renderTeamsList();
-    showScreen('teamsList');
-});
+// Следующий сезон начинается с трансферного окна
+$('btn-next-season').addEventListener('click', openTransferWindow);
 
 $('btn-restart').addEventListener('click', () => {
     clearSave();

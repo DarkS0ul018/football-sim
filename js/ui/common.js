@@ -9,6 +9,7 @@ const screens = {
     dashboard: $('screen-dashboard'),
     tactics: $('screen-tactics'),
     editor: $('screen-editor'),
+    transfers: $('screen-transfers'),
     match: $('screen-match'),
     results: $('screen-results')
 };

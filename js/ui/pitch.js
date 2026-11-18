@@ -41,6 +41,8 @@ function renderField(sim) {
     clearPitchTimers();
     field.querySelector('.ball')?.remove();
     hideGoalTicker();
+    pitch.lastGoal = null;
+    $('btn-replay-goal') && ($('btn-replay-goal').style.display = 'none');
     applyMatchKits(sim.match);
     renderPlayers(sim);
     const ball = document.createElement('div');
@@ -150,6 +152,16 @@ function animateMinute(sim, events, ms) {
     }
     if (!points.length) return;
 
+    // Запоминаем голевую атаку для повтора
+    if (episode && episode.type === 'goal') {
+        pitch.lastGoal = {
+            ev: episode,
+            ballStart: { ...pitch.ball },
+            points: points.map(pt => ({ x: pt.x, y: pt.y, goal: !!pt.goal, player: pt.player ? { teamId: pt.player.teamId, number: pt.player.number } : null })),
+            players: ['team1', 'team2'].flatMap(s => sim.sides[s].onPitch.map(p => ({ id: playerElId(p), x: p.x, y: p.y })))
+        };
+    }
+
     const seg = (ms * 0.85) / points.length;
     points.forEach((pt, i) => {
         pitchLater(() => {
@@ -168,7 +180,60 @@ function onGoalAnimation(sim, ev) {
     goalEl?.classList.add('net-shake');
     setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
     showGoalBanner(ev);
+    const btn = $('btn-replay-goal');
+    if (btn) btn.style.display = '';
     pitch.resetBall = true;
+}
+
+// ----- Повтор гола в замедлении -----
+let replayRunning = false;
+
+function replayLastGoal() {
+    const g = pitch.lastGoal;
+    if (!g || replayRunning) return;
+    replayRunning = true;
+    const resume = pauseForReplay();               // ставим живой матч на паузу (match.js)
+    clearPitchTimers();
+    const field = $('football-field');
+
+    // Запоминаем текущее положение, чтобы вернуть после повтора
+    const now = [...field.querySelectorAll('.player')].map(el => ({ el, left: el.style.left, top: el.style.top }));
+    const ballNow = { ...pitch.ball };
+
+    const badge = document.createElement('div');
+    badge.className = 'replay-badge';
+    badge.innerHTML = `<span>ПОВТОР</span> ${g.ev.minute}' · ${g.ev.player ? g.ev.player.name : ''}`;
+    field.appendChild(badge);
+    field.classList.add('replaying');
+
+    g.players.forEach(p => { const el = $(p.id); if (el) { setTransition(el, 0); el.style.left = `${p.x}%`; el.style.top = `${p.y}%`; } });
+    placeBall(g.ballStart.x, g.ballStart.y, 0);
+
+    const seg = 800;
+    g.points.forEach((pt, i) => {
+        setTimeout(() => {
+            placeBall(pt.x, pt.y, seg);
+            const pl = pt.player ? { teamId: pt.player.teamId, number: pt.player.number } : null;
+            highlightPlayer(pl);
+            if (i > 0) playSound('kick');
+            if (pt.goal) setTimeout(() => {
+                const goalEl = field.querySelector(g.ev.side === 'team1' ? '.goal-right' : '.goal-left');
+                goalEl?.classList.add('net-shake');
+                playSound('goal');
+                setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
+            }, seg);
+        }, 400 + seg * i);
+    });
+
+    setTimeout(() => {
+        badge.remove();
+        field.classList.remove('replaying');
+        now.forEach(n => { setTransition(n.el, 0); n.el.style.left = n.left; n.el.style.top = n.top; });
+        placeBall(ballNow.x, ballNow.y, 0);
+        highlightPlayer(null);
+        replayRunning = false;
+        if (resume) resumeAfterReplay();
+    }, 400 + seg * g.points.length + 1400);
 }
 
 // Титр гола под табло (как в трансляции) — поле при этом ничем не закрыто
@@ -183,7 +248,8 @@ function showGoalBanner(ev) {
         ${crestHtml(ev.team, 'sm')}
         <span class="gt-scorer">${ev.player ? ev.player.name : ''}${note}</span>
         ${ev.assister ? `<span class="gt-assist">пас: ${ev.assister.name}</span>` : ''}
-        <span class="gt-team">${ev.team.name}</span>`;
+        <span class="gt-team">${ev.team.name}</span>
+        ${pitch.lastGoal && pitch.lastGoal.ev === ev ? '<button type="button" class="gt-replay" onclick="replayLastGoal()">↺ Повтор</button>' : ''}`;
     ticker.classList.remove('show');
     void ticker.offsetWidth; // перезапуск анимации
     ticker.classList.add('show');

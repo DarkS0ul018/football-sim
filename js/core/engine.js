@@ -27,6 +27,17 @@ const rosterCache = {};
 function getTeamRoster(teamName, teamRating) {
     // В идущем турнире составы зафиксированы при старте (правки в редакторе на него не влияют)
     if (state.rosters && state.rosters[teamName]) return state.rosters[teamName];
+    const base = buildBaseRoster(teamName, teamRating);
+    // В карьере: развитие игроков и трансферы (career.js)
+    return careerPlayers ? applyCareerRoster(teamName, base) : base;
+}
+
+// Возраст по умолчанию: 18–34, всегда одинаковый для игрока
+function baseAge(teamName, playerName) {
+    return 18 + Math.floor(hashString('age:' + teamName + playerName) * 17);
+}
+
+function buildBaseRoster(teamName, teamRating) {
     const key = `${teamName}|${teamRating}`;
     if (rosterCache[key]) return rosterCache[key];
 
@@ -68,9 +79,10 @@ function getTeamRoster(teamName, teamRating) {
     };
 
     let number = 1;
-    const roster = starters.map(p => ({ ...p, number: number++, rating: rate(p, true), starter: true }));
+    const withMeta = p => ({ ...p, age: baseAge(teamName, p.name), origTeam: teamName });
+    const roster = starters.map(p => withMeta({ ...p, number: number++, rating: rate(p, true), starter: true }));
     Object.keys(lineIndex).forEach(k => delete lineIndex[k]); // у скамейки своя нумерация по линиям
-    roster.push(...benchPool.map(p => ({ ...p, number: number++, rating: rate(p, false), starter: false })));
+    roster.push(...benchPool.map(p => withMeta({ ...p, number: number++, rating: rate(p, false), starter: false })));
     rosterCache[key] = roster;
     return roster;
 }

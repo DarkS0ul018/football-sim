@@ -362,6 +362,7 @@
                     <div class="match-controls-bottom">
                         <button id="btn-sim-match" class="btn-primary"><span class="btn-text">▶ Начать матч</span></button>
                         <button id="btn-instant-match" class="btn-secondary"><span class="btn-text">Быстрый результат</span></button>
+                        <button id="btn-replay-goal" class="btn-secondary" style="display:none;" onclick="replayLastGoal()"><span class="btn-text">↺ Повтор гола</span></button>
                         <button id="btn-manage-match" class="btn-secondary" style="display:none;"><span class="btn-text">⏸ Пауза и управление</span></button>
                         <button id="btn-next-match" class="btn-primary" style="display:none;"><span class="btn-text">Следующий матч →</span></button>
                         <button id="btn-close-match" class="btn-secondary" style="display:none;"><span class="btn-text">Закрыть</span></button>
@@ -486,6 +487,61 @@
             </div>
         </div>
 
+        <!-- ЭКРАН: ТРАНСФЕРНОЕ ОКНО (карьера, между сезонами) -->
+        <section id="screen-transfers" class="screen">
+            <div class="screen-header">
+                <span class="kicker">Межсезонье</span>
+                <h1>Трансферное окно</h1>
+                <p class="subtitle" id="tr-subtitle"></p>
+            </div>
+
+            <div class="tr-summary">
+                <div class="tr-stat"><small>Бюджет</small><b id="tr-budget"></b></div>
+                <div class="tr-stat"><small>Доход за сезон</small><b id="tr-income"></b></div>
+                <div class="tr-stat"><small>Игроков в составе</small><b id="tr-count"></b></div>
+                <div class="tr-stat"><small>Сила состава</small><b id="tr-strength"></b></div>
+            </div>
+
+            <details class="card tr-dev" id="tr-dev-card" open>
+                <summary>Развитие игроков за сезон</summary>
+                <div id="tr-development" class="tr-dev-list"></div>
+            </details>
+
+            <div class="tr-grid">
+                <div class="card">
+                    <h3>Ваш состав</h3>
+                    <div id="tr-squad" class="tr-list"></div>
+                </div>
+                <div class="card">
+                    <h3>Рынок</h3>
+                    <div class="tr-filters">
+                        <select id="tr-pos">
+                            <option value="">Все позиции</option>
+                            <option value="GK">Вратари</option>
+                            <option value="DEF">Защитники</option>
+                            <option value="MID">Полузащитники</option>
+                            <option value="FWD">Нападающие</option>
+                        </select>
+                        <select id="tr-sort">
+                            <option value="rating">Сначала сильные</option>
+                            <option value="young">Сначала молодые</option>
+                            <option value="cheap">Сначала дешёвые</option>
+                        </select>
+                        <input type="text" id="tr-search" placeholder="Поиск по имени или клубу">
+                        <label class="checkbox-row"><input type="checkbox" id="tr-afford"> По карману</label>
+                    </div>
+                    <div id="tr-market" class="tr-list tr-market"></div>
+                </div>
+            </div>
+
+            <div class="screen-actions">
+                <button id="btn-tr-start" class="btn-primary">
+                    <span class="btn-text">Начать новый сезон</span>
+                    <span class="btn-icon">→</span>
+                </button>
+            </div>
+        </section>
+
         <!-- ЭКРАН: РЕЗУЛЬТАТЫ -->
         <section id="screen-results" class="screen">
             <div class="champion-box-v2">
@@ -577,6 +633,7 @@
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/tactics.js"></script>
     <script src="js/ui/editor.js"></script>
+    <script src="js/ui/transfers.js"></script>
     <script src="js/ui/shootout.js"></script>
     <script src="js/ui/match.js"></script>
     <script src="js/ui/results.js"></script>

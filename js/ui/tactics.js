@@ -17,6 +17,7 @@ function playerRowHtml(p, opts = {}) {
             ${slot ? `<span class="tp-slot">${slot}</span>` : `<span class="tp-slot muted">${p.natPos}</span>`}
             <span class="tp-num">${p.number}</span>
             <span class="tp-name" title="${p.name}">${p.name}</span>
+            ${p.age ? `<span class="tr-age" title="Возраст">${p.age}</span>` : ''}
             ${badges.join('')}
             <span class="tp-fitness" title="Свежесть ${f}%"><span style="width:${f}%;background:${fitnessColor(f)}"></span></span>
             <span class="tp-rating" title="Базовый рейтинг ${p.rating}, с учётом свежести и позиции ${eff}">${eff}</span>

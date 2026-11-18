@@ -67,9 +67,12 @@ function createTournament(settings, teamsPool, userTeamName = null) {
         : null;
 
     // Фиксируем составы участников на весь турнир
+    // (в карьере — с учётом развития игроков и трансферов из прошлых сезонов)
+    if (settings.gameMode === 'career' && userTeamName) activateCareerPlayers(userTeamName);
+    else careerPlayers = null;
     state.rosters = null;
     const rosters = {};
-    state.teams.forEach(t => { rosters[t.name] = getTeamRoster(t.name, t.rating); });
+    state.teams.forEach(t => { rosters[t.name] = getTeamRoster(t.name, teamRatings[t.name] ?? t.rating); });
     state.rosters = rosters;
 
     initPlayerStats();

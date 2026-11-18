@@ -35,6 +35,21 @@ function userSide(m) {
     return m.team1.id === state.userTeam.id ? 'team1' : 'team2';
 }
 
+// ----- Пауза на время повтора гола -----
+// Возвращает true, если матч шёл и мы его остановили (тогда после повтора продолжаем)
+function pauseForReplay() {
+    if (!simStep || isPaused) return false;
+    clearInterval(simulationInterval);
+    isPaused = true;
+    return true;
+}
+
+function resumeAfterReplay() {
+    if (!simStep || $('manage-overlay').style.display === 'flex') return;
+    isPaused = false;
+    simulationInterval = setInterval(simStep, getMatchInterval());
+}
+
 // ----- Пауза и управление по ходу матча -----
 let manageOut = null, manageIn = null;
 
