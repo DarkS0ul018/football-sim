@@ -205,6 +205,11 @@ function computeTargets() {
                 });
         }
     });
+    // Персональные задания на эту минуту (из розыгрыша): бьющий бежит в зону удара,
+    // подающий — к флажку, нарушитель — к сопернику, которого сфолит
+    if (pitch.overrides && !pitch.kickoff) {
+        pitch.overrides.forEach((t, p) => { if (!t) return; const q = t.follow || t; p.tx = q.x; p.ty = q.y; });
+    }
     // Игрок с мячом — у мяча
     if (pitch.holder && !pitch.kickoff) {
         pitch.holder.tx = f.x;
@@ -260,7 +265,9 @@ function stepPlayers(dt) {
         const dist = Math.hypot(dx, dy);
         if (dist > 0.05) {
             const fit = 0.75 + 0.25 * ((p.fitness ?? 100) / 100);
-            const v = Math.min(vmax * fit * (p.position === 'GK' ? 0.7 : 1), dist * 4); // плавное торможение у цели
+            const ov = pitch.overrides && pitch.overrides.get(p);
+            const sprint = ov ? (ov.follow ? 2.3 : 2.1) : 1; // рывок: бег в зону удара, погоня за соперником
+            const v = Math.min(vmax * fit * sprint * (p.position === 'GK' ? 0.7 : 1), dist * 4); // плавное торможение у цели
             const k = Math.min(1, (v * dt) / dist);
             p.x += dx * k;
             p.y += (p.ty - p.y) * k;
@@ -277,6 +284,8 @@ function stepBall(dtMs) {
     seg.t += dtMs;
     const k = Math.min(1, seg.t / Math.max(1, seg.dur));
     const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // мяч разгоняется и замедляется
+    // Пас адресату: мяч доворачивает к принимающему, где бы тот ни оказался
+    if (seg.follow && seg.follow.x !== undefined) { seg.x = seg.follow.x; seg.y = seg.follow.y; }
     placeBall(seg.fromX + (seg.x - seg.fromX) * e, seg.fromY + (seg.y - seg.fromY) * e);
     if (k >= 1) {
         pitch.path.shift();
@@ -286,29 +295,7 @@ function stepBall(dtMs) {
 }
 
 // ----- Розыгрыш минуты -----
-// Кому отдать пас: партнёру впереди, который открыт (далеко от соперников)
-function pickReceiver(sim, side, from, exclude) {
-    const mates = sim.sides[side].onPitch.filter(p => p !== from && p.position !== 'GK' && !exclude.has(p));
-    const opps = sim.sides[otherSide(side)].onPitch;
-    const fromRel = from ? rel(side, from.x) : rel(side, pitch.ball.x);
-    let best = null, bestScore = -Infinity;
-    mates.forEach(p => {
-        const progress = rel(side, p.tx ?? p.x) - fromRel;
-        const dist = from ? Math.hypot(p.x - from.x, (p.y - from.y) * 0.66) : 20;
-        const open = Math.min(...opps.map(o => Math.hypot(o.x - p.x, (o.y - p.y) * 0.66)));
-        const score = progress * 0.9 + Math.min(open, 12) * 1.6 - Math.abs(dist - 20) * 0.35 + Math.random() * 10;
-        if (score > bestScore) { bestScore = score; best = p; }
-    });
-    return best;
-}
-
-function nearestTo(list, x, y) {
-    return [...list].sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))[0] || null;
-}
-
-// Главный эпизод минуты (что показывать мячом)
-const EPISODE_PRIORITY = ['goal', 'shot', 'shot-off', 'penalty-miss', 'corner', 'card-red', 'card-yellow', 'foul'];
-
+// Кадр для повтора гола: где мяч и все игроки
 function recordFrame(holder) {
     const sim = pitch.sim;
     pitch.recording.push({
@@ -318,15 +305,18 @@ function recordFrame(holder) {
     });
 }
 
+// Розыгрыш минуты строится по описанию из движка (sim.play): те же игроки, что в ленте событий
 function animateMinute(sim, events, ms) {
     clearPitchTimers();
     pitch.sim = sim;
     pitch.msPerMinute = ms;
     const fast = ms < 250;
-
-    const episode = EPISODE_PRIORITY.map(t => events.find(e => e.type === t)).find(Boolean);
-    const attackSide = episode && ['goal', 'shot', 'shot-off', 'penalty-miss', 'corner'].includes(episode.type)
-        ? episode.side : sim.attackingSide;
+    const play = sim.play || { side: sim.attackingSide, kind: 'keep', chain: [], end: null };
+    const side = play.side, opp = otherSide(side);
+    const team = sim.sides[side].onPitch, foes = sim.sides[opp].onPitch;
+    const byNum = (list, n) => (n === undefined || n === null) ? null : list.find(p => p.number === n) || null;
+    const end = play.end;
+    const goalEv = events.find(e => e.type === 'goal' && e.side === side);
 
     // Розыгрыш с центра после гола
     if (pitch.kickoff) {
@@ -335,86 +325,128 @@ function animateMinute(sim, events, ms) {
         placeBall(50, 50);
         pitch.holder = null;
     }
-    if (pitch.possession !== attackSide) reshuffleJitter();
-    pitch.possession = attackSide;
-
-    const team = sim.sides[attackSide].onPitch;
+    if (pitch.possession !== side) reshuffleJitter();
+    pitch.possession = side;
+    pitch.overrides = new Map();
     if (!team.length) return;
-    const budget = ms * 0.85;
-    const waypoints = [];
-    const used = new Set();
 
-    // Начало: мяч у своего игрока или его подбирает ближайший
-    let carrier = pitch.holder && team.includes(pitch.holder) ? pitch.holder
-        : nearestTo(team.filter(p => p.position !== 'GK'), pitch.ball.x, pitch.ball.y);
-    if (carrier && carrier !== pitch.holder) waypoints.push({ x: carrier.x, y: carrier.y, player: carrier });
+    let chain = play.chain.map(n => byNum(team, n)).filter(Boolean);
+    const shooter = end ? byNum(team, end.shooter ?? end.taker) : null;
+    if (shooter && chain[chain.length - 1] === shooter) chain = chain.slice(0, -1);
+    if (fast) chain = chain.slice(-2);
 
-    // Пасы к открытым партнёрам впереди
-    const passes = fast ? 1 : (episode ? 2 : 2 + (Math.random() < 0.5 ? 1 : 0));
-    for (let i = 0; i < passes && carrier; i++) {
-        used.add(carrier);
-        const next = pickReceiver(sim, attackSide, carrier, used);
-        if (!next) break;
-        // Пас — в точку, куда игрок бежит (на ход)
-        waypoints.push({ x: (next.tx ?? next.x) * 0.6 + next.x * 0.4, y: (next.ty ?? next.y) * 0.6 + next.y * 0.4, player: next });
-        carrier = next;
+    const goalX = side === 'team1' ? 99 : 1;
+    const spot = (r, y) => ({ x: abs(side, r), y });
+    const wps = [];
+    const lead = p => ({ x: (p.tx ?? p.x) * 0.6 + p.x * 0.4, y: (p.ty ?? p.y) * 0.6 + p.y * 0.4 }); // пас на ход
+
+    // Бьющий заранее бежит в зону удара; если не успевает — бьёт издали, откуда добежал
+    if (shooter && !String(end.type).startsWith('penalty')) {
+        const depth = { FWD: [80, 10], MID: [73, 12], DEF: [76, 10] }[shooter.position] || [75, 10];
+        const want = play.kind === 'corner'
+            ? { r: 87 + Math.random() * 4, y: 42 + Math.random() * 16 }
+            : { r: depth[0] + Math.random() * depth[1], y: clampv(shooter.y, 28, 72) };
+        // Бежит прямо в зону удара; пас найдёт его там, куда он успеет (см. follow в stepBall)
+        pitch.overrides.set(shooter, spot(want.r, want.y));
+        // На угловой игрок уже стоит в штрафной (стандарт — как монтажная склейка)
+        if (play.kind === 'corner') { shooter.x = abs(side, want.r - 3); shooter.y = want.y; }
+    }
+
+    if (play.kind === 'corner') {
+        const taker = chain[chain.length - 1];
+        const pre = chain.slice(0, -1);
+        pre.forEach(p => wps.push({ ...lead(p), player: p }));
+        const flag = spot(98.5, Math.random() < 0.5 ? 2.5 : 97.5);
+        if (taker) { pitch.overrides.set(taker, flag); taker.x = flag.x; taker.y = flag.y; } // стандарт: сразу у флажка (как монтажная склейка)
+        wps.push({ ...flag, player: taker, corner: true });
+        if (shooter) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
+    } else {
+        if (play.kind === 'counter' && chain.length > 2) {
+            // Контратака: длинный пас из глубины сразу на того, кто отдаст последний пас
+            chain = [chain[0], chain[chain.length - 1]];
+        }
+        chain.forEach(p => wps.push({ ...lead(p), player: p }));
+        if (shooter && !String(end.type).startsWith('penalty')) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
+    }
+
+    // Фол: нарушитель бежит к фолимому, мяч останавливается
+    if (end && (end.type === 'foul' || String(end.type).startsWith('penalty'))) {
+        const victim = byNum(team, end.victim) || chain[chain.length - 1];
+        const offender = byNum(foes, end.offender);
+        if (victim && offender) pitch.overrides.set(offender, { follow: victim }); // догоняет фолимого
+        if (victim && !wps.some(w => w.player === victim)) wps.push({ ...lead(victim), player: victim });
+        if (wps.length) wps[wps.length - 1].foul = true;
     }
 
     // Финал эпизода
-    const goalX = attackSide === 'team1' ? 99 : 1;
-    if (episode) {
-        const shooter = episode.player && team.find(p => p.number === episode.player.number);
-        if (shooter && ['goal', 'shot', 'shot-off', 'penalty-miss'].includes(episode.type) && shooter !== carrier) {
-            const sx = abs(attackSide, clampv(rel(attackSide, shooter.x), 72, 90));
-            waypoints.push({ x: sx, y: clampv(shooter.y, 25, 75), player: shooter });
-        }
-        if (episode.type === 'goal') waypoints.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
-        else if (episode.type === 'shot') {
-            const gk = sim.sides[otherSide(attackSide)].onPitch.find(p => p.position === 'GK');
-            waypoints.push({ x: gk ? gk.x : goalX, y: gk ? gk.y : 50, player: gk, save: true });
-        } else if (episode.type === 'shot-off' || episode.type === 'penalty-miss') {
-            waypoints.push({ x: goalX, y: Math.random() < 0.5 ? 30 + Math.random() * 8 : 62 + Math.random() * 8, miss: true });
-        } else if (episode.type === 'corner') {
-            waypoints.push({ x: attackSide === 'team1' ? 98 : 2, y: Math.random() < 0.5 ? 3 : 97, corner: true });
-        } else if (episode.player) {
-            const off = episode.player;
-            waypoints.push({ x: off.x ?? pitch.ball.x, y: off.y ?? pitch.ball.y, player: off, foul: true });
+    if (end) {
+        if (String(end.type).startsWith('penalty')) {
+            const taker = byNum(team, end.taker);
+            const ps = spot(89.5, 50);
+            if (taker) { const ts = { x: abs(side, 87.5), y: 50 }; pitch.overrides.set(taker, ts); taker.x = ts.x; taker.y = ts.y; }
+            wps.push({ ...ps, player: taker, penaltySpot: true });
+            if (end.type === 'penalty-goal') wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
+            else wps.push({ x: goalX, y: Math.random() < 0.5 ? 38 : 62, miss: true });
+        } else if (end.type === 'goal') {
+            wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
+        } else if (end.type === 'save') {
+            const gk = byNum(foes, end.keeper) || foes.find(p => p.position === 'GK');
+            wps.push({ x: gk ? gk.x : goalX, y: gk ? gk.y : 50, player: gk, save: true });
+        } else if (end.type === 'off') {
+            wps.push({ x: goalX, y: Math.random() < 0.5 ? 30 + Math.random() * 8 : 62 + Math.random() * 8, miss: true });
         }
     }
-    if (!waypoints.length) return;
+    if (!wps.length) return;
 
-    // Длительность каждого отрезка — пропорционально длине паса (в сумме — вся минута)
+    // Длительность отрезков пропорциональна длине передачи (в сумме — почти вся минута)
+    const budget = ms * 0.85;
     let from = { ...pitch.ball };
-    const lens = waypoints.map(w => { const d = Math.hypot(w.x - from.x, (w.y - from.y) * 0.66) + 4; from = w; return d; });
+    const lens = wps.map(w => { const d = Math.hypot(w.x - from.x, (w.y - from.y) * 0.66) + 4; from = w; return d; });
     const total = lens.reduce((a, b) => a + b, 0);
 
     pitch.recording = [];
     recordFrame(pitch.holder);
-    pitch.path = waypoints.map((w, i) => ({
+    pitch.path = wps.map((w, i) => ({
         x: w.x, y: w.y,
+        follow: w.player && team.includes(w.player) && !w.corner && !w.penaltySpot ? w.player : null,
         dur: Math.max(60, budget * lens[i] / total),
         onStart: () => { if (!fast && i > 0) playSound('kick'); },
         onArrive: () => {
-            if (w.player && !w.save && w.player.position !== 'GK' && team.includes(w.player)) {
-                pitch.holder = w.player;
-                highlightPlayer(w.player);
-            } else if (w.save) {
-                pitch.holder = w.player || null;          // мяч у вратаря соперника
-                if (w.player) pitch.possession = otherSide(attackSide);
+            if (w.save) {
+                pitch.holder = w.player || null;               // мяч у вратаря соперника — дальше атакует он
+                pitch.possession = opp;
                 highlightPlayer(null);
                 playSound('save');
+            } else if (w.miss) {
+                pitch.holder = null;
+                highlightPlayer(null);
+                // Удар от ворот: мяч у вратаря соперника
+                const gk = foes.find(p => p.position === 'GK');
+                pitchLater(() => {
+                    if (!gk || pitch.kickoff) return;
+                    placeBall(abs(opp, 7), 50);
+                    pitch.holder = gk;
+                    pitch.possession = opp;
+                    pitch.focus = { x: abs(opp, 7), y: 50 };
+                }, Math.min(400, ms * 0.1));
+            } else if (w.player && team.includes(w.player)) {
+                pitch.holder = w.player;
+                highlightPlayer(w.player);
             } else {
                 pitch.holder = null;
                 highlightPlayer(null);
             }
             recordFrame(pitch.holder);
             if (w.goal) {
-                pitch.lastGoal = { ev: episode, frames: pitch.recording.slice() };
-                onGoalAnimation(sim, episode);
+                const ev = goalEv || events.find(e => e.type === 'goal');
+                if (ev) {
+                    pitch.lastGoal = { ev, frames: pitch.recording.slice() };
+                    onGoalAnimation(sim, ev);
+                }
             }
         }
     }));
-    pitch.focus = { x: waypoints[0].x, y: waypoints[0].y };
+    pitch.focus = { x: wps[0].x, y: wps[0].y };
 }
 
 function onGoalAnimation(sim, ev) {
