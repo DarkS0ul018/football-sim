@@ -106,7 +106,7 @@ function loadGame() {
 // Краткое описание сохранения для кнопки «Продолжить»
 function describeSave(data) {
     const user = data.userTeam !== null ? data.teams.find(t => t.id === data.userTeam) : null;
-    const stage = data.settings.mode === 'league' ? 'Лига'
+    const stage = data.settings.mode === 'league' ? (data.settings.originalMode === 'leaguePlayoff' ? 'Чемпионат' : 'Лига')
         : data.settings.mode === 'groups' ? 'Групповой этап'
         : (data.history[data.history.length - 1] || {}).round || '';
     const played = data.currentMatches.filter(i => data.matches[i].isFinished).length;

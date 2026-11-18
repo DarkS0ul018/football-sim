@@ -40,7 +40,7 @@ function renderField(sim) {
     const field = $('football-field');
     clearPitchTimers();
     field.querySelector('.ball')?.remove();
-    field.querySelector('.goal-banner')?.remove();
+    hideGoalTicker();
     applyMatchKits(sim.match);
     renderPlayers(sim);
     const ball = document.createElement('div');
@@ -171,14 +171,27 @@ function onGoalAnimation(sim, ev) {
     pitch.resetBall = true;
 }
 
+// Титр гола под табло (как в трансляции) — поле при этом ничем не закрыто
+let goalTickerTimer = null;
 function showGoalBanner(ev) {
-    const field = $('football-field');
-    field.querySelector('.goal-banner')?.remove();
-    const banner = document.createElement('div');
-    banner.className = 'goal-banner';
-    banner.innerHTML = `<div class="goal-banner-title">ГОЛ!</div>
-        <div class="goal-banner-team">${crestHtml(ev.team, 'md')} ${ev.team.name}</div>
-        <div class="goal-banner-player">${ev.player ? ev.player.name : ''}${ev.assister ? ` · пас: ${ev.assister.name}` : ''}</div>`;
-    field.appendChild(banner);
-    setTimeout(() => banner.remove(), 1800);
+    const ticker = $('goal-ticker');
+    if (!ticker) return;
+    const note = ev.text && ev.text.includes('с пенальти') ? ' (пен.)' : '';
+    ticker.innerHTML = `
+        <span class="gt-label">ГОЛ</span>
+        <span class="gt-minute">${ev.minute}'</span>
+        ${crestHtml(ev.team, 'sm')}
+        <span class="gt-scorer">${ev.player ? ev.player.name : ''}${note}</span>
+        ${ev.assister ? `<span class="gt-assist">пас: ${ev.assister.name}</span>` : ''}
+        <span class="gt-team">${ev.team.name}</span>`;
+    ticker.classList.remove('show');
+    void ticker.offsetWidth; // перезапуск анимации
+    ticker.classList.add('show');
+    clearTimeout(goalTickerTimer);
+    goalTickerTimer = setTimeout(() => ticker.classList.remove('show'), 4500);
+}
+
+function hideGoalTicker() {
+    clearTimeout(goalTickerTimer);
+    $('goal-ticker')?.classList.remove('show');
 }

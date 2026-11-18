@@ -30,6 +30,10 @@ function getUserResult() {
         return { text: place === 1 ? '🏆 Чемпион лиги' : `${place} место из ${table.length}`, place, trophy: place === 1 };
     }
     if (state.champion && state.champion.id === team.id) return { text: '🏆 Чемпион', place: 1, trophy: true };
+    if (isLeagueWithPlayoff() && !state.tournamentHistory.some(r => r.matches.some(m => m.involves(team)))) {
+        const table = sortGroup([...state.teams]);
+        return { text: `Чемпионат: ${table.findIndex(t => t.id === team.id) + 1} место, без плей-офф`, place: null, trophy: false };
+    }
     const rounds = state.tournamentHistory.filter(r => r.matches.some(m => m.involves(team)));
     if (!rounds.length) return { text: 'Групповой этап', place: null, trophy: false };
     const last = rounds[rounds.length - 1];
@@ -40,6 +44,7 @@ function getUserResult() {
 function formatLabel(settings) {
     const mode = settings.originalMode || settings.mode; // после групп mode меняется на knockout
     if (mode === 'league') return `Лига, ${settings.count} команд`;
+    if (mode === 'leaguePlayoff') return `Чемпионат + плей-офф, ${settings.count} команд`;
     if (mode === 'groups') return `Группы + плей-офф, ${settings.count} команд`;
     return `Плей-офф, ${settings.count} команд`;
 }
@@ -75,7 +80,7 @@ function startNextSeason() {
     const settings = { ...state.settings, mode: state.settings.originalMode || state.settings.mode };
     const userName = state.userTeam.name;
     let pool;
-    if (settings.mode === 'league') {
+    if (settings.mode === 'league' || settings.mode === 'leaguePlayoff') {
         pool = state.teams.map(t => ({ name: t.name, emoji: t.emoji, rating: t.rating }));
     } else {
         const user = state.teams.find(t => t.name === userName);

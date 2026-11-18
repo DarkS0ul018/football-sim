@@ -11,17 +11,30 @@ function readSettings() {
         gameMode: $('game-mode').value,
         simMode: $('sim-mode').value,
         groupLegs: parseInt($('group-legs').value),
-        playoffLegs: parseInt($('playoff-legs').value)
+        playoffLegs: parseInt($('playoff-legs').value),
+        playoffSize: parseInt($('playoff-size').value)
     };
 }
 
 function validateSettings() {
-    const { count, mode, teamType } = readSettings();
+    const { count, mode, teamType, playoffSize } = readSettings();
     const warning = $('warning-msg');
     const startBtn = $('btn-start');
     const maxTeams = getTeamsData(teamType).names.length;
+    $('playoff-size-group').style.display = mode === 'leaguePlayoff' ? 'block' : 'none';
 
     let error = null;
+    if (mode === 'leaguePlayoff' && count >= 8 && playoffSize > count / 2) {
+        error = `⚠️ В плей-офф может выйти не больше половины участников (${count / 2})`;
+    }
+    if (mode === 'leaguePlayoff' && count < 8) error = '⚠️ Для чемпионата с плей-офф нужно минимум 8 команд';
+    if (error) {
+        warning.style.display = 'block';
+        warning.innerText = error;
+        startBtn.disabled = true;
+        startBtn.style.opacity = '0.5';
+        return false;
+    }
     const isPowerOfTwo = count >= 2 && (count & (count - 1)) === 0;
     if (count > maxTeams) error = `⚠️ Максимум ${maxTeams} команд для этого типа`;
     else if (mode === 'knockout' && !isPowerOfTwo) error = '⚠️ Сразу плей-офф: нужно 4, 8, 16 или 32 команды';
@@ -170,7 +183,7 @@ function renderHall() {
 
 function initSetupScreens() {
     renderHall();
-    ['team-count', 'tournament-mode', 'team-type'].forEach(id => $(id).addEventListener('change', validateSettings));
+    ['team-count', 'tournament-mode', 'team-type', 'playoff-size'].forEach(id => $(id).addEventListener('change', validateSettings));
     validateSettings();
     renderResumeCard();
 

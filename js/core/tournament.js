@@ -28,10 +28,16 @@ function isRoundRobinStage() {
     return state.settings.mode === 'groups' || state.settings.mode === 'league';
 }
 
+// Формат «Чемпионат + плей-офф»: сначала лига, потом лучшие играют на вылет
+function isLeagueWithPlayoff() {
+    return state.settings.originalMode === 'leaguePlayoff';
+}
+
 function getStageTitle() {
     if (state.settings.mode === 'league') {
         const md = getCurrentMatchday();
-        return md ? `Лига · тур ${md} из ${getTotalMatchdays()}` : 'Лига · сезон завершён';
+        const name = isLeagueWithPlayoff() ? 'Чемпионат' : 'Лига';
+        return md ? `${name} · тур ${md} из ${getTotalMatchdays()}` : `${name} · завершён`;
     }
     if (state.settings.mode === 'groups') {
         const md = getCurrentMatchday();
@@ -69,7 +75,12 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     initPlayerStats();
     initSquads();
 
-    if (settings.mode === 'groups') createGroups();
+    if (settings.mode === 'leaguePlayoff') {
+        state.settings.mode = 'league';
+        state.settings.seeded = true;
+        createLeague();
+    }
+    else if (settings.mode === 'groups') createGroups();
     else if (settings.mode === 'league') createLeague();
     else createKnockoutRound(state.teams);
 }
@@ -130,6 +141,11 @@ function createLeague() {
 
 // pairs: массив пар [Team, Team]; если не задан — команды перемешиваются
 function createKnockoutRound(teams, pairs = null) {
+    if (!pairs && state.settings.seeded) {
+        // Посеянная сетка: победители соседних пар встречаются друг с другом
+        pairs = [];
+        for (let i = 0; i < teams.length; i += 2) pairs.push([teams[i], teams[i + 1]]);
+    }
     if (!pairs) {
         const shuffled = [...teams].sort(() => Math.random() - 0.5);
         pairs = [];
@@ -204,8 +220,43 @@ function createPlayoffPairsFromGroups() {
     return high.map((t, i) => [t, low[i]]);
 }
 
+// Порядок посева для сетки на n команд: [1, 8, 4, 5, 2, 7, 3, 6] — сильнейшие встречаются как можно позже
+function seedOrder(n) {
+    let order = [1, 2];
+    while (order.length < n) {
+        const size = order.length * 2;
+        order = order.flatMap(s => [s, size + 1 - s]);
+    }
+    return order;
+}
+
+// Сколько команд из чемпионата выходит в плей-офф (4, 8 или 16, но не больше половины участников)
+function getLeaguePlayoffSize(count = state.settings.count, wanted = state.settings.playoffSize) {
+    let size = wanted || 8;
+    while (size > 2 && size > count / 2 + 0.01 && size > 4) size /= 2;
+    return Math.min(size, count);
+}
+
+// Пары плей-офф по итогам чемпионата: 1-й против последнего прошедшего и т.д.
+function createPlayoffPairsFromLeague() {
+    const table = sortGroup([...state.teams]);
+    const size = getLeaguePlayoffSize();
+    const order = seedOrder(size).map(seed => table[seed - 1]);
+    const pairs = [];
+    for (let i = 0; i < order.length; i += 2) pairs.push([order[i], order[i + 1]]);
+    return pairs;
+}
+
 // Переходит к следующему этапу. Возвращает чемпиона, если турнир завершён.
 function advanceStage() {
+    if (state.settings.mode === 'league' && isLeagueWithPlayoff()) {
+        const pairs = createPlayoffPairsFromLeague();
+        state.groupMatches = state.matches;
+        state.settings.mode = 'knockout';
+        createKnockoutRound(null, pairs);
+        if (isCareer() && state.userTeam && !state.matches.some(isUserMatch)) state.userTeamEliminated = true;
+        return null;
+    }
     if (state.settings.mode === 'league') {
         state.champion = sortGroup([...state.teams])[0];
         return state.champion;

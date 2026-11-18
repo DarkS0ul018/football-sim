@@ -52,14 +52,19 @@ function teamFormHtml(team) {
 
 function renderLeagueTable() {
     const table = sortGroup([...state.teams]);
+    const withPlayoff = isLeagueWithPlayoff();
+    const playoffSize = withPlayoff ? getLeaguePlayoffSize() : 0;
+    const note = withPlayoff
+        ? `<span><i class="qualify-dot winner"></i> места 1–${playoffSize} выходят в плей-офф (1-й играет с ${playoffSize}-м, 2-й — с ${playoffSize - 1}-м…)</span>`
+        : '<span><i class="qualify-dot third"></i> чемпион — первое место</span>';
     $('content-area').innerHTML = `
-        <div class="group-legend"><span class="group-legend-note">Чемпион — первое место. При равенстве очков: личные встречи → разница мячей → забитые</span></div>
+        <div class="group-legend">${note}<span class="group-legend-note">При равенстве очков: личные встречи → разница мячей → забитые</span></div>
         <div class="table-container league-table">
-            <h4>📋 Турнирная таблица</h4>
+            <h4>${withPlayoff ? 'Таблица чемпионата' : 'Турнирная таблица'}</h4>
             <table>
                 <tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>О</th><th>Форма</th></tr>
                 ${table.map((t, i) => `
-                    <tr class="${i === 0 ? 'qualify-third' : ''}" style="${userRowStyle(t.id)}">
+                    <tr class="${withPlayoff ? (i < playoffSize ? 'qualify-winner' : '') : (i === 0 ? 'qualify-third' : '')}" style="${userRowStyle(t.id)}">
                         <td>${i + 1}</td><td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td>${t.stats.gf}:${t.stats.ga}</td><td><b>${t.stats.points}</b></td>
@@ -206,8 +211,9 @@ function renderNextRoundButton() {
     const btn = $('btn-next-round');
     if (!isStageComplete()) { btn.style.display = 'none'; return; }
     btn.style.display = 'block';
-    const isLast = state.settings.mode === 'league' || (state.settings.mode !== 'groups' && state.matches.length === 1);
-    btn.innerHTML = isLast ? '<span>🏆 Результаты</span>' : '<span>➡️ Следующий раунд</span>';
+    const toPlayoff = (state.settings.mode === 'league' && isLeagueWithPlayoff()) || state.settings.mode === 'groups';
+    const isLast = !toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1);
+    btn.innerHTML = isLast ? '<span>🏆 Результаты</span>' : (toPlayoff ? '<span>К плей-офф →</span>' : '<span>Следующий раунд →</span>');
     btn.onclick = goToNextStage;
 }
 

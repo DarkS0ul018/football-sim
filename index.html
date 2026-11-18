@@ -40,6 +40,7 @@
                             <select id="tournament-mode">
                                 <option value="groups">Группы + плей-офф</option>
                                 <option value="knockout">Сразу плей-офф</option>
+                                <option value="leaguePlayoff">Чемпионат + плей-офф</option>
                                 <option value="league">Лига (каждый с каждым)</option>
                             </select>
                         </div>
@@ -54,6 +55,14 @@
                                 <option value="32">32 команды</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="form-group" id="playoff-size-group" style="display:none;">
+                        <label for="playoff-size">Выходят в плей-офф из чемпионата</label>
+                        <select id="playoff-size">
+                            <option value="4">Лучшие 4 — сразу полуфинал</option>
+                            <option value="8" selected>Лучшие 8 — с 1/4 финала</option>
+                            <option value="16">Лучшие 16 — с 1/8 финала</option>
+                        </select>
                     </div>
                     <div id="warning-msg" class="warning-msg"></div>
 
@@ -326,6 +335,8 @@
                 </div>
             </div>
 
+            <div id="goal-ticker" class="goal-ticker" aria-live="polite"></div>
+
             <div class="match-layout">
                 <div class="match-main">
                     <div class="field-container">
@@ -447,16 +458,27 @@
         <!-- ОКНО: СЕРИЯ ПЕНАЛЬТИ -->
         <div id="shootout-overlay" class="overlay" style="display:none;">
             <div class="overlay-panel shootout-panel">
-                <h2>Серия пенальти</h2>
-                <div class="shootout-score">
-                    <div><span id="so-team1"></span><div id="so-kicks1" class="so-kicks"></div></div>
-                    <div class="so-total" id="so-total">0 : 0</div>
-                    <div><span id="so-team2"></span><div id="so-kicks2" class="so-kicks"></div></div>
+                <div class="so-header">
+                    <h2>Серия пенальти</h2>
+                    <button id="btn-so-skip" class="btn-secondary">Пропустить ▶▶</button>
                 </div>
-                <div class="shootout-goal">
-                    <div class="so-zone" data-dir="left">←</div>
-                    <div class="so-zone" data-dir="center">↑</div>
-                    <div class="so-zone" data-dir="right">→</div>
+                <div class="shootout-score">
+                    <div class="so-side"><span id="so-team1" class="so-team"></span><div id="so-kicks1" class="so-kicks"></div></div>
+                    <div class="so-total" id="so-total">0 : 0</div>
+                    <div class="so-side"><span id="so-team2" class="so-team"></span><div id="so-kicks2" class="so-kicks"></div></div>
+                </div>
+                <div class="so-scene">
+                    <div class="so-goal" id="so-goal">
+                        <div class="so-zone" data-dir="left"><span>←</span></div>
+                        <div class="so-zone" data-dir="center"><span>↑</span></div>
+                        <div class="so-zone" data-dir="right"><span>→</span></div>
+                    </div>
+                    <div class="so-keeper" id="so-keeper"><span class="so-keeper-body"></span></div>
+                    <div class="so-keeper-name" id="so-keeper-name"></div>
+                    <div class="so-spot"></div>
+                    <div class="so-ball" id="so-ball"></div>
+                    <div class="so-taker" id="so-taker"></div>
+                    <div class="so-flash" id="so-flash"></div>
                 </div>
                 <div id="so-prompt" class="so-prompt"></div>
                 <div id="so-last" class="so-last"></div>
@@ -555,6 +577,7 @@
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/tactics.js"></script>
     <script src="js/ui/editor.js"></script>
+    <script src="js/ui/shootout.js"></script>
     <script src="js/ui/match.js"></script>
     <script src="js/ui/results.js"></script>
     <script src="js/main.js"></script>

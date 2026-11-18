@@ -327,95 +327,13 @@ function instantResult(m) {
 }
 
 // После основного (и дополнительного) времени: либо пенальти, либо сразу итог.
-// В живом матче карьеры игрок сам участвует в серии пенальти.
+// Серия всегда показывается наглядно (js/ui/shootout.js); в карьере за свою команду углы выбирает игрок.
 function concludeMatch(m, sim, live = false) {
     if (!needsShootout(m)) { finishMatch(m, winnerByScore(m)); return; }
     addMatchEvent(m, '', 'penalties', 'Серия пенальти!', null);
     setText('match-status', 'ПЕНАЛЬТИ');
     const done = result => { applyShootout(m, result); finishMatch(m, result.winner); };
-    if (live && userSide(m)) { playInteractiveShootout(m, sim, done); return; }
-    const shootout = computeShootout(m, sim);
-    animateShootout(m, shootout, () => done(shootout));
-}
-
-// ----- Интерактивная серия пенальти -----
-function playInteractiveShootout(m, sim, onDone) {
-    const so = new Shootout(m, sim);
-    const mySide = userSide(m);
-    const overlay = $('shootout-overlay');
-    setHtml('so-team1', teamLabel(m.team1));
-    setHtml('so-team2', teamLabel(m.team2));
-    setText('so-last', '');
-    overlay.style.display = 'flex';
-
-    const zones = [...overlay.querySelectorAll('.so-zone')];
-    const contBtn = $('btn-so-continue');
-
-    const renderScore = () => {
-        setText('so-total', `${so.s.team1} : ${so.s.team2}`);
-        ['team1', 'team2'].forEach((side, i) => {
-            $(`so-kicks${i + 1}`).innerHTML = so.kicks.filter(k => k.side === side).map(k => k.scored ? '⚽' : '❌').join(' ');
-        });
-        setText('match-time', `ПЕН ${so.s.team1}:${so.s.team2}`);
-    };
-
-    const finish = () => {
-        overlay.style.display = 'none';
-        zones.forEach(z => z.onclick = null);
-        onDone(so.result());
-    };
-
-    const nextKick = () => {
-        contBtn.style.display = 'none';
-        zones.forEach(z => z.classList.remove('shot', 'dive'));
-        if (so.isOver) {
-            const won = so.winner.id === state.userTeam.id;
-            setText('so-prompt', won ? '🏆 Победа в серии пенальти!' : '😔 Серия пенальти проиграна');
-            contBtn.style.display = 'block';
-            contBtn.onclick = finish;
-            return;
-        }
-        const side = so.nextSide();
-        const taker = so.nextTaker();
-        const keeper = so.nextKeeper();
-        const userKicks = side === mySide;
-        setText('so-prompt', userKicks
-            ? `⚽ Бьёт ${taker.name}. Куда бить? (вратарь: ${keeper.name})`
-            : `🧤 Бьёт ${taker.name}. Куда прыгает ${keeper.name}?`);
-        zones.forEach(z => z.onclick = () => {
-            zones.forEach(x => x.onclick = null);
-            const dir = z.dataset.dir;
-            const kick = userKicks ? so.kick(dir, randomDiveDir()) : so.kick(randomShotDir(), dir);
-            playSound('kick');
-            setTimeout(() => playSound(kick.scored ? 'pen-goal' : 'save'), 250);
-            overlay.querySelector(`.so-zone[data-dir="${kick.shotDir}"]`).classList.add('shot');
-            overlay.querySelector(`.so-zone[data-dir="${kick.diveDir}"]`).classList.add('dive');
-            const team = kick.side === 'team1' ? m.team1 : m.team2;
-            setText('so-last', `${kick.player}: ${KICK_DIR_LABELS[kick.shotDir]}, вратарь — ${KICK_DIR_LABELS[kick.diveDir]}. ${kick.scored ? 'ГОЛ!' : 'НЕ ЗАБИЛ!'} (${kick.note})`);
-            addMatchEvent(m, 'ПЕН', kick.scored ? 'penalty-goal' : 'penalty-miss', `${kick.player}: ${kick.scored ? 'ГОЛ!' : 'мимо'} (${kick.note})`, team);
-            renderScore();
-            contBtn.style.display = 'block';
-            contBtn.onclick = nextKick;
-        });
-    };
-    renderScore();
-    nextKick();
-}
-
-function animateShootout(m, shootout, onDone) {
-    let s1 = 0, s2 = 0, i = 0;
-    const next = () => {
-        if (i >= shootout.kicks.length) { onDone(); return; }
-        const k = shootout.kicks[i++];
-        if (k.scored) { if (k.side === 'team1') s1++; else s2++; }
-        playSound('kick');
-        setTimeout(() => playSound(k.scored ? 'pen-goal' : 'save'), 250);
-        const team = k.side === 'team1' ? m.team1 : m.team2;
-        addMatchEvent(m, 'ПЕН', k.scored ? 'penalty-goal' : 'penalty-miss', `${k.player || 'Удар ' + k.number}: ${k.scored ? 'ГОЛ!' : 'МИМО!'}`, team);
-        setText('match-time', `ПЕН ${s1}:${s2}`);
-        later(next, 1000);
-    };
-    next();
+    playShootout(m, sim, userSide(m), done);
 }
 
 // ----- Завершение матча -----
