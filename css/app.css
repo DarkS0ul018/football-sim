@@ -794,3 +794,27 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 
 .lineup-tactic { font-size: 11px; color: var(--accent); margin: -2px 0 6px; font-weight: 600; }
 #manage-formation { max-width: 220px; }
+
+/* ----- Выбор участников ----- */
+.picker-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; position: sticky; top: 58px; z-index: 50; }
+.picker-count-wrap { font-size: 15px; color: var(--text-2); }
+.picker-count { font-family: var(--font-display); font-size: 1.5rem; color: var(--text); margin-left: 4px; }
+.picker-count.done { color: var(--accent); }
+#picker-search { max-width: 220px; }
+.picker-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.picker-actions .btn-secondary { min-height: 36px; padding: 6px 12px; font-size: 0.8rem; }
+.picker-card { position: relative; }
+.picker-card.disabled { opacity: 0.4; }
+.picker-meta { font-size: 11px; color: var(--muted); }
+.picker-order {
+    position: absolute; top: 8px; left: 8px; width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; font-family: var(--font-display); font-size: 12px;
+    background: var(--accent); color: var(--accent-ink);
+}
+.picker-footer { position: sticky; bottom: 0; padding: 12px 0; background: linear-gradient(transparent, var(--bg) 35%); }
+.picker-footer .btn-primary { flex: 1; }
+@media (max-width: 720px) {
+    .picker-toolbar { top: 50px; }
+    #picker-search { max-width: none; }
+    .picker-actions { margin-left: 0; }
+}

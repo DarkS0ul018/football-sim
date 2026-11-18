@@ -12,7 +12,8 @@ function readSettings() {
         simMode: $('sim-mode').value,
         groupLegs: parseInt($('group-legs').value),
         playoffLegs: parseInt($('playoff-legs').value),
-        playoffSize: parseInt($('playoff-size').value)
+        playoffSize: parseInt($('playoff-size').value),
+        teamPick: $('team-pick').value
     };
 }
 
@@ -75,12 +76,18 @@ function onStartClick() {
     if (!validateSettings()) return;
     const settings = readSettings();
     if (readSave() && !confirm('Начать новый турнир? Сохранённый турнир будет удалён.')) return;
-
-    if (settings.gameMode === 'career') {
-        showTeamSelect(settings);
+    // Участники: случайно или на выбор
+    if (settings.teamPick === 'manual') {
+        openParticipantPicker(settings, pool => proceedWithPool(settings, pool));
     } else {
-        startTournament(settings, pickRandomTeams(settings.teamType, settings.count), null);
+        proceedWithPool(settings, pickRandomTeams(settings.teamType, settings.count));
     }
+}
+
+// Дальше: в карьере — выбор своей команды из участников, иначе — сразу турнир
+function proceedWithPool(settings, pool) {
+    if (settings.gameMode === 'career') showTeamSelect(settings, pool);
+    else startTournament(settings, pool, null);
 }
 
 function startTournament(settings, teamsPool, userTeamName) {
@@ -91,8 +98,8 @@ function startTournament(settings, teamsPool, userTeamName) {
 }
 
 // ----- Выбор команды в карьере -----
-function showTeamSelect(settings) {
-    careerTeamsPool = pickRandomTeams(settings.teamType, settings.count);
+function showTeamSelect(settings, pool) {
+    careerTeamsPool = pool || pickRandomTeams(settings.teamType, settings.count);
     pickedTeamName = null;
 
     const list = $('team-select-list');
@@ -190,12 +197,13 @@ function initSetupScreens() {
     $('btn-start').addEventListener('click', onStartClick);
     $('btn-resume').addEventListener('click', resumeTournament);
     $('btn-discard-save').addEventListener('click', discardSave);
-    $('btn-back-setup').addEventListener('click', () => showScreen('setup'));
+    $('btn-back-setup').addEventListener('click', () => showScreen(readSettings().teamPick === 'manual' ? 'picker' : 'setup'));
     $('btn-back-teams').addEventListener('click', () => {
         // Турнир ещё не начат — возвращаемся к настройкам без сохранения
         clearSave();
         renderResumeCard();
-        if (isCareer()) showScreen('teamSelect'); else showScreen('setup');
+        if (isCareer()) showScreen('teamSelect');
+        else showScreen(readSettings().teamPick === 'manual' ? 'picker' : 'setup');
     });
     $('btn-start-tournament').addEventListener('click', openDashboard);
 }

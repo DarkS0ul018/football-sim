@@ -76,12 +76,20 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="game-mode">Режим</label>
-                            <select id="game-mode">
-                                <option value="simulator">Симулятор — все матчи</option>
-                                <option value="career">Карьера — одна команда</option>
+                            <label for="team-pick">Участники</label>
+                            <select id="team-pick">
+                                <option value="random">🎲 Случайно</option>
+                                <option value="manual">✋ Выбрать самому</option>
                             </select>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="game-mode">Режим</label>
+                        <select id="game-mode">
+                            <option value="simulator">Симулятор — все матчи</option>
+                            <option value="career">Карьера — одна команда</option>
+                        </select>
                     </div>
 
                     <div class="form-group">
@@ -172,6 +180,40 @@
 
             <div class="screen-actions">
                 <button id="btn-editor-back" class="btn-secondary">← К настройкам</button>
+            </div>
+        </section>
+
+        <!-- ЭКРАН: ВЫБОР УЧАСТНИКОВ ВРУЧНУЮ -->
+        <section id="screen-picker" class="screen">
+            <div class="screen-header">
+                <span class="kicker">Участники</span>
+                <h1>Выберите клубы</h1>
+                <p class="subtitle">Отметьте команды, которые сыграют в турнире. Нажмите ещё раз, чтобы убрать.</p>
+            </div>
+
+            <div class="card picker-toolbar">
+                <div class="picker-count-wrap">Выбрано <b id="picker-count" class="picker-count">0 / 8</b></div>
+                <div class="style-buttons" id="picker-league-tabs">
+                    <button class="style-btn active" data-league="all">Все</button>
+                    <button class="style-btn" data-league="world">🌍 Европа</button>
+                    <button class="style-btn" data-league="russia">🇷🇺 РПЛ</button>
+                </div>
+                <input type="text" id="picker-search" placeholder="Поиск клуба">
+                <div class="picker-actions">
+                    <button id="btn-picker-random" class="btn-secondary">🎲 Добрать случайно</button>
+                    <button id="btn-picker-strongest" class="btn-secondary">⭐ Сильнейшие</button>
+                    <button id="btn-picker-clear" class="btn-secondary">Очистить</button>
+                </div>
+            </div>
+
+            <div id="picker-grid" class="team-grid"></div>
+
+            <div class="screen-actions picker-footer">
+                <button id="btn-picker-back" class="btn-secondary">← К настройкам</button>
+                <button id="btn-picker-next" class="btn-primary" disabled>
+                    <span class="btn-text">Далее</span>
+                    <span class="btn-icon">→</span>
+                </button>
             </div>
         </section>
 
@@ -645,6 +687,7 @@
     <script src="js/ui/sound.js"></script>
     <script src="js/ui/pitch.js"></script>
     <script src="js/ui/setup.js"></script>
+    <script src="js/ui/picker.js"></script>
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/tactics.js"></script>
     <script src="js/ui/editor.js"></script>

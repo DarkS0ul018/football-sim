@@ -5,6 +5,7 @@ const $ = id => document.getElementById(id);
 const screens = {
     setup: $('screen-setup'),
     teamSelect: $('screen-team-select'),
+    picker: $('screen-picker'),
     teamsList: $('screen-teams-list'),
     dashboard: $('screen-dashboard'),
     tactics: $('screen-tactics'),

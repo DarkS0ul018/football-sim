@@ -6,6 +6,7 @@ applyCustomData(); // правки из редактора команд — до
 initStatTabs();
 initEditorScreen();
 initSetupScreens();
+initPickerScreen();
 initMatchScreen();
 initTacticsScreen();
 initSound();
