@@ -167,6 +167,31 @@ class MatchSimulation {
             team1: this.createSide(match.team1, 'team1'),
             team2: this.createSide(match.team2, 'team2')
         };
+        this.prematchPlan();
+    }
+
+    // Команда под управлением компьютера? (в карьере команда игрока — нет)
+    isAI(side) {
+        return !(isCareer() && state.userTeam && this.sides[side].team.id === state.userTeam.id);
+    }
+
+    // Перед матчем тренер подстраивается под соперника: против намного более сильного — играет от обороны
+    prematchPlan() {
+        if (!isRealistic()) return;
+        ['team1', 'team2'].forEach(side => {
+            if (!this.isAI(side)) return;
+            const s = this.sides[side];
+            const gap = this.strength(otherSide(side)) - this.strength(side);
+            if (gap >= 6 && !['counter', 'defense'].includes(s.style)) {
+                s.style = gap >= 10 ? 'defense' : 'counter';
+                s.line = 'low';
+                s.plan = 'против фаворита — от обороны';
+            } else if (gap <= -8 && ['counter', 'defense'].includes(s.style)) {
+                s.style = 'balance';
+                s.line = 'mid';
+                s.plan = 'против слабого — берёт игру на себя';
+            }
+        });
     }
 
     // Состав берётся из тактики команды (squad.js): схема, стартовые 11, свежесть, дисквалификации
@@ -195,7 +220,10 @@ class MatchSimulation {
 
         return {
             team, side, onPitch, bench,
-            style: squad.style,
+            style: STYLES[squad.style] ? squad.style : 'balance',
+            formation: squad.formation,
+            line: LINES[squad.line] ? squad.line : 'mid',
+            coach: {},             // решения тренера по ходу матча (чтобы не повторять)
             autoSubs: true,
             subsUsed: 0,
             sentOff: [],
@@ -209,7 +237,87 @@ class MatchSimulation {
     setStyle(side, style) {
         if (!STYLES[style]) return;
         this.sides[side].style = style;
-        this.log('half', side, `Тактика: ${STYLES[style].label}`);
+        this.log('tactic', side, `Тактика: ${STYLES[style].label}`);
+    }
+
+    setLine(side, line) {
+        if (!LINES[line]) return;
+        this.sides[side].line = line;
+        this.log('tactic', side, `Линия обороны: ${LINES[line].label}`);
+    }
+
+    // Перестроение под новую схему: игроки на поле расставляются по слотам.
+    // Если игроков меньше 11 (удаление) — сначала убираются слоты нападающих.
+    reshape(side, formation, reason = '') {
+        const s = this.sides[side];
+        if (!FORMATIONS[formation]) return false;
+        let slots = FORMATIONS[formation].map(([pos, x, y]) => ({ pos, x, y }));
+        const players = [...s.onPitch];
+        for (const drop of ['FWD', 'MID', 'DEF']) {
+            while (slots.length > players.length) {
+                const idx = slots.map(sl => sl.pos).lastIndexOf(drop);
+                if (idx === -1) break;
+                slots.splice(idx, 1);
+            }
+        }
+        const mirror = side === 'team2';
+        const free = [...players];
+        const take = (slot) => {
+            free.sort((a, b) => effectiveRating(b, slot.pos) - effectiveRating(a, slot.pos));
+            return free.shift();
+        };
+        // Вратарь — в ворота, затем защита, полузащита, атака
+        ['GK', 'DEF', 'MID', 'FWD'].forEach(pos => {
+            slots.filter(sl => sl.pos === pos).forEach(sl => {
+                const p = pos === 'GK' ? (free.find(x => x.natPos === 'GK') || take(sl)) : take(sl);
+                if (!p) return;
+                if (free.includes(p)) free.splice(free.indexOf(p), 1);
+                p.position = sl.pos;
+                p.baseX = mirror ? 100 - sl.x : sl.x;
+                p.baseY = sl.y;
+            });
+        });
+        s.formation = formation;
+        if (reason) this.log('tactic', side, `${reason}: ${formation}`, { lineupChanged: true });
+        return true;
+    }
+
+    // Тренер меняет игру по ходу матча (только команды компьютера)
+    aiCoach() {
+        if (!isRealistic() || this.minute < 55) return;
+        const m = this.match;
+        const agg = m.legs === 2 && this.leg === 2
+            ? { t1: m.leg1.t1 + this.score.t1, t2: m.leg1.t2 + this.score.t2 }
+            : this.score;
+        ['team1', 'team2'].forEach(side => {
+            if (!this.isAI(side)) return;
+            const s = this.sides[side];
+            const my = side === 'team1' ? agg.t1 : agg.t2, their = side === 'team1' ? agg.t2 : agg.t1;
+            const diff = my - their;
+            const outfield = s.onPitch.filter(p => p.position !== 'GK').length;
+
+            // Проигрываем — рискуем
+            if (diff < 0 && !s.coach.chasing && (this.minute >= 68 || diff <= -2)) {
+                s.coach.chasing = true;
+                const target = outfield >= 10 ? (s.formation.startsWith('3') ? '3-4-3' : '4-3-3') : '4-4-1';
+                this.reshape(side, FORMATIONS[target] ? target : '4-3-3', `Тренер «${s.team.name}» бросает всех вперёд`);
+                s.style = 'attack';
+                s.line = 'high';
+            }
+            // Ведём в концовке — закрываемся
+            else if (diff > 0 && diff <= 1 && !s.coach.protecting && this.minute >= 78) {
+                s.coach.protecting = true;
+                this.reshape(side, '5-3-2', `Тренер «${s.team.name}» закрывается`);
+                s.style = 'defense';
+                s.line = 'low';
+            }
+            // В плей-офф при ничьей в концовке решающего матча — идём вперёд
+            else if (diff === 0 && !s.coach.pushing && this.minute >= 80 && this.allowExtraTime && s.style !== 'attack') {
+                s.coach.pushing = true;
+                s.style = 'attack';
+                this.log('tactic', side, `Тренер «${s.team.name}» требует идти вперёд`);
+            }
+        });
     }
 
     // Замена по решению игрока (номера из onPitch и bench)
@@ -233,17 +341,42 @@ class MatchSimulation {
         return avg - missing * 4;
     }
 
-    // Доля атак team1: зависит от силы составов и фактора своего поля
+    // Сколько игроков в каждой линии сейчас на поле (схема + удаления)
+    shape(side) {
+        const count = { DEF: 0, MID: 0, FWD: 0 };
+        this.sides[side].onPitch.forEach(p => { if (count[p.position] !== undefined) count[p.position]++; });
+        return count;
+    }
+
+    // Насколько тактика команды увеличивает её долю атак
+    tacticalAttack(side) {
+        if (!isRealistic()) return 0;
+        const s = this.sides[side], opp = this.sides[otherSide(side)];
+        const sh = this.shape(side);
+        let v = STYLES[s.style].attackShare + LINES[s.line].attackShare;
+        v += (sh.FWD - 2) * 0.012 - (sh.DEF - 4) * 0.015;      // больше нападающих — больше атак
+        if (s.style === 'possession' && opp.style === 'pressing') v -= 0.03; // прессинг мешает строить игру
+        return v;
+    }
+
+    // Доля атак team1: зависит от силы составов, фактора поля и тактики
     team1AttackProbability() {
         let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.012;
         if (isRealistic() && this.homeSide) p += this.homeSide === 'team1' ? 0.04 : -0.04;
-        p += STYLES[this.sides.team1.style].attackShare - STYLES[this.sides.team2.style].attackShare;
+        p += this.tacticalAttack('team1') - this.tacticalAttack('team2');
         return clamp(p, 0.25, 0.75);
     }
 
     // Поправка к реализации моментов от тактики обеих команд
     finishBonus(side) {
-        return STYLES[this.sides[side].style].ownFinish + STYLES[this.sides[otherSide(side)].style].oppFinish;
+        const s = this.sides[side], opp = this.sides[otherSide(side)];
+        if (!isRealistic()) return 0;
+        const oppShape = this.shape(otherSide(side)), myShape = this.shape(side);
+        let v = STYLES[s.style].ownFinish + STYLES[opp.style].oppFinish + LINES[opp.line].oppFinish;
+        v += (myShape.FWD - 2) * 0.006;                         // больше нападающих в штрафной
+        v -= (oppShape.DEF - 4) * 0.012;                        // пятёрка защитников мешает
+        if (s.style === 'counter' && opp.line === 'high') v += 0.03; // контратака за спину высокой линии
+        return v;
     }
 
     tire() {
@@ -275,9 +408,15 @@ class MatchSimulation {
         this.stats.possession.team2 = 100 - this.stats.possession.team1;
 
         if (attack) this.playAttack(this.attackingSide);
+        // Прессингующие команды чаще фолят (дополнительные фолы)
+        if (isRealistic()) ['team1', 'team2'].forEach(side => {
+            const extra = STYLES[this.sides[side].style].fouls - 1;
+            if (extra > 0 && Math.random() < 0.18 * extra) this.foul(side, otherSide(side));
+        });
         this.tire();
         if (Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
         this.aiSubstitutions();
+        this.aiCoach();
 
         if (this.minute === 45) this.log('half', null, `Перерыв: ${this.score.t1}:${this.score.t2}`);
         if (this.minute >= this.maxMinute) this.endOfPeriod();
@@ -342,12 +481,15 @@ class MatchSimulation {
 
     foul(side, victimSide) {
         const s = this.sides[side];
+        // Аккуратные команды (владение) фолят реже
+        const foulK = isRealistic() ? STYLES[s.style].fouls : 1;
+        if (foulK < 1 && Math.random() > foulK) return;
         const offender = weightedPick(s.onPitch, p => ({ DEF: 3, MID: 2, FWD: 1, GK: 0.2 })[p.position]);
         if (!offender) return;
         this.stats.fouls[side]++;
 
         const r = Math.random();
-        if (r < 0.004) this.sendOff(side, offender, 'Прямая красная карточка');
+        if (r < 0.0025) this.sendOff(side, offender, 'Прямая красная карточка');
         else if (r < 0.17) {
             offender.yellow++;
             s.yellowed.add(offender.number);
@@ -390,6 +532,10 @@ class MatchSimulation {
             const benchGk = s.bench.find(p => p.position === 'GK');
             const victim = [...s.onPitch].filter(p => p.position !== 'GK').sort((a, b) => a.rating - b.rating)[0];
             if (benchGk && victim && s.subsUsed < MAX_SUBS) this.substitute(side, victim, benchGk, 'вынужденная');
+        }
+        // Тренер перестраивает команду в меньшинстве (убирает нападающего из схемы)
+        if (this.isAI(side) && s.onPitch.length >= 7) {
+            this.reshape(side, s.formation, `«${s.team.name}» перестраивается в меньшинстве`);
         }
     }
 

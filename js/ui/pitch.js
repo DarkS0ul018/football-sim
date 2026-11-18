@@ -79,8 +79,9 @@ function movePlayers(sim, ms) {
     const by = pitch.ball.y;
     ['team1', 'team2'].forEach(side => {
         const dir = side === 'team1' ? 1 : -1; // team1 атакует вправо, team2 — влево
+        const lineShift = (LINES[sim.sides[side].line] || LINES.mid).shift;
         sim.sides[side].onPitch.forEach(p => {
-            let tx = p.baseX, ty = p.baseY;
+            let tx = p.baseX + (p.position === 'GK' ? 0 : lineShift * dir), ty = p.baseY;
             if (owner === side) {
                 tx += ({ FWD: 18, MID: 12, DEF: 7, GK: 2 })[p.position] * dir;
             } else {

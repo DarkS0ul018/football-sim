@@ -69,10 +69,28 @@ function renderManagePanel() {
     const s = sim.sides[side];
     setText('manage-minute', `${sim.minute}' · ${sim.score.t1}:${sim.score.t2}`);
     renderStyleButtons('manage-style', s.style, style => {
+        sim.newEvents = [];
         sim.setStyle(side, style);
         getSquad(s.team).style = style;
+        sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
+        renderLineups(sim);
         renderManagePanel();
     });
+    renderChoiceButtons('manage-line', LINES, s.line, line => {
+        sim.newEvents = [];
+        sim.setLine(side, line);
+        sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
+        renderManagePanel();
+    });
+    const fsel = $('manage-formation');
+    fsel.innerHTML = Object.keys(FORMATIONS).map(f => `<option value="${f}" ${f === s.formation ? 'selected' : ''}>${f}</option>`).join('');
+    fsel.onchange = () => {
+        sim.newEvents = [];
+        sim.reshape(side, fsel.value, 'Новая схема');
+        sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
+        renderPlayers(sim);
+        renderLineups(sim);
+    };
     const left = MAX_SUBS - s.subsUsed;
     setText('manage-subs-left', `(осталось ${left} из ${MAX_SUBS})`);
     const row = (p, key, selected) => `
@@ -129,7 +147,7 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁'
+    'half': '⏱️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁'
 };
 
 function addMatchEvent(match, minute, type, text, team = null) {
@@ -161,9 +179,11 @@ function renderLineups(sim) {
         const s = sim.sides[side];
         const color = side === 'team1' ? 'var(--accent-primary)' : 'var(--highlight)';
         const home = sim.homeSide === side ? ' 🏠' : '';
+        const tactic = `<div class="lineup-tactic">${s.formation} · ${(STYLES[s.style] || STYLES.balance).label}${s.plan ? ' · ' + s.plan : ''}</div>`;
         const off = [...s.sentOff.map(p => row({ ...p, name: p.name + ' 🟥' }, 'off')), ...s.subbedOff.map(p => row({ ...p, name: p.name + ' ↩' }, 'off'))];
         return `<div>
             <div class="lineup-team-name" style="color:${color}">${teamLabel(s.team)}${home}</div>
+            ${tactic}
             ${s.onPitch.map(p => row(p)).join('')}
             ${off.length ? `<div class="lineup-subtitle">Ушли с поля</div>${off.join('')}` : ''}
             <div class="lineup-subtitle">Запасные (замен ${s.subsUsed}/${MAX_SUBS})</div>
@@ -276,7 +296,7 @@ function startSimulation(m) {
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
-        if (lineupChanged || events.some(e => e.type === 'card-yellow')) renderLineups(sim);
+        if (lineupChanged || events.some(e => e.type === 'card-yellow' || e.type === 'tactic')) renderLineups(sim);
 
         animateMinute(sim, events, ms);
         crowdIntensity(sim);

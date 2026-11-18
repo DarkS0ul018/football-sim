@@ -791,3 +791,6 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
     font-weight: 600; font-size: 12px; cursor: pointer;
 }
 .gt-replay:hover { background: var(--accent); color: var(--accent-ink); }
+
+.lineup-tactic { font-size: 11px; color: var(--accent); margin: -2px 0 6px; font-weight: 600; }
+#manage-formation { max-width: 220px; }

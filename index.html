@@ -271,6 +271,11 @@
                         <div class="style-hint" id="tactics-style-hint"></div>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>Линия обороны</label>
+                    <div class="style-buttons" id="tactics-line"></div>
+                    <div class="style-hint" id="tactics-line-hint"></div>
+                </div>
                 <div class="tactics-summary">
                     <div>Сила состава: <b id="tactics-strength"></b></div>
                     <div>Соперник: <b id="tactics-opp-strength"></b></div>
@@ -434,8 +439,16 @@
             <div class="overlay-panel">
                 <h2>Пауза · <span id="manage-minute"></span></h2>
                 <div class="manage-section">
+                    <h4>Схема</h4>
+                    <select id="manage-formation"></select>
+                </div>
+                <div class="manage-section">
                     <h4>Стиль игры</h4>
                     <div class="style-buttons" id="manage-style"></div>
+                </div>
+                <div class="manage-section">
+                    <h4>Линия обороны</h4>
+                    <div class="style-buttons" id="manage-line"></div>
                 </div>
                 <div class="manage-section">
                     <h4>Замена <span id="manage-subs-left" class="muted"></span></h4>
@@ -614,6 +627,7 @@
     <script src="js/data/teams.js"></script>
     <script src="js/data/squads.js"></script>
     <script src="js/data/ages.js"></script>
+    <script src="js/data/tactics.js"></script>
     <!-- Логика (без DOM) -->
     <script src="js/core/state.js"></script>
     <script src="js/core/engine.js"></script>

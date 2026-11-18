@@ -38,19 +38,25 @@ function openTactics(match) {
     const changes = validateLineup(team);
     $('tactics-warnings').innerHTML = changes.map(c => `<div>⚠️ ${c}</div>`).join('');
 
-    prepareTeamForMatch(opp); // соперник выбирает состав (видим его силу)
-    setHtml('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)}`);
+    prepareTeamForMatch(opp); // соперник выбирает состав (видим его силу и привычную тактику)
+    const os = getSquad(opp);
+    setHtml('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)} · ${os.formation} · ${(STYLES[os.style] || STYLES.balance).label}`);
 
     $('tactics-formation').innerHTML = Object.keys(FORMATIONS).map(f => `<option value="${f}">${f}</option>`).join('');
     renderTactics();
     showScreen('tactics');
 }
 
-function renderStyleButtons(containerId, current, onPick) {
+// Кнопки выбора (стиль игры, линия обороны)
+function renderChoiceButtons(containerId, options, current, onPick) {
     const box = $(containerId);
-    box.innerHTML = Object.entries(STYLES).map(([key, s]) =>
+    box.innerHTML = Object.entries(options).map(([key, s]) =>
         `<button class="style-btn ${key === current ? 'active' : ''}" data-style="${key}" title="${s.hint}">${s.label}</button>`).join('');
     box.querySelectorAll('.style-btn').forEach(b => b.onclick = () => onPick(b.dataset.style));
+}
+
+function renderStyleButtons(containerId, current, onPick) {
+    renderChoiceButtons(containerId, STYLES, current, onPick);
 }
 
 function renderTactics() {
@@ -62,7 +68,10 @@ function renderTactics() {
 
     $('tactics-formation').value = squad.formation;
     renderStyleButtons('tactics-style', squad.style, style => { squad.style = style; renderTactics(); });
-    setText('tactics-style-hint', STYLES[squad.style].hint);
+    setText('tactics-style-hint', (STYLES[squad.style] || STYLES.balance).hint);
+    const line = LINES[squad.line] ? squad.line : 'mid';
+    renderChoiceButtons('tactics-line', LINES, line, l => { squad.line = l; renderTactics(); });
+    setText('tactics-line-hint', LINES[line].hint);
     setText('tactics-strength', lineupStrength(team).toFixed(1));
 
     const sel = tacticsSelection;

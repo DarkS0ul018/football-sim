@@ -12,13 +12,31 @@ const FORMATIONS = {
     '5-3-2': [['GK', 8, 50], ['DEF', 22, 14], ['DEF', 18, 32], ['DEF', 17, 50], ['DEF', 18, 68], ['DEF', 22, 86],
               ['MID', 38, 30], ['MID', 36, 50], ['MID', 38, 70], ['FWD', 56, 40], ['FWD', 56, 60]],
     '3-5-2': [['GK', 8, 50], ['DEF', 18, 30], ['DEF', 17, 50], ['DEF', 18, 70],
-              ['MID', 40, 12], ['MID', 35, 35], ['MID', 32, 50], ['MID', 35, 65], ['MID', 40, 88], ['FWD', 57, 40], ['FWD', 57, 60]]
+              ['MID', 40, 12], ['MID', 35, 35], ['MID', 32, 50], ['MID', 35, 65], ['MID', 40, 88], ['FWD', 57, 40], ['FWD', 57, 60]],
+    '3-4-3': [['GK', 8, 50], ['DEF', 18, 30], ['DEF', 17, 50], ['DEF', 18, 70],
+              ['MID', 38, 14], ['MID', 35, 40], ['MID', 35, 60], ['MID', 38, 86], ['FWD', 57, 24], ['FWD', 60, 50], ['FWD', 57, 76]],
+    '3-4-2-1': [['GK', 8, 50], ['DEF', 18, 30], ['DEF', 17, 50], ['DEF', 18, 70],
+              ['MID', 38, 14], ['MID', 33, 40], ['MID', 33, 60], ['MID', 38, 86], ['MID', 48, 36], ['MID', 48, 64], ['FWD', 60, 50]],
+    '4-1-4-1': [['GK', 8, 50], ['DEF', 20, 22], ['DEF', 18, 41], ['DEF', 18, 59], ['DEF', 20, 78],
+              ['MID', 30, 50], ['MID', 43, 18], ['MID', 40, 40], ['MID', 40, 60], ['MID', 43, 82], ['FWD', 60, 50]]
 };
 
+// Стили: attackShare — доля атак; ownFinish — реализация своих моментов;
+// oppFinish — насколько легче забивать сопернику; fatigue — усталость; fouls — частота фолов
 const STYLES = {
-    attack:  { label: '⚔️ Атака',  hint: 'Больше атак и голов, но и пропускаете чаще. Игроки устают быстрее.', attackShare: 0.05, ownFinish: 0.02, oppFinish: 0.03, fatigue: 1.25 },
-    balance: { label: '⚖️ Баланс', hint: 'Обычная игра.', attackShare: 0, ownFinish: 0, oppFinish: 0, fatigue: 1 },
-    defense: { label: '🛡️ Оборона', hint: 'Меньше атак, но и соперник забивает реже. Экономит силы.', attackShare: -0.05, ownFinish: -0.02, oppFinish: -0.04, fatigue: 0.85 }
+    possession: { label: '🎯 Владение',  hint: 'Контроль мяча и терпеливые атаки. Соперник реже доходит до ворот, но прессинг мешает строить игру.', attackShare: 0.04, ownFinish: -0.01, oppFinish: -0.01, fatigue: 0.95, fouls: 0.85 },
+    pressing:   { label: '🔥 Прессинг',  hint: 'Отбор высоко у чужих ворот. Много атак, но игроки быстро устают и чаще фолят.', attackShare: 0.03, ownFinish: 0.01, oppFinish: -0.01, fatigue: 1.35, fouls: 1.25 },
+    counter:    { label: '⚡ Контратака', hint: 'Отдаём мяч и бьём на скорости. Атак меньше, но они опаснее — особенно против высокой линии.', attackShare: -0.04, ownFinish: 0.03, oppFinish: -0.02, fatigue: 0.95, fouls: 1.05 },
+    balance:    { label: '⚖️ Баланс',    hint: 'Обычная игра.', attackShare: 0, ownFinish: 0, oppFinish: 0, fatigue: 1, fouls: 1 },
+    attack:     { label: '⚔️ Атака',     hint: 'Все вперёд: больше атак и голов, но и пропускаете чаще. Игроки устают быстрее.', attackShare: 0.05, ownFinish: 0.02, oppFinish: 0.03, fatigue: 1.25, fouls: 1 },
+    defense:    { label: '🛡️ Оборона',   hint: 'Автобус у своих ворот: атак мало, но и соперник забивает реже. Экономит силы.', attackShare: -0.05, ownFinish: -0.02, oppFinish: -0.04, fatigue: 0.85, fouls: 1.1 }
+};
+
+// Высота линии обороны: высокая помогает давить, но открывает спину для контратак
+const LINES = {
+    high: { label: '⬆️ Высокая', hint: 'Команда играет высоко: больше владения у чужих ворот, но за спиной много места.', attackShare: 0.02, oppFinish: 0.02, shift: 6 },
+    mid:  { label: '➡️ Средняя', hint: 'Обычная высота.', attackShare: 0, oppFinish: 0, shift: 0 },
+    low:  { label: '⬇️ Низкая',  hint: 'Глубокий блок у своей штрафной: соперник реже создаёт моменты, но и своих атак меньше.', attackShare: -0.02, oppFinish: -0.02, shift: -7 }
 };
 
 const YELLOWS_FOR_BAN = 2; // две жёлтые в разных матчах = пропуск следующего
@@ -44,7 +62,9 @@ function initSquads() {
         getTeamRoster(team.name, team.rating).forEach(p => {
             players[p.number] = { fitness: 100, suspended: 0, yellowAcc: 0 };
         });
-        state.squads[team.id] = { formation: '4-4-2', style: 'balance', lineup: [], players };
+        // Каждый клуб начинает со своей привычной тактики (js/data/tactics.js)
+        const t = getClubTactics(team.name, team.rating);
+        state.squads[team.id] = { formation: t.formation, style: t.style, line: t.line, lineup: [], players };
         state.squads[team.id].lineup = autoLineup(team);
     });
 }
