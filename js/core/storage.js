@@ -55,6 +55,7 @@ function saveGame() {
         userTeam: state.userTeam ? state.userTeam.id : null,
         userTeamEliminated: state.userTeamEliminated,
         squads: state.squads,
+        rosters: state.rosters,
         playerStats
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* хранилище недоступно — играем без сохранения */ }
@@ -97,6 +98,7 @@ function loadGame() {
     state.activeMatch = null;
     playerStats = data.playerStats;
     state.squads = data.squads;
+    state.rosters = data.rosters || null; // в старых сохранениях составов нет — берутся текущие
     state.seasonRecorded = false;
     return true;
 }

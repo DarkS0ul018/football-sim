@@ -25,6 +25,8 @@ const rosterCache = {};
 
 // Детерминированный ростер: одинаковый в каждом матче и после перезагрузки.
 function getTeamRoster(teamName, teamRating) {
+    // В идущем турнире составы зафиксированы при старте (правки в редакторе на него не влияют)
+    if (state.rosters && state.rosters[teamName]) return state.rosters[teamName];
     const key = `${teamName}|${teamRating}`;
     if (rosterCache[key]) return rosterCache[key];
 

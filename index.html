@@ -51,6 +51,10 @@
                 </div>
             </div>
 
+            <div class="setup-links">
+                <button id="btn-open-editor" class="btn-secondary">✏️ Редактор команд</button>
+            </div>
+
             <details id="hall-card" class="card hall-card" style="display:none;">
                 <summary>🏛️ Зал славы <span id="hall-count" class="muted"></span></summary>
                 <div id="hall-content"></div>
@@ -126,6 +130,38 @@
                     <span class="btn-icon">⚽</span>
                 </button>
             </div>
+        </section>
+
+        <!-- ЭКРАН: РЕДАКТОР КОМАНД -->
+        <section id="screen-editor" class="screen">
+            <div class="screen-header">
+                <h1>✏️ Редактор команд</h1>
+                <p class="subtitle">Правки сохраняются в этом браузере и действуют в новых турнирах</p>
+            </div>
+
+            <div class="card editor-toolbar">
+                <div class="style-buttons" id="editor-type-tabs">
+                    <button class="style-btn active" data-type="world">🌟 Мировые</button>
+                    <button class="style-btn" data-type="russia">🇷🇺 Российские</button>
+                </div>
+                <div class="editor-toolbar-actions">
+                    <button id="btn-editor-new" class="btn-secondary">➕ Новая команда</button>
+                    <button id="btn-editor-export" class="btn-secondary">📤 Экспорт</button>
+                    <label class="btn-secondary editor-import">📥 Импорт<input type="file" id="editor-import-file" accept=".json,application/json" hidden></label>
+                    <button id="btn-editor-reset-all" class="btn-secondary">♻️ Сбросить всё</button>
+                </div>
+            </div>
+
+            <div class="editor-layout">
+                <div class="card">
+                    <div id="editor-team-list" class="editor-team-list"></div>
+                </div>
+                <div class="card" id="editor-form-card">
+                    <div id="editor-form" class="editor-form"></div>
+                </div>
+            </div>
+
+            <button id="btn-editor-back" class="btn-secondary" style="margin-top:20px">← К настройкам</button>
         </section>
 
         <!-- ЭКРАН 1.5: ВЫБОР КОМАНДЫ -->
@@ -574,6 +610,8 @@
     <script src="js/core/squad.js"></script>
     <script src="js/core/career.js"></script>
     <script src="js/core/halloffame.js"></script>
+    <script src="js/data/validate.js"></script>
+    <script src="js/core/customdata.js"></script>
     <script src="js/core/tournament.js"></script>
     <script src="js/core/storage.js"></script>
     <!-- Интерфейс -->
@@ -584,6 +622,7 @@
     <script src="js/ui/setup.js"></script>
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/tactics.js"></script>
+    <script src="js/ui/editor.js"></script>
     <script src="js/ui/match.js"></script>
     <script src="js/ui/results.js"></script>
     <script src="js/main.js"></script>

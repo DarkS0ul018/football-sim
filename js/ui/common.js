@@ -8,6 +8,7 @@ const screens = {
     teamsList: $('screen-teams-list'),
     dashboard: $('screen-dashboard'),
     tactics: $('screen-tactics'),
+    editor: $('screen-editor'),
     match: $('screen-match'),
     results: $('screen-results')
 };

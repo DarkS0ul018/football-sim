@@ -60,6 +60,12 @@ function createTournament(settings, teamsPool, userTeamName = null) {
         ? state.teams.find(t => t.name === userTeamName) || null
         : null;
 
+    // Фиксируем составы участников на весь турнир
+    state.rosters = null;
+    const rosters = {};
+    state.teams.forEach(t => { rosters[t.name] = getTeamRoster(t.name, t.rating); });
+    state.rosters = rosters;
+
     initPlayerStats();
     initSquads();
 

@@ -15,22 +15,22 @@ const mixedTeams = {
     emojis: [...russianTeams.emojis, ...worldTeams.emojis]
 };
 
-// Рейтинги команд (1-100)
+// Рейтинги команд (1-100), сезон 2025/26.
+// Ориентиры: победитель ЛЧ-2025 ПСЖ, чемпионы 2024/25 — Ливерпуль, Барселона, Бавария, Наполи, Краснодар.
 const teamRatings = {
-    // Мировые
-    "Real": 90, "Barca": 98, "ManCity": 94, "Liverpool": 91, "Bayern": 93,
-    "PSG": 90, "Inter": 88, "Juventus": 87, "Milan": 86, "Arsenal": 90,
-    "Chelsea": 87, "Dortmund": 86, "Atletico": 88, "Napoli": 87, "Roma": 85,
-    "Sevilla": 84, "Porto": 85, "Ajax": 84, "Benfica": 85, "Valencia": 83,
-    "Tottenham": 85, "ManUtd": 86, "Atalanta": 86, "Frankfurt": 84,
-    "Sporting": 85, "Brugge": 82, "Fiorentina": 84, "Betis": 83,
-    "AstonVilla": 83, "Nice": 83, "Osasuna": 79, "Girona": 82, "Lazio": 85,
-    "Feyenoord": 80,
+    // Мировые: элита
+    "PSG": 92, "Barca": 91, "Liverpool": 91, "Bayern": 91, "Arsenal": 91, "Real": 90,
+    "ManCity": 88, "Inter": 88, "Chelsea": 87, "Napoli": 86, "Atletico": 86,
+    // Сильные
+    "Juventus": 84, "Milan": 84, "Dortmund": 84, "Atalanta": 83, "AstonVilla": 83,
+    "Tottenham": 83, "Benfica": 83, "Sporting": 83, "ManUtd": 82, "Roma": 82, "Porto": 82,
+    // Средние
+    "Frankfurt": 81, "Betis": 81, "Lazio": 80, "Fiorentina": 80, "Ajax": 79, "Brugge": 79,
+    "Feyenoord": 79, "Nice": 78, "Sevilla": 78, "Valencia": 77, "Girona": 77, "Osasuna": 77,
     // Российские
-    "Спартак": 70, "Зенит": 83, "ЦСКА": 86, "Локомотив": 81, "Динамо": 80,
-    "Краснодар": 82, "Ростов": 79, "Рубин": 78, "Сочи": 77, "Ахмат": 76,
-    "Крылья": 77, "Оренбург": 75, "ПариНН": 74, "Факел": 73, "Акрон": 74,
-    "Балтика": 75
+    "Краснодар": 82, "Зенит": 82, "Спартак": 80, "ЦСКА": 80, "Локомотив": 79, "Динамо": 78,
+    "Рубин": 74, "Ростов": 74, "Балтика": 74, "Ахмат": 73, "Крылья": 72, "Акрон": 72,
+    "ПариНН": 71, "Оренбург": 71, "Сочи": 71, "Факел": 70
 };
 
 // Резервные имена — если команды нет в SQUADS

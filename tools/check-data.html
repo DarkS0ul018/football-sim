@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка данных</title>
+    <style>
+        :root { --bg: #0a0a1a; --card: #1a1a3e; --text: #fff; --muted: #a0a0c0; --err: #e94560; --warn: #ffd700; --ok: #00ff88; }
+        body { margin: 0; padding: 16px; background: var(--bg); color: var(--text); font-family: system-ui, sans-serif; }
+        h1 { margin: 0 0 8px; }
+        .summary { display: flex; flex-wrap: wrap; gap: 12px; margin: 12px 0 20px; }
+        .pill { background: var(--card); padding: 8px 14px; border-radius: 8px; }
+        .team { background: var(--card); border-radius: 8px; padding: 10px 14px; margin-bottom: 8px; }
+        .team.ok { opacity: 0.6; }
+        .team h3 { margin: 0; font-size: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .muted { color: var(--muted); font-weight: normal; }
+        .err { color: var(--err); }
+        .warn { color: var(--warn); }
+        .okc { color: var(--ok); }
+        ul { margin: 6px 0 0; padding-left: 20px; }
+        label { color: var(--muted); }
+    </style>
+</head>
+<body>
+    <h1>🔍 Проверка данных игры</h1>
+    <div class="muted">Проверяются js/data/teams.js и js/data/squads.js (правки из редактора в браузере сюда не попадают).</div>
+    <div class="summary" id="summary"></div>
+    <label><input type="checkbox" id="only-problems" checked> Только команды с замечаниями</label>
+    <div id="cross" style="margin:16px 0"></div>
+    <div id="teams"></div>
+
+    <script src="../js/data/teams.js"></script>
+    <script src="../js/data/squads.js"></script>
+    <script src="../js/data/validate.js"></script>
+    <script>
+        const report = validateGameData();
+        const s = report.summary;
+        document.getElementById('summary').innerHTML = `
+            <div class="pill">Команд: <b>${s.teams}</b></div>
+            <div class="pill">Игроков: <b>${s.players}</b></div>
+            <div class="pill ${s.errors ? 'err' : 'okc'}">Ошибок: <b>${s.errors}</b></div>
+            <div class="pill ${s.warnings ? 'warn' : 'okc'}">Замечаний: <b>${s.warnings}</b></div>`;
+        document.getElementById('cross').innerHTML = report.crossTeam.length
+            ? `<h3 class="warn">Между командами</h3><ul>${report.crossTeam.map(x => `<li class="warn">${x}</li>`).join('')}</ul>` : '';
+        function render() {
+            const only = document.getElementById('only-problems').checked;
+            document.getElementById('teams').innerHTML = report.teams
+                .filter(t => !only || t.errors.length || t.warnings.length)
+                .map(t => `<div class="team ${t.errors.length || t.warnings.length ? '' : 'ok'}">
+                    <h3>${t.emoji} ${t.name} <span class="muted">${t.type === 'russia' ? 'Россия' : 'Мир'} · рейтинг ${t.rating} · игроков ${t.players}</span>
+                        ${!t.errors.length && !t.warnings.length ? '<span class="okc">✓</span>' : ''}</h3>
+                    ${t.errors.length || t.warnings.length ? `<ul>${t.errors.map(e => `<li class="err">${e}</li>`).join('')}${t.warnings.map(w => `<li class="warn">${w}</li>`).join('')}</ul>` : ''}
+                </div>`).join('') || '<div class="okc">Замечаний нет 🎉</div>';
+        }
+        document.getElementById('only-problems').onchange = render;
+        render();
+    </script>
+</body>
+</html>
