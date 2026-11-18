@@ -15,11 +15,12 @@ function renderDashboard() {
     setText('dashboard-title', getStageTitle());
     renderUserBadge();
 
-    const isPlayoff = state.settings.mode !== 'groups';
+    const isPlayoff = !isRoundRobinStage();
     $('playoff-bracket').style.display = isPlayoff ? 'block' : 'none';
     $('content-area').style.display = isPlayoff ? 'none' : 'block';
 
     if (isPlayoff) renderBracket();
+    else if (state.settings.mode === 'league') renderLeagueTable();
     else renderGroupTables();
 
     renderTopScorers();
@@ -35,6 +36,37 @@ function renderUserBadge() {
     } else {
         badge.style.display = 'none';
     }
+}
+
+// ----- Лига -----
+// Последние результаты команды: В/Н/П за 5 матчей
+function teamFormHtml(team) {
+    const played = state.matches.filter(m => m.isFinished && m.involves(team)).slice(-5);
+    return played.map(m => {
+        const agg = m.aggregateScore;
+        const my = m.team1.id === team.id ? agg.t1 : agg.t2, their = m.team1.id === team.id ? agg.t2 : agg.t1;
+        const r = my > their ? ['В', 'win'] : my === their ? ['Н', 'draw'] : ['П', 'loss'];
+        return `<span class="form-pill ${r[1]}" title="${m.team1.name} ${agg.t1}:${agg.t2} ${m.team2.name}">${r[0]}</span>`;
+    }).join('');
+}
+
+function renderLeagueTable() {
+    const table = sortGroup([...state.teams]);
+    $('content-area').innerHTML = `
+        <div class="group-legend"><span class="group-legend-note">Чемпион — первое место. При равенстве очков: личные встречи → разница мячей → забитые</span></div>
+        <div class="table-container league-table">
+            <h4>📋 Турнирная таблица</h4>
+            <table>
+                <tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>О</th><th>Форма</th></tr>
+                ${table.map((t, i) => `
+                    <tr class="${i === 0 ? 'qualify-third' : ''}" style="${userRowStyle(t.id)}">
+                        <td>${i + 1}</td><td>${teamLabel(t)}</td>
+                        <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
+                        <td>${t.stats.gf}:${t.stats.ga}</td><td><b>${t.stats.points}</b></td>
+                        <td class="form-cell">${teamFormHtml(t)}</td>
+                    </tr>`).join('')}
+            </table>
+        </div>`;
 }
 
 // ----- Группы -----
@@ -112,39 +144,61 @@ function renderBracket() {
                 <div class="bracket-team ${cls(m.team2)}"><span style="flex:1">${teamLabel(m.team2)}</span><span class="bracket-score">${m.isFinished ? agg.t2 : '-'}</span></div>
                 ${legs}${pens}${auto}`;
 
-            if (!m.isFinished && (!isCareer() || isUserMatch(m))) el.onclick = () => openMatchScreen(m);
+            if (!m.isFinished && (!isCareer() || isUserMatch(m))) el.onclick = () => openMatch(m);
             roundDiv.appendChild(el);
         });
         container.appendChild(roundDiv);
     });
 }
 
-// ----- Список матчей (групповой этап) -----
+// ----- Список матчей (группы и лига): прошлый и текущий тур -----
+function matchResultHtml(m) {
+    const agg = m.aggregateScore;
+    return `<div class="match-result">
+        <b>${teamLabel(m.team1)}</b> ${agg.t1}:${agg.t2} <b>${teamLabel(m.team2)}</b>${m.isAutoSimulated ? ' 🤖' : ''}
+        <br><small>${m.roundName}</small>
+    </div>`;
+}
+
 function renderMatchesList(isPlayoff) {
     const list = $('matches-list');
     list.innerHTML = '';
     if (isPlayoff) return;
 
-    list.innerHTML = '<h3>Матчи:</h3>' + state.matches.filter(m => m.isFinished).map(m => {
-        const agg = m.aggregateScore;
-        const isDraw = agg.t1 === agg.t2;
-        return `<div class="match-result">
-            <b>${teamLabel(m.team1)}</b> ${agg.t1}:${agg.t2} <b>${teamLabel(m.team2)}</b>${m.isAutoSimulated ? ' 🤖' : ''}
-            <br><small>${m.roundName} · ${isDraw ? 'Ничья' : 'Победитель: ' + m.winner.name}</small>
-        </div>`;
-    }).join('');
+    const current = getCurrentMatchday();
+    const finished = state.matches.filter(m => m.isFinished);
+    const lastPlayed = finished.length ? Math.max(...finished.map(m => m.matchday || 0)) : null;
 
-    const upcoming = state.matches.filter(m => !m.isFinished && (!isCareer() || isUserMatch(m)));
-    if (!upcoming.length) return;
-    list.insertAdjacentHTML('beforeend', '<h4>Предстоящие:</h4>');
-    upcoming.forEach(m => {
+    // Результаты последнего сыгранного тура
+    if (lastPlayed) {
+        const shown = finished.filter(m => m.matchday === lastPlayed);
+        list.insertAdjacentHTML('beforeend', `<h3>Результаты · тур ${lastPlayed}</h3>` + shown.map(matchResultHtml).join(''));
+    }
+    if (!current) return;
+
+    // Матчи текущего тура
+    const upcoming = state.matches.filter(m => !m.isFinished && m.matchday === current);
+    list.insertAdjacentHTML('beforeend', `<h4>Тур ${current}${getTotalMatchdays() ? ' из ' + getTotalMatchdays() : ''}:</h4>`);
+    upcoming.filter(m => !isCareer() || isUserMatch(m)).forEach(m => {
         const btn = document.createElement('button');
         btn.className = 'btn-secondary';
         btn.style.marginBottom = '10px';
         btn.innerHTML = `⚽ ${teamLabel(m.team1)} vs ${teamLabel(m.team2)} <small>(${m.roundName})</small>${isUserMatch(m) ? ' ⚽ ВАШ МАТЧ' : ''}`;
-        btn.onclick = () => openMatchScreen(m);
+        btn.onclick = () => openMatch(m);
         list.appendChild(btn);
     });
+    if (isCareer()) {
+        const others = upcoming.filter(m => !isUserMatch(m));
+        if (others.length) list.insertAdjacentHTML('beforeend', `<div class="muted" style="margin:6px 0 12px">Остальные матчи тура (${others.length}) сыграются после вашего.</div>`);
+    } else {
+        // Симулятор: можно досчитать тур целиком
+        const auto = document.createElement('button');
+        auto.className = 'btn-secondary';
+        auto.style.marginBottom = '10px';
+        auto.innerHTML = `🤖 Сыграть тур ${current} автоматически`;
+        auto.onclick = () => { autoSimulateAllRemainingMatches(m => m.matchday === current); renderDashboard(); };
+        list.appendChild(auto);
+    }
 }
 
 // ----- Кнопка следующего этапа -----
@@ -152,7 +206,7 @@ function renderNextRoundButton() {
     const btn = $('btn-next-round');
     if (!isStageComplete()) { btn.style.display = 'none'; return; }
     btn.style.display = 'block';
-    const isLast = state.settings.mode !== 'groups' && state.matches.length === 1;
+    const isLast = state.settings.mode === 'league' || (state.settings.mode !== 'groups' && state.matches.length === 1);
     btn.innerHTML = isLast ? '<span>🏆 Результаты</span>' : '<span>➡️ Следующий раунд</span>';
     btn.onclick = goToNextStage;
 }

@@ -76,7 +76,7 @@ function updateTeamStats(team, gf, ga, win) {
 
 // Матчи группового этапа (во время групп — текущие матчи, потом — сохранённая копия)
 function getGroupMatches() {
-    return state.settings.mode === 'groups' ? state.matches : (state.groupMatches || []);
+    return isRoundRobinStage() ? state.matches : (state.groupMatches || []);
 }
 
 // Мини-таблица личных встреч между командами teams

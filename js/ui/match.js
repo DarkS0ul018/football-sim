@@ -21,6 +21,82 @@ function stopMatchTimers() {
     pendingTimers.forEach(clearTimeout);
     pendingTimers = [];
     onSpeedChange = null;
+    simStep = null;
+    $('btn-manage-match').style.display = 'none';
+}
+
+let simStep = null;     // функция шага живого матча (для паузы)
+let isPaused = false;
+
+// Сторона команды игрока в текущем матче (только карьера)
+function userSide(m) {
+    if (!isUserMatch(m)) return null;
+    return m.team1.id === state.userTeam.id ? 'team1' : 'team2';
+}
+
+// ----- Пауза и управление по ходу матча -----
+let manageOut = null, manageIn = null;
+
+function openManagePanel() {
+    if (!simStep || !currentSim) return;
+    clearInterval(simulationInterval);
+    isPaused = true;
+    manageOut = manageIn = null;
+    renderManagePanel();
+    $('manage-overlay').style.display = 'flex';
+}
+
+function renderManagePanel() {
+    const sim = currentSim;
+    const side = userSide(sim.match);
+    const s = sim.sides[side];
+    setText('manage-minute', `${sim.minute}' · ${sim.score.t1}:${sim.score.t2}`);
+    renderStyleButtons('manage-style', s.style, style => {
+        sim.setStyle(side, style);
+        getSquad(s.team).style = style;
+        renderManagePanel();
+    });
+    const left = MAX_SUBS - s.subsUsed;
+    setText('manage-subs-left', `(осталось ${left} из ${MAX_SUBS})`);
+    const row = (p, key, selected) => `
+        <div class="tactics-player ${selected ? 'selected' : ''}" data-key="${key}">
+            <span class="tp-slot">${p.position}</span><span class="tp-num">${p.number}</span>
+            <span class="tp-name">${p.name}${p.yellow ? ' 🟨' : ''}</span>
+            <span class="tp-fitness"><span style="width:${Math.round(p.fitness)}%;background:${fitnessColor(p.fitness)}"></span></span>
+            <span class="tp-rating">${Math.round(effectiveRating(p, p.position))}</span>
+        </div>`;
+    $('manage-out').innerHTML = s.onPitch.map(p => row(p, `o${p.number}`, manageOut === p.number)).join('');
+    $('manage-in').innerHTML = s.bench.length
+        ? s.bench.map(p => row({ ...p, position: p.natPos }, `i${p.number}`, manageIn === p.number)).join('')
+        : '<div class="muted">Скамейка пуста</div>';
+    document.querySelectorAll('#manage-overlay .tactics-player').forEach(el => el.onclick = () => {
+        const num = Number(el.dataset.key.slice(1));
+        if (el.dataset.key[0] === 'o') manageOut = manageOut === num ? null : num;
+        else manageIn = manageIn === num ? null : num;
+        renderManagePanel();
+    });
+    $('btn-manage-sub').disabled = !(manageOut && manageIn && left > 0);
+    $('manage-autosubs').checked = s.autoSubs;
+}
+
+function doManualSub() {
+    const sim = currentSim;
+    const side = userSide(sim.match);
+    sim.newEvents = [];
+    if (sim.manualSubstitute(side, manageOut, manageIn)) {
+        sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
+        renderPlayers(sim);
+        renderLineups(sim);
+        renderSubstitutions(sim);
+    }
+    manageOut = manageIn = null;
+    renderManagePanel();
+}
+
+function resumeMatch() {
+    $('manage-overlay').style.display = 'none';
+    isPaused = false;
+    if (simStep) simulationInterval = setInterval(simStep, getMatchInterval());
 }
 
 // Пока матч идёт, уйти с экрана нельзя (иначе он доигрывался бы в фоне)
@@ -272,13 +348,17 @@ function startSimulation(m) {
             return;
         }
         stopMatchTimers();
-        concludeMatch(m, sim);
+        concludeMatch(m, sim, true);
     }
 
     onSpeedChange = () => {
+        if (isPaused) return;
         clearInterval(simulationInterval);
         simulationInterval = setInterval(step, getMatchInterval());
     };
+    simStep = step;
+    isPaused = false;
+    if (userSide(m)) $('btn-manage-match').style.display = 'flex';
     simulationInterval = setInterval(step, getMatchInterval());
 }
 
@@ -312,16 +392,78 @@ function instantResult(m) {
     later(() => concludeMatch(m, sim), 600);
 }
 
-// После основного (и дополнительного) времени: либо пенальти, либо сразу итог
-function concludeMatch(m, sim) {
+// После основного (и дополнительного) времени: либо пенальти, либо сразу итог.
+// В живом матче карьеры игрок сам участвует в серии пенальти.
+function concludeMatch(m, sim, live = false) {
     if (!needsShootout(m)) { finishMatch(m, winnerByScore(m)); return; }
-    const shootout = computeShootout(m, sim);
     addMatchEvent(m, '', 'penalties', 'Серия пенальти!', null);
     setText('match-status', 'ПЕНАЛЬТИ');
-    animateShootout(m, shootout, () => {
-        applyShootout(m, shootout);
-        finishMatch(m, shootout.winner);
-    });
+    const done = result => { applyShootout(m, result); finishMatch(m, result.winner); };
+    if (live && userSide(m)) { playInteractiveShootout(m, sim, done); return; }
+    const shootout = computeShootout(m, sim);
+    animateShootout(m, shootout, () => done(shootout));
+}
+
+// ----- Интерактивная серия пенальти -----
+function playInteractiveShootout(m, sim, onDone) {
+    const so = new Shootout(m, sim);
+    const mySide = userSide(m);
+    const overlay = $('shootout-overlay');
+    setText('so-team1', teamLabel(m.team1));
+    setText('so-team2', teamLabel(m.team2));
+    setText('so-last', '');
+    overlay.style.display = 'flex';
+
+    const zones = [...overlay.querySelectorAll('.so-zone')];
+    const contBtn = $('btn-so-continue');
+
+    const renderScore = () => {
+        setText('so-total', `${so.s.team1} : ${so.s.team2}`);
+        ['team1', 'team2'].forEach((side, i) => {
+            $(`so-kicks${i + 1}`).innerHTML = so.kicks.filter(k => k.side === side).map(k => k.scored ? '⚽' : '❌').join(' ');
+        });
+        setText('match-time', `ПЕН ${so.s.team1}:${so.s.team2}`);
+    };
+
+    const finish = () => {
+        overlay.style.display = 'none';
+        zones.forEach(z => z.onclick = null);
+        onDone(so.result());
+    };
+
+    const nextKick = () => {
+        contBtn.style.display = 'none';
+        zones.forEach(z => z.classList.remove('shot', 'dive'));
+        if (so.isOver) {
+            const won = so.winner.id === state.userTeam.id;
+            setText('so-prompt', won ? '🏆 Победа в серии пенальти!' : '😔 Серия пенальти проиграна');
+            contBtn.style.display = 'block';
+            contBtn.onclick = finish;
+            return;
+        }
+        const side = so.nextSide();
+        const taker = so.nextTaker();
+        const keeper = so.nextKeeper();
+        const userKicks = side === mySide;
+        setText('so-prompt', userKicks
+            ? `⚽ Бьёт ${taker.name}. Куда бить? (вратарь: ${keeper.name})`
+            : `🧤 Бьёт ${taker.name}. Куда прыгает ${keeper.name}?`);
+        zones.forEach(z => z.onclick = () => {
+            zones.forEach(x => x.onclick = null);
+            const dir = z.dataset.dir;
+            const kick = userKicks ? so.kick(dir, randomDiveDir()) : so.kick(randomShotDir(), dir);
+            overlay.querySelector(`.so-zone[data-dir="${kick.shotDir}"]`).classList.add('shot');
+            overlay.querySelector(`.so-zone[data-dir="${kick.diveDir}"]`).classList.add('dive');
+            const team = kick.side === 'team1' ? m.team1 : m.team2;
+            setText('so-last', `${kick.player}: ${KICK_DIR_LABELS[kick.shotDir]}, вратарь — ${KICK_DIR_LABELS[kick.diveDir]}. ${kick.scored ? 'ГОЛ!' : 'НЕ ЗАБИЛ!'} (${kick.note})`);
+            addMatchEvent(m, 'ПЕН', kick.scored ? 'penalty-goal' : 'penalty-miss', `${kick.player}: ${kick.scored ? 'ГОЛ!' : 'мимо'} (${kick.note})`, team);
+            renderScore();
+            contBtn.style.display = 'block';
+            contBtn.onclick = nextKick;
+        });
+    };
+    renderScore();
+    nextKick();
 }
 
 function animateShootout(m, shootout, onDone) {
@@ -357,8 +499,11 @@ function finishMatch(m, winner) {
     setMatchInProgress(false);
     setVisible(['btn-close-match'], true);
 
-    // В карьере остальные матчи этапа досчитываются автоматически
-    if (isCareer()) autoSimulateAllRemainingMatches(om => !isUserMatch(om));
+    // В карьере остальные матчи этого тура (в плей-офф — раунда) досчитываются автоматически
+    if (isCareer()) {
+        const md = m.matchday ?? Infinity;
+        autoSimulateAllRemainingMatches(om => !isUserMatch(om) && (om.matchday ?? 0) <= md);
+    }
     saveGame();
 
     const btn = $('btn-next-match');
@@ -369,7 +514,7 @@ function finishMatch(m, winner) {
         btn.onclick = () => showResults(autoFinishTournament());
     } else if (nextMatch && m.stage === 'group') {
         btn.innerHTML = '<span class="btn-icon">➡️</span><span class="btn-text">Следующий матч</span>';
-        btn.onclick = () => openMatchScreen(nextMatch);
+        btn.onclick = () => openMatch(nextMatch);
     } else {
         btn.innerHTML = nextMatch
             ? '<span class="btn-icon">📊</span><span class="btn-text">К сетке</span>'
@@ -383,6 +528,10 @@ function initMatchScreen() {
     $('btn-instant-match').onclick = () => beginMatch(instantResult);
     $('btn-close-match').onclick = openDashboard;
     document.querySelector('#screen-match .btn-back').onclick = openDashboard;
+    $('btn-manage-match').onclick = openManagePanel;
+    $('btn-manage-sub').onclick = doManualSub;
+    $('btn-manage-resume').onclick = resumeMatch;
+    $('manage-autosubs').onchange = e => { if (currentSim) currentSim.sides[userSide(currentSim.match)].autoSubs = e.target.checked; };
 
     $('match-speed').addEventListener('input', function () {
         currentMatchSpeed = parseInt(this.value);

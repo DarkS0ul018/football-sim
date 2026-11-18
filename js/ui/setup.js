@@ -26,6 +26,7 @@ function validateSettings() {
     if (count > maxTeams) error = `⚠️ Максимум ${maxTeams} команд для этого типа`;
     else if (mode === 'knockout' && !isPowerOfTwo) error = '⚠️ Сразу плей-офф: нужно 4, 8, 16 или 32 команды';
     else if (mode === 'groups' && !getGroupFormat(count)) error = '⚠️ Для групп: 8, 12, 16, 24 или 32 команды';
+    else if (mode === 'league' && (count < 4 || count % 2)) error = '⚠️ Для лиги нужно чётное число команд';
 
     warning.style.display = error ? 'block' : 'none';
     warning.innerText = error || '';

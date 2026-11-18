@@ -3,7 +3,7 @@
 // Сохраняем только «между матчами»: живой матч, прерванный перезагрузкой, просто начнётся заново.
 
 const SAVE_KEY = 'footballSimPro.save';
-const SAVE_VERSION = 2; // v2: группы с тай-брейками, доп. время
+const SAVE_VERSION = 3; // v3: составы (схема, свежесть, дисквалификации), туры, лига
 
 function serializeMatch(m) {
     return {
@@ -12,7 +12,7 @@ function serializeMatch(m) {
         isFinished: m.isFinished, isFinal: m.isFinal,
         leg1: m.leg1, leg2: m.leg2, currentLeg: m.currentLeg,
         score1: m.score1, score2: m.score2, penalties: m.penalties,
-        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated, extraTime: m.extraTime
+        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated, extraTime: m.extraTime, matchday: m.matchday || null
     };
 }
 
@@ -23,7 +23,7 @@ function deserializeMatch(d, teamById) {
         leg1: d.leg1, leg2: d.leg2, currentLeg: d.currentLeg,
         score1: d.score1, score2: d.score2, penalties: d.penalties,
         winner: d.winner === null ? null : teamById(d.winner),
-        isAutoSimulated: d.isAutoSimulated, extraTime: !!d.extraTime
+        isAutoSimulated: d.isAutoSimulated, extraTime: !!d.extraTime, matchday: d.matchday || undefined
     });
     return m;
 }
@@ -54,6 +54,7 @@ function saveGame() {
         currentRound: state.currentRound,
         userTeam: state.userTeam ? state.userTeam.id : null,
         userTeamEliminated: state.userTeamEliminated,
+        squads: state.squads,
         playerStats
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* хранилище недоступно — играем без сохранения */ }
@@ -95,14 +96,16 @@ function loadGame() {
     state.champion = null;
     state.activeMatch = null;
     playerStats = data.playerStats;
+    state.squads = data.squads;
+    state.seasonRecorded = false;
     return true;
 }
 
 // Краткое описание сохранения для кнопки «Продолжить»
 function describeSave(data) {
     const user = data.userTeam !== null ? data.teams.find(t => t.id === data.userTeam) : null;
-    const stage = data.settings.mode === 'groups'
-        ? 'Групповой этап'
+    const stage = data.settings.mode === 'league' ? 'Лига'
+        : data.settings.mode === 'groups' ? 'Групповой этап'
         : (data.history[data.history.length - 1] || {}).round || '';
     const played = data.currentMatches.filter(i => data.matches[i].isFinished).length;
     return {

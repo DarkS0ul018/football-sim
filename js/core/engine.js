@@ -84,9 +84,10 @@ function isRealistic() {
     return state.settings.simMode !== 'random';
 }
 
-// В режиме «рандом» все игроки равны — исход решает только случай
+// В режиме «рандом» все игроки равны — исход решает только случай.
+// В «реализме» учитываются усталость и игра не на своей позиции (см. squad.js).
 function effRating(p) {
-    return isRealistic() ? p.rating : 75;
+    return isRealistic() ? effectiveRating(p, p.position) : 75;
 }
 
 function clamp(v, min, max) {
@@ -152,23 +153,56 @@ class MatchSimulation {
         };
     }
 
+    // Состав берётся из тактики команды (squad.js): схема, стартовые 11, свежесть, дисквалификации
     createSide(team, side) {
-        const roster = getTeamRoster(team.name, team.rating);
+        prepareTeamForMatch(team);
+        const squad = getSquad(team);
+        const players = getSquadPlayers(team);
+        const byNum = Object.fromEntries(players.map(p => [p.number, p]));
+        const slots = FORMATIONS[squad.formation];
         const mirror = side === 'team2'; // team1 всегда слева, team2 справа
-        const used = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
-        const onPitch = roster.filter(p => p.starter).map(p => {
-            const pos = BASE_POSITIONS[p.position][used[p.position]++] || { x: 40, y: 50 };
-            const x = mirror ? 100 - pos.x : pos.x;
-            return { ...p, teamId: team.id, side, yellow: 0, x, y: pos.y, baseX: x, baseY: pos.y };
+
+        const onPitch = [];
+        squad.lineup.forEach((num, i) => {
+            const p = byNum[num];
+            if (!p) return;
+            const [pos, sx, sy] = slots[i];
+            const x = mirror ? 100 - sx : sx;
+            onPitch.push({ ...p, position: pos, teamId: team.id, side, yellow: 0, x, y: sy, baseX: x, baseY: sy });
         });
+        const inLineup = new Set(squad.lineup);
+        const bench = players.filter(p => isAvailable(p) && !inLineup.has(p.number))
+            .sort((a, b) => (a.position === 'GK' ? -1 : 0) - (b.position === 'GK' ? -1 : 0) || b.rating - a.rating)
+            .filter((p, i, arr) => p.position !== 'GK' || arr.findIndex(x => x.position === 'GK') === i) // один запасной вратарь
+            .slice(0, BENCH_SIZE)
+            .map(p => ({ ...p, teamId: team.id, side, yellow: 0 }));
+
         return {
-            team, side, onPitch,
-            bench: roster.filter(p => !p.starter).map(p => ({ ...p, teamId: team.id, side, yellow: 0 })),
+            team, side, onPitch, bench,
+            style: squad.style,
+            autoSubs: true,
             subsUsed: 0,
             sentOff: [],
             subbedOff: [],
-            appeared: new Set(onPitch.map(p => p.number))
+            yellowed: new Set(),
+            appeared: new Set(onPitch.map(p => p.number)),
+            served: new Set(players.filter(p => !isAvailable(p)).map(p => p.number)) // отбывают дисквалификацию
         };
+    }
+
+    setStyle(side, style) {
+        if (!STYLES[style]) return;
+        this.sides[side].style = style;
+        this.log('half', side, `Тактика: ${STYLES[style].label}`);
+    }
+
+    // Замена по решению игрока (номера из onPitch и bench)
+    manualSubstitute(side, outNumber, inNumber) {
+        const s = this.sides[side];
+        const out = s.onPitch.find(p => p.number === outNumber);
+        const inP = s.bench.find(p => p.number === inNumber);
+        if (!out || !inP) return false;
+        return this.substitute(side, out, inP);
     }
 
     goalkeeper(side) {
@@ -187,7 +221,20 @@ class MatchSimulation {
     team1AttackProbability() {
         let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.012;
         if (isRealistic() && this.homeSide) p += this.homeSide === 'team1' ? 0.04 : -0.04;
-        return clamp(p, 0.3, 0.7);
+        p += STYLES[this.sides.team1.style].attackShare - STYLES[this.sides.team2.style].attackShare;
+        return clamp(p, 0.25, 0.75);
+    }
+
+    // Поправка к реализации моментов от тактики обеих команд
+    finishBonus(side) {
+        return STYLES[this.sides[side].style].ownFinish + STYLES[this.sides[otherSide(side)].style].oppFinish;
+    }
+
+    tire() {
+        ['team1', 'team2'].forEach(side => {
+            const k = 0.22 * STYLES[this.sides[side].style].fatigue;
+            this.sides[side].onPitch.forEach(p => { p.fitness = Math.max(20, (p.fitness ?? 100) - k * (0.8 + Math.random() * 0.4)); });
+        });
     }
 
     log(type, side, text, extra = {}) {
@@ -212,6 +259,7 @@ class MatchSimulation {
         this.stats.possession.team2 = 100 - this.stats.possession.team1;
 
         if (attack) this.playAttack(this.attackingSide);
+        this.tire();
         if (Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
         this.aiSubstitutions();
 
@@ -256,7 +304,7 @@ class MatchSimulation {
         }
         this.stats.shotsOnTarget[side]++;
         const gk = this.goalkeeper(otherSide(side));
-        const pGoal = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004, 0.15, 0.45);
+        const pGoal = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + this.finishBonus(side), 0.12, 0.5);
         if (Math.random() < pGoal) {
             const assister = Math.random() < 0.75 ? this.pickAssister(side, shooter) : null;
             this.goal(side, shooter, assister, kind === 'corner' ? 'после углового' : '');
@@ -286,6 +334,7 @@ class MatchSimulation {
         if (r < 0.004) this.sendOff(side, offender, 'Прямая красная карточка');
         else if (r < 0.17) {
             offender.yellow++;
+            s.yellowed.add(offender.number);
             this.stats.yellowCards[side]++;
             addPlayerStat(s.team.id, offender.number, 'yellowCards');
             if (offender.yellow >= 2) this.sendOff(side, offender, 'Вторая жёлтая — удаление');
@@ -333,6 +382,8 @@ class MatchSimulation {
         const idx = s.onPitch.indexOf(out);
         if (idx === -1 || s.subsUsed >= MAX_SUBS) return false;
         const fresh = { ...inPlayer, yellow: 0, x: out.x, y: out.y, baseX: out.baseX, baseY: out.baseY };
+        // Выходящий занимает позицию ушедшего (вратарь — всегда в ворота)
+        fresh.position = inPlayer.natPos === 'GK' ? 'GK' : (out.position === 'GK' ? 'DEF' : out.position);
         if (fresh.position === 'GK') {
             // Запасной вратарь встаёт в ворота, а не на место ушедшего полевого
             fresh.baseX = side === 'team2' ? 92 : 8;
@@ -364,16 +415,17 @@ class MatchSimulation {
         if (replacement) this.substitute(side, player, replacement, 'травма');
     }
 
-    // Тренеры делают 3-5 замен во втором тайме
+    // Тренеры делают 3-5 замен во втором тайме, в первую очередь меняя уставших
     aiSubstitutions() {
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];
-            if (this.minute < 55 || s.subsUsed >= MAX_SUBS) return;
+            if (!s.autoSubs || this.minute < 55 || s.subsUsed >= MAX_SUBS) return;
             const chance = s.subsUsed < 3 ? 0.06 : (this.minute > 75 ? 0.03 : 0);
             if (Math.random() >= chance) return;
-            const candidates = s.onPitch.filter(p => p.position !== 'GK' && p.starter);
+            const candidates = s.onPitch.filter(p => p.position !== 'GK' && !s.subbedOff.includes(p) && s.appeared.has(p.number));
             if (!candidates.length) return;
-            const out = candidates.sort((a, b) => a.rating - b.rating)[Math.floor(Math.random() * Math.min(3, candidates.length))];
+            candidates.sort((a, b) => (a.fitness - b.fitness) || (a.rating - b.rating));
+            const out = candidates[Math.floor(Math.random() * Math.min(2, candidates.length))];
             const inPlayer = this.bestBenchFor(side, out.position);
             if (inPlayer) this.substitute(side, out, inPlayer);
         });
@@ -404,6 +456,14 @@ class MatchSimulation {
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];
             s.appeared.forEach(num => addPlayerStat(s.team.id, num, 'matches'));
+            // Свежесть, восстановление и дисквалификации — в состав команды
+            const all = [...s.onPitch, ...s.subbedOff, ...s.sentOff];
+            applyPostMatch(s.team, {
+                served: s.served,
+                endFitness: new Map(all.map(p => [p.number, p.fitness])),
+                redCards: new Set(s.sentOff.map(p => p.number)),
+                yellowCards: s.yellowed
+            });
         });
         this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;
     }
@@ -437,43 +497,100 @@ function simulateRemainingLegs(m) {
 }
 
 // ----- Серия пенальти -----
-// Бьют игроки, оставшиеся на поле (лучшие — первыми). Возвращает всю серию; анимировать её — задача UI.
-function computeShootout(m, sim) {
-    const takersFor = side => {
-        const onPitch = sim ? sim.sides[side].onPitch : getTeamRoster((side === 'team1' ? m.team1 : m.team2).name, (side === 'team1' ? m.team1 : m.team2).rating).filter(p => p.starter);
-        const field = onPitch.filter(p => p.position !== 'GK').sort((a, b) => effRating(b) - effRating(a));
-        const gk = onPitch.filter(p => p.position === 'GK');
-        return [...field, ...gk];
-    };
-    const gkOf = side => {
-        const onPitch = sim ? sim.sides[side].onPitch : [];
-        return onPitch.find(p => p.position === 'GK') || { rating: 70 };
-    };
-    const takers = { team1: takersFor('team1'), team2: takersFor('team2') };
-    const keepers = { team1: gkOf('team1'), team2: gkOf('team2') };
-    const chance = (taker, gk) => isRealistic() ? clamp(0.75 + (effRating(taker) - effRating(gk)) * 0.006, 0.55, 0.92) : 0.75;
+// Удар за ударом: направление удара и прыжок вратаря. Если направления не заданы — выбираются случайно.
+// Бьют игроки, оставшиеся на поле (лучшие — первыми).
+const KICK_DIRS = ['left', 'center', 'right'];
+const KICK_DIR_LABELS = { left: '← влево', center: '↑ по центру', right: 'вправо →' };
 
-    const kicks = [];
-    const n = { team1: 0, team2: 0 }, s = { team1: 0, team2: 0 };
-    let winner = null;
-    while (!winner) {
-        const side = n.team1 === n.team2 ? 'team1' : 'team2';
-        const list = takers[side];
-        const taker = list[n[side] % list.length] || { name: '—', rating: 75 };
-        const scored = Math.random() < chance(taker, keepers[otherSide(side)]);
-        n[side]++;
-        if (scored) s[side]++;
-        kicks.push({ side, team: (side === 'team1' ? m.team1 : m.team2).name, player: taker.name, scored, number: n[side] });
+function randomShotDir() {
+    const r = Math.random();
+    return r < 0.4 ? 'left' : (r < 0.6 ? 'center' : 'right');
+}
 
-        if (n.team1 <= 5 && n.team2 <= 5) {
-            if (s.team1 > s.team2 + (5 - n.team2)) winner = m.team1;
-            else if (s.team2 > s.team1 + (5 - n.team1)) winner = m.team2;
-        } else if (n.team1 === n.team2 && s.team1 !== s.team2) {
-            winner = s.team1 > s.team2 ? m.team1 : m.team2;
-        }
-        if (!winner && kicks.length >= 60) winner = Math.random() < 0.5 ? m.team1 : m.team2;
+function randomDiveDir() {
+    const r = Math.random();
+    return r < 0.45 ? 'left' : (r < 0.55 ? 'center' : 'right');
+}
+
+class Shootout {
+    constructor(m, sim) {
+        this.match = m;
+        const onPitchOf = side => sim ? sim.sides[side].onPitch : [];
+        const takersFor = side => {
+            const onPitch = onPitchOf(side);
+            const field = onPitch.filter(p => p.position !== 'GK').sort((a, b) => effRating(b) - effRating(a));
+            return [...field, ...onPitch.filter(p => p.position === 'GK')];
+        };
+        this.takers = { team1: takersFor('team1'), team2: takersFor('team2') };
+        this.keepers = {
+            team1: onPitchOf('team1').find(p => p.position === 'GK') || { name: 'вратарь', rating: 70 },
+            team2: onPitchOf('team2').find(p => p.position === 'GK') || { name: 'вратарь', rating: 70 }
+        };
+        this.kicks = [];
+        this.n = { team1: 0, team2: 0 };
+        this.s = { team1: 0, team2: 0 };
+        this.winner = null;
     }
-    return { kicks, t1: s.team1, t2: s.team2, winner };
+
+    get isOver() { return !!this.winner; }
+
+    nextSide() { return this.n.team1 === this.n.team2 ? 'team1' : 'team2'; }
+
+    nextTaker() {
+        const side = this.nextSide();
+        const list = this.takers[side];
+        return list[this.n[side] % Math.max(1, list.length)] || { name: '—', rating: 75 };
+    }
+
+    nextKeeper() { return this.keepers[otherSide(this.nextSide())]; }
+
+    kick(shotDir = randomShotDir(), diveDir = randomDiveDir()) {
+        if (this.winner) return null;
+        const side = this.nextSide();
+        const taker = this.nextTaker();
+        const gk = this.nextKeeper();
+        const skill = isRealistic() ? (effRating(taker) - effRating(gk)) * 0.005 : 0;
+
+        let scored, note;
+        if (Math.random() < 0.05) { scored = false; note = 'мимо ворот'; }
+        else if (shotDir === diveDir) {
+            scored = Math.random() < clamp(0.3 + skill, 0.15, 0.5);
+            note = scored ? 'вратарь угадал, но не достал' : 'вратарь угадал и отбил!';
+        } else {
+            scored = Math.random() < clamp(0.97 + skill, 0.85, 0.99);
+            note = scored ? 'вратарь прыгнул не туда' : 'в штангу!';
+        }
+
+        this.n[side]++;
+        if (scored) this.s[side]++;
+        const kick = { side, team: (side === 'team1' ? this.match.team1 : this.match.team2).name, player: taker.name, keeper: gk.name, shotDir, diveDir, scored, note, number: this.n[side] };
+        this.kicks.push(kick);
+        this.checkWinner();
+        return kick;
+    }
+
+    checkWinner() {
+        const { n, s } = this;
+        const m = this.match;
+        if (n.team1 <= 5 && n.team2 <= 5) {
+            if (s.team1 > s.team2 + (5 - n.team2)) this.winner = m.team1;
+            else if (s.team2 > s.team1 + (5 - n.team1)) this.winner = m.team2;
+        } else if (n.team1 === n.team2 && s.team1 !== s.team2) {
+            this.winner = s.team1 > s.team2 ? m.team1 : m.team2;
+        }
+        if (!this.winner && this.kicks.length >= 60) this.winner = Math.random() < 0.5 ? m.team1 : m.team2;
+    }
+
+    result() {
+        return { kicks: this.kicks, t1: this.s.team1, t2: this.s.team2, winner: this.winner };
+    }
+}
+
+// Вся серия сразу (для автосимуляции и «быстрого результата»)
+function computeShootout(m, sim) {
+    const so = new Shootout(m, sim);
+    while (!so.isOver) so.kick();
+    return so.result();
 }
 
 function applyShootout(m, shootout) {

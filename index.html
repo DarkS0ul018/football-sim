@@ -66,6 +66,7 @@
                     <select id="tournament-mode">
                         <option value="groups">📊 Группы + Плей-офф</option>
                         <option value="knockout">🔥 Сразу Плей-офф</option>
+                        <option value="league">📋 Лига (каждый с каждым)</option>
                     </select>
                 </div>
 
@@ -96,10 +97,10 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label>📅 Матчи в группах:</label>
+                        <label>📅 Группы / лига:</label>
                         <select id="group-legs">
-                            <option value="1">1 матч</option>
-                            <option value="2">2 матча</option>
+                            <option value="1">1 круг</option>
+                            <option value="2">2 круга (дома и в гостях)</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -199,6 +200,55 @@
             
             <div id="content-area"></div>
             <div id="matches-list"></div>
+        </section>
+
+        <!-- ЭКРАН 2.5: ТАКТИКА ПЕРЕД МАТЧЕМ (карьера) -->
+        <section id="screen-tactics" class="screen">
+            <div class="screen-header">
+                <h1>📋 Подготовка к матчу</h1>
+                <p class="subtitle" id="tactics-opponent"></p>
+            </div>
+
+            <div class="card tactics-controls">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>🧩 Схема:</label>
+                        <select id="tactics-formation"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>🎯 Стиль игры:</label>
+                        <div class="style-buttons" id="tactics-style"></div>
+                        <div class="style-hint" id="tactics-style-hint"></div>
+                    </div>
+                </div>
+                <div class="tactics-summary">
+                    <div>💪 Сила состава: <b id="tactics-strength"></b></div>
+                    <div>🆚 Соперник: <b id="tactics-opp-strength"></b></div>
+                    <button id="btn-auto-lineup" class="btn-secondary">🤖 Автосостав</button>
+                </div>
+                <div id="tactics-warnings" class="tactics-warnings"></div>
+            </div>
+
+            <div class="tactics-help">Нажмите на игрока в старте, затем на игрока из запаса (или другого из старта) — они поменяются местами.</div>
+
+            <div class="tactics-grid">
+                <div class="card">
+                    <h3>🟢 Стартовый состав</h3>
+                    <div id="tactics-lineup" class="tactics-list"></div>
+                </div>
+                <div class="card">
+                    <h3>🪑 Запас</h3>
+                    <div id="tactics-reserves" class="tactics-list"></div>
+                </div>
+            </div>
+
+            <div class="tactics-actions">
+                <button id="btn-tactics-back" class="btn-secondary">← Назад</button>
+                <button id="btn-tactics-play" class="btn-primary btn-glow">
+                    <span class="btn-icon">⚽</span>
+                    <span class="btn-text">К матчу</span>
+                </button>
+            </div>
         </section>
 
         <!-- ЭКРАН 3: ПРОСМОТР МАТЧА -->
@@ -349,6 +399,10 @@
                     <span class="btn-icon">🎲</span>
                     <span class="btn-text">Быстрый результат</span>
                 </button>
+                <button id="btn-manage-match" class="btn-secondary" style="display:none;">
+                    <span class="btn-icon">⏸</span>
+                    <span class="btn-text">Пауза и управление</span>
+                </button>
                 <button id="btn-next-match" class="btn-primary btn-glow" style="display:none;">
                     <span class="btn-icon">➡️</span>
                     <span class="btn-text">Следующий матч</span>
@@ -358,6 +412,53 @@
                 </button>
             </div>
         </section>
+
+        <!-- ОКНО: УПРАВЛЕНИЕ ПО ХОДУ МАТЧА -->
+        <div id="manage-overlay" class="overlay" style="display:none;">
+            <div class="overlay-panel">
+                <h2>⏸ Пауза · <span id="manage-minute"></span></h2>
+                <div class="manage-section">
+                    <h4>🎯 Стиль игры</h4>
+                    <div class="style-buttons" id="manage-style"></div>
+                </div>
+                <div class="manage-section">
+                    <h4>🔄 Замена <span id="manage-subs-left" class="muted"></span></h4>
+                    <div class="manage-subs">
+                        <div>
+                            <div class="muted">Уходит:</div>
+                            <div id="manage-out" class="tactics-list compact"></div>
+                        </div>
+                        <div>
+                            <div class="muted">Выходит:</div>
+                            <div id="manage-in" class="tactics-list compact"></div>
+                        </div>
+                    </div>
+                    <button id="btn-manage-sub" class="btn-secondary" disabled>🔄 Провести замену</button>
+                    <label class="checkbox-row"><input type="checkbox" id="manage-autosubs"> Тренерский штаб делает замены сам</label>
+                </div>
+                <button id="btn-manage-resume" class="btn-primary btn-glow"><span class="btn-text">▶️ Продолжить матч</span></button>
+            </div>
+        </div>
+
+        <!-- ОКНО: СЕРИЯ ПЕНАЛЬТИ С УЧАСТИЕМ ИГРОКА -->
+        <div id="shootout-overlay" class="overlay" style="display:none;">
+            <div class="overlay-panel shootout-panel">
+                <h2>🎯 Серия пенальти</h2>
+                <div class="shootout-score">
+                    <div><span id="so-team1"></span><div id="so-kicks1" class="so-kicks"></div></div>
+                    <div class="so-total" id="so-total">0 : 0</div>
+                    <div><span id="so-team2"></span><div id="so-kicks2" class="so-kicks"></div></div>
+                </div>
+                <div class="shootout-goal">
+                    <div class="so-zone" data-dir="left">←</div>
+                    <div class="so-zone" data-dir="center">↑</div>
+                    <div class="so-zone" data-dir="right">→</div>
+                </div>
+                <div id="so-prompt" class="so-prompt"></div>
+                <div id="so-last" class="so-last"></div>
+                <button id="btn-so-continue" class="btn-primary btn-glow" style="display:none;"><span class="btn-text">Продолжить</span></button>
+            </div>
+        </div>
 
         <!-- ЭКРАН 4: РЕЗУЛЬТАТЫ -->
         <section id="screen-results" class="screen">
@@ -372,8 +473,23 @@
                 <div class="champion-confetti"></div>
             </div>
             
-            <div class="card">
-                <h3>📊 Путь к победе</h3>
+            <div id="career-card" class="card career-card" style="display:none;">
+                <h3>⭐ Ваша карьера</h3>
+                <div class="career-result" id="career-result"></div>
+                <table class="stats-table">
+                    <thead>
+                        <tr><th>Сезон</th><th>Формат</th><th>Результат</th><th>В-Н-П</th><th>Мячи</th><th>Бомбардир</th></tr>
+                    </thead>
+                    <tbody id="career-history"></tbody>
+                </table>
+                <button id="btn-next-season" class="btn-primary btn-glow" style="margin-top:15px;">
+                    <span class="btn-icon">📅</span>
+                    <span class="btn-text">Следующий сезон</span>
+                </button>
+            </div>
+
+            <div class="card" id="tournament-path-card">
+                <h3 id="tournament-path-title">📊 Путь к победе</h3>
                 <div id="tournament-path"></div>
             </div>
             
@@ -439,12 +555,15 @@
     <!-- Логика (без DOM) -->
     <script src="js/core/state.js"></script>
     <script src="js/core/engine.js"></script>
+    <script src="js/core/squad.js"></script>
+    <script src="js/core/career.js"></script>
     <script src="js/core/tournament.js"></script>
     <script src="js/core/storage.js"></script>
     <!-- Интерфейс -->
     <script src="js/ui/common.js"></script>
     <script src="js/ui/setup.js"></script>
     <script src="js/ui/dashboard.js"></script>
+    <script src="js/ui/tactics.js"></script>
     <script src="js/ui/match.js"></script>
     <script src="js/ui/results.js"></script>
     <script src="js/main.js"></script>

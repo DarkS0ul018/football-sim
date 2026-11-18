@@ -14,8 +14,29 @@ function getRoundIndex(count) {
     return 3 - Math.log2(count / 2);
 }
 
+// Текущий тур (для лиги и групп): наименьший тур с несыгранными матчами
+function getCurrentMatchday() {
+    const pending = state.matches.filter(m => !m.isFinished && m.matchday);
+    return pending.length ? Math.min(...pending.map(m => m.matchday)) : null;
+}
+
+function getTotalMatchdays() {
+    return Math.max(0, ...state.matches.map(m => m.matchday || 0));
+}
+
+function isRoundRobinStage() {
+    return state.settings.mode === 'groups' || state.settings.mode === 'league';
+}
+
 function getStageTitle() {
-    if (state.settings.mode === 'groups') return 'Групповой этап';
+    if (state.settings.mode === 'league') {
+        const md = getCurrentMatchday();
+        return md ? `Лига · тур ${md} из ${getTotalMatchdays()}` : 'Лига · сезон завершён';
+    }
+    if (state.settings.mode === 'groups') {
+        const md = getCurrentMatchday();
+        return md ? `Групповой этап · тур ${md}` : 'Групповой этап';
+    }
     const last = state.tournamentHistory[state.tournamentHistory.length - 1];
     return last ? last.round : '';
 }
@@ -23,7 +44,8 @@ function getStageTitle() {
 // settings: { count, mode, teamType, gameMode, simMode, groupLegs, playoffLegs }
 // teamsPool: [{ name, emoji, rating }]
 function createTournament(settings, teamsPool, userTeamName = null) {
-    state.settings = { ...settings };
+    state.settings = { ...settings, originalMode: settings.originalMode || settings.mode };
+    state.seasonRecorded = false;
     state.teams = teamsPool.map((d, i) => new Team(i, d.name, d.emoji, d.rating));
     state.matches = [];
     state.groups = [];
@@ -38,9 +60,30 @@ function createTournament(settings, teamsPool, userTeamName = null) {
         : null;
 
     initPlayerStats();
+    initSquads();
 
     if (settings.mode === 'groups') createGroups();
+    else if (settings.mode === 'league') createLeague();
     else createKnockoutRound(state.teams);
+}
+
+// Круговая система «каждый с каждым» (метод вращения): массив туров, в каждом — пары [хозяин, гость]
+function roundRobinRounds(teams, legs = 1) {
+    const list = [...teams];
+    if (list.length % 2) list.push(null);
+    const n = list.length;
+    const rounds = [];
+    for (let r = 0; r < n - 1; r++) {
+        const pairs = [];
+        for (let i = 0; i < n / 2; i++) {
+            const a = list[i], b = list[n - 1 - i];
+            if (a && b) pairs.push(r % 2 ? [b, a] : [a, b]); // чередуем хозяев
+        }
+        rounds.push(pairs);
+        list.splice(1, 0, list.pop());
+    }
+    if (legs === 2) rounds.push(...rounds.map(pairs => pairs.map(([a, b]) => [b, a])));
+    return rounds;
 }
 
 function createGroups() {
@@ -53,16 +96,28 @@ function createGroups() {
     let id = 0;
     state.groups.forEach((group, gi) => {
         const letter = String.fromCharCode(65 + gi);
-        for (let i = 0; i < group.length; i++) {
-            for (let j = i + 1; j < group.length; j++) {
-                if (state.settings.groupLegs === 1) {
-                    state.matches.push(new Match(id++, group[i], group[j], 1, 'group', `Группа ${letter}`, 0));
-                } else {
-                    state.matches.push(new Match(id++, group[i], group[j], 1, 'group', `Группа ${letter} (1)`, 0));
-                    state.matches.push(new Match(id++, group[j], group[i], 1, 'group', `Группа ${letter} (2)`, 0));
-                }
-            }
-        }
+        roundRobinRounds(group, state.settings.groupLegs).forEach((pairs, r) => {
+            pairs.forEach(([home, away]) => {
+                const m = new Match(id++, home, away, 1, 'group', `Группа ${letter} · тур ${r + 1}`, 0);
+                m.matchday = r + 1;
+                state.matches.push(m);
+            });
+        });
+    });
+    state.matches.sort((a, b) => a.matchday - b.matchday);
+}
+
+// Лига: одна таблица на всех, без плей-офф
+function createLeague() {
+    state.groups = [[...state.teams]];
+    state.matches = [];
+    let id = 0;
+    roundRobinRounds(state.teams, state.settings.groupLegs).forEach((pairs, r) => {
+        pairs.forEach(([home, away]) => {
+            const m = new Match(id++, home, away, 1, 'group', `Тур ${r + 1}`, 0);
+            m.matchday = r + 1;
+            state.matches.push(m);
+        });
     });
 }
 
@@ -144,6 +199,10 @@ function createPlayoffPairsFromGroups() {
 
 // Переходит к следующему этапу. Возвращает чемпиона, если турнир завершён.
 function advanceStage() {
+    if (state.settings.mode === 'league') {
+        state.champion = sortGroup([...state.teams])[0];
+        return state.champion;
+    }
     if (state.settings.mode === 'groups') {
         const pairs = createPlayoffPairsFromGroups();
         state.groupMatches = state.matches;

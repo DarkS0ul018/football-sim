@@ -79,12 +79,33 @@ function renderTournamentPath() {
         </div>`).join('');
 }
 
+function renderCareerCard() {
+    const card = $('career-card');
+    if (!isCareer() || !state.userTeam) { card.style.display = 'none'; return; }
+    recordCareerSeason();
+    const result = getUserResult();
+    const career = readCareer();
+    const trophies = career.seasons.filter(s => s.trophy).length;
+    $('career-result').innerHTML = `
+        <div class="career-team">${teamLabel(state.userTeam)}</div>
+        <div class="career-outcome ${result.trophy ? 'trophy' : ''}">${result.text}</div>
+        <div class="muted">Сезонов: ${career.seasons.length} · трофеев: ${trophies} ${'🏆'.repeat(Math.min(trophies, 10))}</div>`;
+    $('career-history').innerHTML = [...career.seasons].reverse().map(s => `
+        <tr class="${s.trophy ? 'qualify-third' : ''}">
+            <td>${s.season}</td><td>${s.format}</td><td><b>${s.result}</b></td><td>${s.record}</td><td>${s.goals}</td><td>${s.topScorer}</td>
+        </tr>`).join('');
+    card.style.display = 'block';
+}
+
 function showResults(champion) {
     state.champion = champion;
     clearSave(); // турнир завершён — продолжать нечего
 
     setText('champion-name', teamLabel(champion));
+    const isLeague = state.settings.mode === 'league';
+    $('tournament-path-card').style.display = isLeague ? 'none' : 'block';
     renderTournamentPath();
+    renderCareerCard();
 
     $('teams-stats').innerHTML = [...state.teams].sort((a, b) => b.stats.points - a.stats.points).map(t => `
         <tr style="${userRowStyle(t.id)}">

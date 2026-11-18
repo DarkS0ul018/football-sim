@@ -5,6 +5,13 @@
 initStatTabs();
 initSetupScreens();
 initMatchScreen();
+initTacticsScreen();
+
+$('btn-next-season').addEventListener('click', () => {
+    startNextSeason();
+    renderTeamsList();
+    showScreen('teamsList');
+});
 
 $('btn-restart').addEventListener('click', () => {
     clearSave();
