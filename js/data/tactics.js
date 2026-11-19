@@ -59,7 +59,8 @@ const TEAM_TACTICS = {
 
 // Тактика клуба: из справочника или по силе (сильные владеют мячом, слабые играют от обороны)
 function getClubTactics(teamName, rating = 75) {
-    if (TEAM_TACTICS[teamName]) return { ...TEAM_TACTICS[teamName] };
+    const key = (typeof TEAM_ALIAS !== 'undefined' && TEAM_ALIAS[teamName]) || teamName; // переименованный клуб
+    if (TEAM_TACTICS[key]) return { ...TEAM_TACTICS[key] };
     if (rating >= 85) return { formation: '4-3-3', style: 'possession', line: 'high' };
     if (rating >= 78) return { formation: '4-2-3-1', style: 'balance', line: 'mid' };
     return { formation: '4-4-2', style: 'counter', line: 'low' };

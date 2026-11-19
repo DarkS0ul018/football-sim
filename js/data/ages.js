@@ -249,6 +249,7 @@ const BIRTH_YEARS = {
 
 // Возраст из данных или null, если год рождения неизвестен
 function knownAge(teamName, playerName) {
-    const year = BIRTH_YEARS[`${teamName}|${playerName}`] ?? BIRTH_YEARS[playerName];
+    const team = (typeof TEAM_ALIAS !== 'undefined' && TEAM_ALIAS[teamName]) || teamName; // переименованный клуб
+    const year = BIRTH_YEARS[`${team}|${playerName}`] ?? BIRTH_YEARS[playerName];
     return year ? SEASON_YEAR - year : null;
 }

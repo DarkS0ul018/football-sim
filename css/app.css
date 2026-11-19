@@ -1092,3 +1092,11 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .ed-code { width: 76px; text-transform: uppercase; font-family: var(--font-display); letter-spacing: 0.08em; }
 .ed-flag { margin: 8px 0 12px; }
 .ed-flag select { min-width: 150px; }
+
+/* Редактор: убранные команды, год основания */
+.editor-hidden-title { margin: 14px 4px 6px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.editor-team.hidden-team { opacity: 0.6; }
+.editor-team.hidden-team:hover { opacity: 1; }
+.editor-hidden-card h3 { margin: 0 0 8px; }
+.ed-year { width: 96px; }
+.editor-head-fields small { display: block; margin-top: 4px; }

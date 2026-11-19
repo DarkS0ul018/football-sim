@@ -51,10 +51,11 @@ function hashPick(name, salt, list) {
 // Вид эмблемы команды: из редактора или по названию
 function getCrestConfig(team) {
     const custom = (typeof customCrests !== 'undefined' && customCrests[team.name]) || {};
+    const base = (typeof TEAM_ALIAS !== 'undefined' && TEAM_ALIAS[team.name]) || team.name; // после переименования эмблема та же
     return {
-        shape: custom.shape || hashPick(team.name, 'shape', Object.keys(CREST_SHAPES)),
-        pattern: custom.pattern || hashPick(team.name, 'pattern', Object.keys(CREST_PATTERNS)),
-        symbol: custom.symbol || hashPick(team.name, 'symbol', ['none', 'star', 'stars', 'crown', 'ball', 'laurel', 'none']),
+        shape: custom.shape || hashPick(base, 'shape', Object.keys(CREST_SHAPES)),
+        pattern: custom.pattern || hashPick(base, 'pattern', Object.keys(CREST_PATTERNS)),
+        symbol: custom.symbol || hashPick(base, 'symbol', ['none', 'star', 'stars', 'crown', 'ball', 'laurel', 'none']),
         image: custom.image || null,
         custom: !!(custom.shape || custom.pattern || custom.symbol) // эмблема настроена в редакторе
     };

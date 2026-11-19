@@ -20,14 +20,16 @@ function nationCupTags(name) {
 function editorTeamInfo(name) {
     if (typeof NATIONS !== 'undefined' && NATIONS[name]) {
         const n = NATIONS[name];
-        return { name, type: 'national', emoji: null, rating: teamRatings[name] ?? n.rating, kit: [...n.kit], squad: n.squad,
+        return { name, key: originalTeamName(name), type: 'national', emoji: null, rating: teamRatings[name] ?? n.rating, kit: [...n.kit], squad: n.squad,
             code: n.code, flag: JSON.parse(JSON.stringify(n.flag)), cups: Object.keys(NATION_CUPS).filter(k => NATION_CUPS[k].names.includes(name)) };
     }
     const type = russianTeams.names.includes(name) ? 'russia' : 'world';
     const data = type === 'russia' ? russianTeams : worldTeams;
     const i = data.names.indexOf(name);
+    const meta = teamMeta[name] || [];
     return {
-        name, type,
+        name, type, key: originalTeamName(name),
+        code: meta[0] || teamShort(name), year: meta[1] || '',
         emoji: data.emojis[i] || '⚪',
         rating: teamRatings[name] ?? 75,
         squad: SQUADS[type][name] || { goalkeepers: [], defenders: [], midfielders: [], forwards: [] }
@@ -46,7 +48,8 @@ function renderEditorList() {
         const check = validateTeamData(name, t.squad, t.rating, t.emoji);
         const marks = [
             national ? nationCupTags(name).map(x => `<span class="badge" title="Участник турнира">${x}</span>`).join('') : '',
-            custom[name] ? (custom[name].isNew ? '<span class="badge" title="Своя команда">новая</span>' : '<span class="badge" title="Изменена в редакторе">✏️</span>') : '',
+            (() => { const o = custom[t.key]; return o ? (o.isNew ? '<span class="badge" title="Своя команда">новая</span>' : '<span class="badge" title="Изменена в редакторе">✏️</span>') : ''; })(),
+            t.key !== name ? `<span class="badge" title="Стандартное название: ${t.key}">↺</span>` : '',
             check.errors.length ? '<span class="badge badge-red" title="Есть ошибки">!</span>' : (check.warnings.length ? '<span class="badge badge-yellow" title="Есть замечания">⚠️</span>' : '')
         ].join('');
         return `<div class="editor-team ${editor.selected === name ? 'selected' : ''}" data-name="${name}">
@@ -55,8 +58,15 @@ function renderEditorList() {
             <span class="tp-rating">${t.rating}</span>
         </div>`;
     }).join('');
+    // Убранные из игры стандартные команды — внизу списка, их можно вернуть
+    const hidden = Object.entries(custom).filter(([key, o]) => o.hidden && (national ? o.type === 'national' : o.type !== 'national' &&
+        (editor.type === 'russia') === DEFAULT_DATA.russia.names.includes(key))).map(([key]) => key);
+    if (hidden.length) $('editor-team-list').insertAdjacentHTML('beforeend', `<div class="editor-hidden-title">Убраны из игры</div>` +
+        hidden.map(key => `<div class="editor-team hidden-team ${editor.selected === key && editor.hiddenKey ? 'selected' : ''}" data-hidden="${escapeHtml(key)}">
+            <span class="editor-team-name">${key}</span><span class="badge">убрана</span></div>`).join(''));
     document.querySelectorAll('.editor-team').forEach(el => el.onclick = () => {
-        editor.selected = el.dataset.name;
+        editor.selected = el.dataset.name || el.dataset.hidden;
+        editor.hiddenKey = el.dataset.hidden || null;
         editor.isNew = false;
         renderEditorList();
         renderEditorForm();
@@ -74,6 +84,21 @@ function renderEditorForm() {
         form.innerHTML = '<div class="muted">Выберите команду слева или создайте новую.</div>';
         return;
     }
+    // Стандартная команда, убранная из игры: вернуть её или сбросить правки
+    if (editor.hiddenKey && editor.selected === editor.hiddenKey) {
+        const key = editor.hiddenKey;
+        form.innerHTML = `<div class="editor-hidden-card">
+            <h3>Команда «${escapeHtml(key)}» убрана из игры</h3>
+            <p class="muted">Её нет в списках участников и турнирах. Остальные правки сохранены.</p>
+            <div class="editor-actions">
+                <button id="btn-ed-unhide" class="btn-primary"><span class="btn-text">Вернуть в игру</span></button>
+                <button id="btn-ed-reset-hidden" class="btn-secondary">Вернуть стандартные данные</button>
+            </div></div>`;
+        const back = () => { editor.hiddenKey = null; editor.selected = shownNameOf(key); renderEditorList(); renderEditorForm(); onTeamTypeChange(); };
+        $('btn-ed-unhide').onclick = () => { setTeamHidden(key, false); back(); };
+        $('btn-ed-reset-hidden').onclick = () => { removeTeamOverride(key); back(); };
+        return;
+    }
     const emptySquad = () => ({ goalkeepers: [], defenders: [], midfielders: [], forwards: [] });
     const t = editor.isNew
         ? (editor.type === 'national'
@@ -81,7 +106,8 @@ function renderEditorForm() {
                 flag: { t: 'h', c: ['#ffffff', '#1e4fd8', '#d62839'] }, cups: [], squad: emptySquad() }
             : { name: '', type: editor.type, emoji: '🔵⚪', rating: 75, squad: emptySquad() })
         : editorTeamInfo(editor.selected);
-    const custom = readCustomData().teams[t.name];
+    const custom = readCustomData().teams[t.key || t.name];
+    const isStandard = !editor.isNew && isDefaultTeam(t.key);
     const national = t.type === 'national';
     const colors = Array.from(t.emoji || '').filter(ch => COLOR_EMOJI.includes(ch));
     const crest = { shape: '', pattern: '', symbol: '', image: null, ...((custom && custom.crest) || {}) };
@@ -93,11 +119,16 @@ function renderEditorForm() {
             <span id="editor-crest"></span>
             <div class="editor-head-fields">
                 <label>Название
-                    <input type="text" id="ed-name" maxlength="30" value="${escapeHtml(t.name)}" ${editor.isNew ? '' : 'disabled'} placeholder="${national ? 'Например: Исландия' : 'Например: Торпедо'}">
+                    <input type="text" id="ed-name" maxlength="30" value="${escapeHtml(t.name)}" placeholder="${national ? 'Например: Исландия' : 'Например: Торпедо'}">
+                    ${isStandard && t.key !== t.name ? `<small class="muted">стандартное название: ${escapeHtml(t.key)}</small>` : ''}
                 </label>
                 ${editor.isNew && !national ? `<label>Лига
                     <select id="ed-type"><option value="world" ${t.type === 'world' ? 'selected' : ''}>🌍 Европа</option><option value="russia" ${t.type === 'russia' ? 'selected' : ''}>🇷🇺 РПЛ</option></select>
                 </label>` : ''}
+                ${national ? '' : `<div class="editor-kit">
+                    <label>Код на табло <input type="text" id="ed-code" maxlength="4" class="ed-code" value="${escapeHtml(t.code || '')}" placeholder="АВТО"></label>
+                    <label>Год основания <input type="number" id="ed-year" min="1800" max="2100" class="ed-year" value="${t.year || ''}" placeholder="—"></label>
+                </div>`}
             </div>
         </div>
 
@@ -136,6 +167,7 @@ function renderEditorForm() {
             <button id="btn-ed-save" class="btn-primary"><span class="btn-text">Сохранить</span></button>
             ${custom && !custom.isNew ? '<button id="btn-ed-reset" class="btn-secondary">Вернуть стандартные данные</button>' : ''}
             ${custom && custom.isNew ? `<button id="btn-ed-delete" class="btn-secondary">${national ? 'Удалить сборную' : 'Удалить команду'}</button>` : ''}
+            ${isStandard ? '<button id="btn-ed-hide" class="btn-secondary" title="Команда пропадёт из списков и турниров; вернуть можно внизу списка">Убрать из игры</button>' : ''}
         </div>`;
 
     const state2 = { colors: [colors[0] || '🔵', colors[1] || '⚪'] };
@@ -147,11 +179,12 @@ function renderEditorForm() {
             squad[line] = $(`ed-${line}`).value.split('\n').map(s => s.trim()).filter(Boolean);
         });
         return {
-            name: editor.isNew ? cleanText($('ed-name').value, 30) : t.name,
+            name: cleanText($('ed-name').value, 30),
             type: editor.isNew ? (national ? 'national' : $('ed-type').value) : t.type,
             emoji: national ? null : currentEmoji(),
             kit: national ? [$('ed-kit1').value, $('ed-kit2').value] : undefined,
-            code: national ? $('ed-code').value.trim().toUpperCase() : undefined,
+            code: $('ed-code').value.trim().toUpperCase(),
+            year: national ? undefined : $('ed-year').value,
             cups: national ? [...form.querySelectorAll('.ed-cup:checked')].map(i => i.value) : undefined,
             flag: national ? (flagDirty ? readFlagFields() : t.flag) : undefined,
             rating: Number($('ed-rating').value),
@@ -161,12 +194,14 @@ function renderEditorForm() {
     };
     const refresh = () => {
         const d = readForm();
-        $('editor-crest').innerHTML = crestPreview({ name: d.name || 'Новая', emoji: d.emoji }, d.crest, national ? { code: d.code || '???', flag: d.flag, kit: d.kit } : null);
+        $('editor-crest').innerHTML = crestPreview({ name: isStandard ? t.name : (d.name || 'Новая'), emoji: d.emoji }, d.crest, national ? { code: d.code || '???', flag: d.flag, kit: d.kit } : null);
         const check = validateTeamData(d.name, d.squad, d.rating, d.emoji);
-        if (editor.isNew) {
-            if (!d.name) check.errors.unshift('введите название');
-            else if (worldTeams.names.includes(d.name) || russianTeams.names.includes(d.name) || (typeof NATIONS !== 'undefined' && NATIONS[d.name])) check.errors.unshift('команда с таким названием уже есть');
-        }
+        // Название: не пустое и не занято другой командой (своё прежнее название — можно)
+        const taken = n => n !== t.name && (worldTeams.names.includes(n) || russianTeams.names.includes(n) || (typeof NATIONS !== 'undefined' && NATIONS[n]));
+        if (!d.name) check.errors.unshift('введите название');
+        else if (taken(d.name)) check.errors.unshift('команда с таким названием уже есть');
+        if (!national && d.code && !/^[A-ZА-ЯЁ]{2,4}$/.test(d.code)) check.errors.unshift('код на табло: 2–4 буквы (или оставьте пустым)');
+        if (!national && d.year && !(Number(d.year) >= 1800 && Number(d.year) <= 2100)) check.errors.unshift('год основания: от 1800 до 2100');
         if (national) {
             if (!/^[A-ZА-ЯЁ]{2,4}$/.test(d.code || '')) check.errors.unshift('код на табло: 2–4 буквы, например ИСЛ');
             if (!d.cups.length) check.warnings.push('сборная не участвует ни в одном турнире');
@@ -213,8 +248,14 @@ function renderEditorForm() {
         if ($('btn-ed-save').disabled) return;
         const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
         const payload = { type: d.type, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined };
-        if (d.type === 'national') Object.assign(payload, { kit: d.kit, code: d.code, flag: d.flag, cups: d.cups }); else payload.emoji = d.emoji;
-        if (!saveTeamOverride(d.name, payload)) {
+        if (d.type === 'national') Object.assign(payload, { kit: d.kit, code: d.code, flag: d.flag, cups: d.cups });
+        else Object.assign(payload, { emoji: d.emoji, code: d.code, year: d.year });
+        // Стандартная команда — правки под исходным названием, новое название — rename;
+        // своя команда — под новым названием (старая запись убирается)
+        let ok;
+        if (isStandard) ok = saveTeamOverride(t.key, { ...payload, rename: d.name, hidden: custom && custom.hidden });
+        else ok = saveTeamOverride(d.name, payload, editor.isNew ? null : t.name);
+        if (!ok) {
             notify('Не удалось сохранить: хранилище браузера недоступно или переполнено');
             return;
         }
@@ -227,9 +268,19 @@ function renderEditorForm() {
     };
     $('btn-ed-reset')?.addEventListener('click', async () => {
         if (!(await askConfirm(`Вернуть стандартные данные для «${t.name}»?`, { ok: 'Вернуть' }))) return;
-        removeTeamOverride(t.name);
+        removeTeamOverride(t.key || t.name);
+        editor.selected = t.key || t.name; // стандартное название вернулось
         renderEditorList();
         renderEditorForm();
+        onTeamTypeChange();
+    });
+    $('btn-ed-hide')?.addEventListener('click', async () => {
+        if (!(await askConfirm(`Убрать «${t.name}» из игры? Команда пропадёт из списков и турниров; вернуть её можно внизу списка.`, { ok: 'Убрать', danger: true }))) return;
+        setTeamHidden(t.key, true);
+        editor.selected = null;
+        renderEditorList();
+        renderEditorForm();
+        onTeamTypeChange();
     });
     $('btn-ed-delete')?.addEventListener('click', async () => {
         if (!(await askConfirm(`Удалить команду «${t.name}»?`, { ok: 'Удалить', danger: true }))) return;

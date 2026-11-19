@@ -67,7 +67,7 @@ const teamMeta = {
 
 // Код команды для табло: из справочника или первые буквы названия
 function teamShort(name) {
-    if (teamMeta[name]) return teamMeta[name][0];
+    if (teamMeta[name] && teamMeta[name][0]) return teamMeta[name][0];
     const words = name.replace(/[^A-Za-zА-Яа-яЁё ]/g, '').trim().split(/\s+/);
     const code = words.length > 1 ? words.map(w => w[0]).join('') : words[0].slice(0, 3);
     return code.slice(0, 3).toUpperCase();

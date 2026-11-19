@@ -27,6 +27,7 @@ let customCrests = {};
 // Копия стандартных данных — для сброса
 const DEFAULT_DATA = JSON.parse(JSON.stringify({
     world: worldTeams, russia: russianTeams, ratings: teamRatings, squads: SQUADS,
+    meta: teamMeta,                                               // коды для табло и годы основания
     nations: typeof NATIONS !== 'undefined' ? NATIONS : {},  // сборные: состав, рейтинг, цвета формы
     cups: typeof NATION_CUPS !== 'undefined' ? Object.fromEntries(Object.entries(NATION_CUPS).map(([k, c]) => [k, c.names])) : {}
 }));
@@ -88,87 +89,146 @@ function defaultTeamInfo(name) {
     return null;
 }
 
-// Пересобирает рабочие данные: стандартные + правки
+// Новое название → исходное: настоящие возрасты, привычная тактика и вид эмблемы сохраняются после переименования
+let TEAM_ALIAS = {};
+
+// Пересобирает рабочие данные: стандартные + правки.
+// Правки стандартной команды хранятся под её исходным названием (rename — новое название в игре),
+// поэтому «Вернуть стандартные данные» всегда находит команду. Свои команды — под своим названием.
 function applyCustomData() {
     const custom = readCustomData().teams;
-    const build = (type, target) => {
+    TEAM_ALIAS = {};
+    const shown = (key, o) => (o && o.rename) || key;
+
+    // Справочники — к стандартным
+    Object.keys(teamRatings).forEach(k => delete teamRatings[k]);
+    Object.assign(teamRatings, DEFAULT_DATA.ratings);
+    Object.keys(teamMeta).forEach(k => delete teamMeta[k]);
+    Object.assign(teamMeta, JSON.parse(JSON.stringify(DEFAULT_DATA.meta)));
+    customCrests = {};
+
+    // ----- Клубы -----
+    ['world', 'russia'].forEach(type => {
+        const target = type === 'world' ? worldTeams : russianTeams;
         target.names.length = 0;
         target.emojis.length = 0;
-        DEFAULT_DATA[type].names.forEach((name, i) => {
-            const o = custom[name];
+        SQUADS[type] = {};
+        DEFAULT_DATA[type].names.forEach((key, i) => {
+            const o = custom[key] && custom[key].type !== 'national' ? custom[key] : null;
+            const meta = DEFAULT_DATA.meta[key] || [null, null];
+            delete teamRatings[key];
+            delete teamMeta[key];
+            if (o && o.hidden) return;                       // убрана из игры
+            const name = shown(key, o);
+            if (name !== key) TEAM_ALIAS[name] = key;
             target.names.push(name);
-            target.emojis.push(o && o.emoji || DEFAULT_DATA[type].emojis[i]);
+            target.emojis.push((o && o.emoji) || DEFAULT_DATA[type].emojis[i]);
+            const squad = (o && o.squad) || DEFAULT_DATA.squads[type][key];
+            if (squad) SQUADS[type][name] = JSON.parse(JSON.stringify(squad));
+            teamRatings[name] = o && typeof o.rating === 'number' ? o.rating : DEFAULT_DATA.ratings[key];
+            const code = (o && o.code) || meta[0];
+            const year = o && o.year !== undefined ? o.year : meta[1];
+            if (code || year) teamMeta[name] = [code, year];
+            if (o && o.crest) customCrests[name] = o.crest;
         });
         Object.entries(custom).forEach(([name, o]) => {
-            if (o.isNew && o.type === type) { target.names.push(name); target.emojis.push(o.emoji || '⚪'); }
+            if (!o.isNew || o.type !== type) return;
+            target.names.push(name);
+            target.emojis.push(o.emoji || '⚪');
+            if (o.squad) SQUADS[type][name] = o.squad;
+            teamRatings[name] = typeof o.rating === 'number' ? o.rating : 75;
+            if (o.code || o.year) teamMeta[name] = [o.code || null, o.year ?? null];
+            if (o.crest) customCrests[name] = o.crest;
         });
-    };
-    build('world', worldTeams);
-    build('russia', russianTeams);
+    });
     mixedTeams.names = [...russianTeams.names, ...worldTeams.names];
     mixedTeams.emojis = [...russianTeams.emojis, ...worldTeams.emojis];
 
-    Object.keys(teamRatings).forEach(k => delete teamRatings[k]);
-    Object.assign(teamRatings, DEFAULT_DATA.ratings);
-    ['world', 'russia'].forEach(type => {
-        SQUADS[type] = JSON.parse(JSON.stringify(DEFAULT_DATA.squads[type]));
-    });
-    // Сборные: стандартные данные, затем правки (и свои сборные). Участники турниров — тоже заново.
+    // ----- Сборные -----
     if (typeof NATIONS !== 'undefined') {
-        Object.keys(NATIONS).forEach(n => { if (!isNationName(n)) { delete NATIONS[n]; delete teamMeta[n]; } });
-        Object.entries(DEFAULT_DATA.nations).forEach(([name, d]) => {
-            NATIONS[name] = JSON.parse(JSON.stringify(d));
-            teamMeta[name] = [d.code, null];
-        });
+        Object.keys(NATIONS).forEach(n => delete NATIONS[n]);
         Object.entries(NATION_CUPS).forEach(([k, c]) => { c.names = [...(DEFAULT_DATA.cups[k] || [])]; });
-    }
-    customCrests = {};
-    Object.entries(custom).forEach(([name, o]) => {
-        if (o.crest) customCrests[name] = o.crest;
-        if (o.type === 'national') {
-            if (typeof NATIONS === 'undefined') return;
-            if (o.isNew) {
-                // Своя сборная: нужны флаг, код и состав
-                if (!o.flag || !o.squad || !o.code) return;
-                NATIONS[name] = { code: o.code, rating: 75, kit: ['#1e4fd8', '#f2f2f2'], flag: o.flag, squad: o.squad };
-                teamRatings[name] = 75;
-            } else if (!isNationName(name)) return;
-            const n = NATIONS[name];
-            if (typeof o.rating === 'number') { teamRatings[name] = o.rating; n.rating = o.rating; }
-            if (o.squad) n.squad = o.squad;
-            if (Array.isArray(o.kit)) n.kit = [cleanHex(o.kit[0], n.kit[0]), cleanHex(o.kit[1], n.kit[1])];
-            if (o.flag) n.flag = o.flag;
-            if (o.code) n.code = o.code;
+        const inCups = fn => Object.values(NATION_CUPS).forEach(c => { c.names = fn(c.names); });
+        const applyNation = (name, n, o) => {
+            if (o) {
+                if (typeof o.rating === 'number') n.rating = o.rating;
+                if (o.squad) n.squad = o.squad;
+                if (Array.isArray(o.kit)) n.kit = [cleanHex(o.kit[0], n.kit[0]), cleanHex(o.kit[1], n.kit[1])];
+                if (o.flag) n.flag = o.flag;
+                if (o.code) n.code = o.code;
+                if (o.crest) customCrests[name] = o.crest;
+                // Участие в турнирах сборных
+                if (Array.isArray(o.cups)) Object.entries(NATION_CUPS).forEach(([k, c]) => {
+                    const has = c.names.includes(name), want = o.cups.includes(k);
+                    if (want && !has) c.names.push(name);
+                    if (!want && has) c.names = c.names.filter(x => x !== name);
+                });
+            }
+            teamRatings[name] = n.rating;
             teamMeta[name] = [n.code, null];
-            // Участие в турнирах сборных
-            if (Array.isArray(o.cups)) Object.entries(NATION_CUPS).forEach(([k, c]) => {
-                const has = c.names.includes(name), want = o.cups.includes(k);
-                if (want && !has) c.names.push(name);
-                if (!want && has) c.names = c.names.filter(x => x !== name);
-            });
-            return;
-        }
-        const type = o.type || (DEFAULT_DATA.russia.names.includes(name) ? 'russia' : 'world');
-        if (typeof o.rating === 'number') teamRatings[name] = o.rating;
-        if (o.squad) SQUADS[type][name] = o.squad;
-    });
+        };
+        Object.entries(DEFAULT_DATA.nations).forEach(([key, d]) => {
+            const o = custom[key] && custom[key].type === 'national' ? custom[key] : null;
+            delete teamRatings[key];
+            delete teamMeta[key];
+            if (o && o.hidden) { inCups(list => list.filter(x => x !== key)); return; }
+            const name = shown(key, o);
+            if (name !== key) { TEAM_ALIAS[name] = key; inCups(list => list.map(x => (x === key ? name : x))); }
+            NATIONS[name] = JSON.parse(JSON.stringify(d));
+            applyNation(name, NATIONS[name], o);
+        });
+        Object.entries(custom).forEach(([name, o]) => {
+            // Своя сборная: нужны флаг, код и состав
+            if (o.type !== 'national' || !o.isNew || !o.flag || !o.squad || !o.code) return;
+            NATIONS[name] = { code: o.code, rating: 75, kit: ['#1e4fd8', '#f2f2f2'], flag: o.flag, squad: o.squad };
+            applyNation(name, NATIONS[name], o);
+        });
+    }
 
     // Сбрасываем кэши, построенные по старым данным
     Object.keys(rosterCache).forEach(k => delete rosterCache[k]);
     if (typeof teamColorCache !== 'undefined') Object.keys(teamColorCache).forEach(k => delete teamColorCache[k]);
 }
 
-function saveTeamOverride(name, data) {
+// Исходное название команды (для правок и стандартных данных)
+function originalTeamName(name) {
+    return TEAM_ALIAS[name] || name;
+}
+
+// Год основания: целое 1800–2100
+function cleanYear(y) {
+    const n = Number(y);
+    return Number.isInteger(n) && n >= 1800 && n <= 2100 ? n : undefined;
+}
+
+// key — исходное название стандартной команды или название своей; oldKey — прежнее название своей команды (переименование)
+function saveTeamOverride(key, data, oldKey = null) {
     const all = readCustomData();
-    name = cleanText(name, 30);
+    key = cleanText(key, 30);
+    if (oldKey && oldKey !== key) delete all.teams[oldKey];
     const squad = data.squad && Object.fromEntries(Object.entries(data.squad).map(([k, v]) => [k, v.map(s => cleanText(s)).filter(Boolean)]));
     const crest = cleanCrest(data.crest);
     const kit = Array.isArray(data.kit) ? [cleanHex(data.kit[0], '#1e4fd8'), cleanHex(data.kit[1], '#f2f2f2')] : undefined;
-    const extra = data.type === 'national' ? { flag: cleanFlag(data.flag) || undefined, code: cleanCode(data.code) || undefined, cups: cleanCups(data.cups) } : {};
-    all.teams[name] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew: !isDefaultTeam(name) };
+    const extra = data.type === 'national'
+        ? { flag: cleanFlag(data.flag) || undefined, code: cleanCode(data.code) || undefined, cups: cleanCups(data.cups) }
+        : { code: cleanCode(data.code) || undefined, year: cleanYear(data.year) };
+    const isNew = !isDefaultTeam(key);
+    const rename = !isNew && data.rename ? cleanText(data.rename, 30) : '';
+    all.teams[key] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew,
+        rename: rename && rename !== key ? rename : undefined, hidden: data.hidden ? true : undefined };
     const ok = writeCustomData(all);
     applyCustomData();
     return ok;
+}
+
+// Убрать стандартную команду из игры / вернуть (остальные правки сохраняются)
+function setTeamHidden(key, hidden) {
+    const all = readCustomData();
+    const o = all.teams[key] || { type: isNationName(key) ? 'national' : (DEFAULT_DATA.russia.names.includes(key) ? 'russia' : 'world'), isNew: false };
+    if (hidden) o.hidden = true; else delete o.hidden;
+    all.teams[key] = o;
+    writeCustomData(all);
+    applyCustomData();
 }
 
 function removeTeamOverride(name) {
@@ -200,8 +260,8 @@ function importCustomData(json) {
         if (o.type === 'national' && !nation) return;
         const clean = {
             type: nation ? 'national' : (o.type === 'russia' ? 'russia' : 'world'),
-            emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 8) : '⚪',
-            rating: Math.max(40, Math.min(99, Number(o.rating) || 75))
+            emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 8) : (isDefaultTeam(name) ? undefined : '⚪'),
+            rating: o.rating !== undefined ? Math.max(40, Math.min(99, Number(o.rating) || 75)) : (isDefaultTeam(name) ? undefined : 75)
         };
         if (o.squad) {
             clean.squad = {};
@@ -217,6 +277,13 @@ function importCustomData(json) {
             if (code) clean.code = code;
             if (cups) clean.cups = cups;
         }
+        if (!nation) {
+            const code = cleanCode(o.code), year = cleanYear(o.year);
+            if (code) clean.code = code;
+            if (year) clean.year = year;
+        }
+        if (isDefaultTeam(name) && o.rename) clean.rename = cleanText(o.rename, 30);
+        if (isDefaultTeam(name) && o.hidden) clean.hidden = true;
         const crest = cleanCrest(o.crest);
         if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);
@@ -228,4 +295,10 @@ function importCustomData(json) {
     writeCustomData(all);
     applyCustomData();
     return Object.keys(teams).length;
+}
+
+// Название в игре для исходного названия (после переименования — новое)
+function shownNameOf(key) {
+    const found = Object.entries(TEAM_ALIAS).find(([, orig]) => orig === key);
+    return found ? found[0] : key;
 }
