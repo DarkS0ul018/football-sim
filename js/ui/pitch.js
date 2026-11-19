@@ -301,7 +301,7 @@ function recordFrame(holder) {
     pitch.recording.push({
         ball: { ...pitch.ball },
         holder: holder ? { teamId: holder.teamId, number: holder.number } : null,
-        players: ['team1', 'team2'].flatMap(s => sim.sides[s].onPitch.map(p => ({ id: playerElId(p), x: p.x, y: p.y })))
+        players: ['team1', 'team2'].flatMap(s => sim.sides[s].onPitch.map(p => clipPlayer(p, p.x, p.y)))
     });
 }
 
@@ -323,6 +323,7 @@ function flushPendingPath() {
 // span — сколько игровых минут длится показ (атака с ударом — 2)
 function animateMinute(sim, events, ms, span = 1) {
     flushPendingPath(); // прошлый розыгрыш не успел закончиться — доигрываем его мгновенно (гол не потеряется)
+    pitch.pathToken = (pitch.pathToken || 0) + 1; // номер розыгрыша: отложенный «мяч в центр» не должен стереть новую атаку
     clearPitchTimers();
     pitch.sim = sim;
     pitch.msPerMinute = ms;
@@ -458,6 +459,7 @@ function animateMinute(sim, events, ms, span = 1) {
                 const ev = goalEv || events.find(e => e.type === 'goal');
                 if (ev) {
                     pitch.lastGoal = { ev, frames: pitch.recording.slice() };
+                    recordHighlight(sim, ev, pitch.lastGoal.frames); // для обзора голов после матча
                     onGoalAnimation(sim, ev);
                 }
             }
@@ -485,7 +487,10 @@ function onGoalAnimation(sim, ev) {
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
     // Розыгрыш с центра: команды расходятся по своим половинам
+    // (если к этому моменту уже началась следующая атака — не трогаем её: иначе её гол потеряется)
+    const token = pitch.pathToken;
     setTimeout(() => {
+        if (pitch.pathToken !== token) return;
         pitch.kickoff = true;
         pitch.holder = null;
         pitch.path = [];

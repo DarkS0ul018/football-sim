@@ -1,6 +1,7 @@
 // ===== ДАШБОРД: группы, сетка плей-офф, список матчей =====
 
 function openDashboard() {
+    stopHighlights(); // ушли с экрана матча посреди обзора голов
     showScreen('dashboard');
     renderDashboard();
 }

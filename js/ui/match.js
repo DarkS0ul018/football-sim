@@ -250,6 +250,7 @@ function legLabel(m, leg) {
 // Готовит экран к новой игре (первая игра матча или второй матч пары)
 function prepareLeg(m, leg) {
     currentSim = new MatchSimulation(m, leg);
+    highlights.sims.push(currentSim);
     setText('match-stage-info', legLabel(m, leg));
     renderField(currentSim);
     renderLineups(currentSim);
@@ -265,6 +266,7 @@ function openMatchScreen(match) {
     state.activeMatch = match;
     $('events-list').innerHTML = '';
     resetCommentary();
+    resetHighlights();
 
     setText('match-team-1', match.team1.name);
     setText('match-team-2', match.team2.name);
@@ -378,6 +380,7 @@ function instantResult(m) {
     }
     currentSim = sim;
 
+    buildHighlightsFromSims(legs); // голы для обзора: атаки восстанавливаются по данным движка
     legs.forEach(s => {
         const prefix = m.legs === 2 ? `[${s.leg}-й матч] ` : '';
         s.events.filter(e => KEY_EVENTS.has(e.type) || (e.type === 'half' && e.text.includes('дополнительное'))).forEach(e => showSimEvent(m, e, prefix));
@@ -418,6 +421,8 @@ function finishMatch(m, winner) {
         : `${prefix}Ничья ${agg.t1}:${agg.t2}${m.stage === 'group' ? ' (по 1 очку)' : ''}`;
     addMatchEvent(m, 'FT', 'finish', text, null);
     if (currentSim && currentSim.match === m) { renderLineups(currentSim); renderShotMap(currentSim); showManOfTheMatch(m, currentSim); }
+    buildHighlightsFromSims(highlights.sims); // страховка: незаписанные голы восстанавливаются
+    showHighlightsButton();
     if (isUserMatch(m) && state.userTeamEliminated && !m.cup) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
 
     setText('match-status', 'FINISHED');
