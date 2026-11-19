@@ -1078,3 +1078,9 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .sb-agg { color: var(--gold); }
 .sb-agg b { color: var(--gold); }
 .field-hint { margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--text-2); }
+
+/* Редактор: цвета формы сборной */
+.editor-kit { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: center; }
+.editor-kit label { display: flex; align-items: center; gap: 8px; }
+.editor-kit input[type="color"] { width: 44px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+#btn-editor-new:disabled { opacity: 0.45; cursor: not-allowed; }

@@ -29,8 +29,11 @@ function validateTeamData(name, squad, rating, emoji) {
     else if (unique < 16) warnings.push(`всего ${unique} игроков — мало запасных`);
 
     if (typeof rating !== 'number' || rating < 40 || rating > 99) errors.push(`рейтинг вне диапазона 40–99: ${rating}`);
-    const colors = Array.from(emoji || '').filter(ch => KNOWN_COLOR_EMOJI.includes(ch));
-    if (!colors.length) warnings.push('нет цветов клуба (эмодзи-кружков)');
+    // emoji === null — сборная: цвета формы задаются отдельно (kit), не эмодзи
+    if (emoji !== null) {
+        const colors = Array.from(emoji || '').filter(ch => KNOWN_COLOR_EMOJI.includes(ch));
+        if (!colors.length) warnings.push('нет цветов клуба (эмодзи-кружков)');
+    }
     return { errors, warnings };
 }
 

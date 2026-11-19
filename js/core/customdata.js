@@ -26,8 +26,18 @@ let customCrests = {};
 
 // Копия стандартных данных — для сброса
 const DEFAULT_DATA = JSON.parse(JSON.stringify({
-    world: worldTeams, russia: russianTeams, ratings: teamRatings, squads: SQUADS
+    world: worldTeams, russia: russianTeams, ratings: teamRatings, squads: SQUADS,
+    nations: typeof NATIONS !== 'undefined' ? NATIONS : {}   // сборные: состав, рейтинг, цвета формы
 }));
+
+// Цвет формы сборной: только #rrggbb
+function cleanHex(c, fallback) {
+    return typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : fallback;
+}
+
+function isNationName(name) {
+    return Object.prototype.hasOwnProperty.call(DEFAULT_DATA.nations, name);
+}
 
 function readCustomData() {
     try {
@@ -42,7 +52,7 @@ function writeCustomData(data) {
 }
 
 function isDefaultTeam(name) {
-    return DEFAULT_DATA.world.names.includes(name) || DEFAULT_DATA.russia.names.includes(name);
+    return isNationName(name) || DEFAULT_DATA.world.names.includes(name) || DEFAULT_DATA.russia.names.includes(name);
 }
 
 function defaultTeamInfo(name) {
@@ -78,9 +88,20 @@ function applyCustomData() {
     ['world', 'russia'].forEach(type => {
         SQUADS[type] = JSON.parse(JSON.stringify(DEFAULT_DATA.squads[type]));
     });
+    // Сборные: стандартные состав, рейтинг и форма, затем правки
+    if (typeof NATIONS !== 'undefined') Object.entries(DEFAULT_DATA.nations).forEach(([name, d]) => {
+        Object.assign(NATIONS[name], JSON.parse(JSON.stringify({ squad: d.squad, rating: d.rating, kit: d.kit })));
+    });
     customCrests = {};
     Object.entries(custom).forEach(([name, o]) => {
         if (o.crest) customCrests[name] = o.crest;
+        if (o.type === 'national') {
+            if (!isNationName(name)) return;
+            if (typeof o.rating === 'number') { teamRatings[name] = o.rating; NATIONS[name].rating = o.rating; }
+            if (o.squad) NATIONS[name].squad = o.squad;
+            if (Array.isArray(o.kit)) NATIONS[name].kit = [cleanHex(o.kit[0], NATIONS[name].kit[0]), cleanHex(o.kit[1], NATIONS[name].kit[1])];
+            return;
+        }
         const type = o.type || (DEFAULT_DATA.russia.names.includes(name) ? 'russia' : 'world');
         if (typeof o.rating === 'number') teamRatings[name] = o.rating;
         if (o.squad) SQUADS[type][name] = o.squad;
@@ -96,7 +117,8 @@ function saveTeamOverride(name, data) {
     name = cleanText(name, 30);
     const squad = data.squad && Object.fromEntries(Object.entries(data.squad).map(([k, v]) => [k, v.map(s => cleanText(s)).filter(Boolean)]));
     const crest = cleanCrest(data.crest);
-    all.teams[name] = { ...data, squad, crest: crest || undefined, isNew: !isDefaultTeam(name) };
+    const kit = Array.isArray(data.kit) ? [cleanHex(data.kit[0], '#1e4fd8'), cleanHex(data.kit[1], '#f2f2f2')] : undefined;
+    all.teams[name] = { ...data, squad, kit, crest: crest || undefined, isNew: !isDefaultTeam(name) };
     const ok = writeCustomData(all);
     applyCustomData();
     return ok;
@@ -126,8 +148,10 @@ function importCustomData(json) {
     const teams = {};
     Object.entries(data.teams).forEach(([name, o]) => {
         if (!o || typeof o !== 'object') return;
+        const nation = o.type === 'national' && isNationName(name);
+        if (o.type === 'national' && !nation) return;  // сборную нельзя создать — только изменить
         const clean = {
-            type: o.type === 'russia' ? 'russia' : 'world',
+            type: nation ? 'national' : (o.type === 'russia' ? 'russia' : 'world'),
             emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 8) : '⚪',
             rating: Math.max(40, Math.min(99, Number(o.rating) || 75))
         };
@@ -138,6 +162,7 @@ function importCustomData(json) {
                     .map(s => cleanText(s)).filter(Boolean).slice(0, 30);
             });
         }
+        if (nation && Array.isArray(o.kit)) clean.kit = [cleanHex(o.kit[0], '#1e4fd8'), cleanHex(o.kit[1], '#f2f2f2')];
         const crest = cleanCrest(o.crest);
         if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);

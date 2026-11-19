@@ -11,7 +11,17 @@ function openEditor() {
     showScreen('editor');
 }
 
+// В каких турнирах сборных играет страна (метки в списке)
+function nationCupTags(name) {
+    const short = { euro: 'ЧЕ', worldcup: 'ЧМ', copa: 'КА' };
+    return Object.entries(NATION_CUPS).filter(([, c]) => c.names.includes(name)).map(([k]) => short[k]);
+}
+
 function editorTeamInfo(name) {
+    if (typeof NATIONS !== 'undefined' && NATIONS[name]) {
+        const n = NATIONS[name];
+        return { name, type: 'national', emoji: null, rating: teamRatings[name] ?? n.rating, kit: [...n.kit], squad: n.squad };
+    }
     const type = russianTeams.names.includes(name) ? 'russia' : 'world';
     const data = type === 'russia' ? russianTeams : worldTeams;
     const i = data.names.indexOf(name);
@@ -25,12 +35,17 @@ function editorTeamInfo(name) {
 
 function renderEditorList() {
     document.querySelectorAll('#editor-type-tabs .style-btn').forEach(b => b.classList.toggle('active', b.dataset.type === editor.type));
+    const national = editor.type === 'national';
     const data = editor.type === 'russia' ? russianTeams : worldTeams;
+    const names = national ? Object.keys(NATIONS).sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) : data.names;
     const custom = readCustomData().teams;
-    $('editor-team-list').innerHTML = data.names.map(name => {
+    $('btn-editor-new').disabled = national; // сборные можно менять, но не создавать
+    $('btn-editor-new').title = national ? 'Новые сборные не добавляются — можно изменить существующие' : '';
+    $('editor-team-list').innerHTML = names.map(name => {
         const t = editorTeamInfo(name);
         const check = validateTeamData(name, t.squad, t.rating, t.emoji);
         const marks = [
+            national ? nationCupTags(name).map(x => `<span class="badge" title="Участник турнира">${x}</span>`).join('') : '',
             custom[name] ? (custom[name].isNew ? '<span class="badge" title="Своя команда">новая</span>' : '<span class="badge" title="Изменена в редакторе">✏️</span>') : '',
             check.errors.length ? '<span class="badge badge-red" title="Есть ошибки">!</span>' : (check.warnings.length ? '<span class="badge badge-yellow" title="Есть замечания">⚠️</span>' : '')
         ].join('');
@@ -63,7 +78,8 @@ function renderEditorForm() {
         ? { name: '', type: editor.type, emoji: '🔵⚪', rating: 75, squad: { goalkeepers: [], defenders: [], midfielders: [], forwards: [] } }
         : editorTeamInfo(editor.selected);
     const custom = readCustomData().teams[t.name];
-    const colors = Array.from(t.emoji).filter(ch => COLOR_EMOJI.includes(ch));
+    const national = t.type === 'national';
+    const colors = Array.from(t.emoji || '').filter(ch => COLOR_EMOJI.includes(ch));
     const crest = { shape: '', pattern: '', symbol: '', image: null, ...((custom && custom.crest) || {}) };
     const swatches = (idx) => COLOR_EMOJI.map(ch =>
         `<button type="button" class="swatch ${colors[idx] === ch ? 'active' : ''}" data-idx="${idx}" data-color="${ch}" style="background:${EMOJI_COLORS[ch]}" title="${ch}"></button>`).join('');
@@ -85,16 +101,20 @@ function renderEditorForm() {
             <input type="range" id="ed-rating" min="40" max="99" value="${t.rating}">
         </label>
 
-        <div class="editor-colors">
+        ${national ? `<div class="editor-colors editor-kit">
+            <label>Форма — основной цвет <input type="color" id="ed-kit1" value="${t.kit[0]}"></label>
+            <label>Форма — второй цвет <input type="color" id="ed-kit2" value="${t.kit[1]}"></label>
+            <span class="muted">Турниры: ${nationCupTags(t.name).join(', ') || '—'}</span>
+        </div>` : `<div class="editor-colors">
             <div>Основной цвет<div class="swatches">${swatches(0)}</div></div>
             <div>Второй цвет<div class="swatches">${swatches(1)}</div></div>
-        </div>
+        </div>`}
 
         <div class="field-label">Эмблема</div>
         <div class="editor-crest-options">
-            ${crestSelect('shape', 'Форма', CREST_SHAPES, crest.shape)}
-            ${crestSelect('pattern', 'Узор', CREST_PATTERNS, crest.pattern)}
-            ${crestSelect('symbol', 'Символ', CREST_SYMBOLS, crest.symbol)}
+            ${crestSelect('shape', 'Форма', CREST_SHAPES, crest.shape, national ? 'Флаг сборной' : 'Автоматически')}
+            ${crestSelect('pattern', 'Узор', CREST_PATTERNS, crest.pattern, national ? 'Флаг сборной' : 'Автоматически')}
+            ${crestSelect('symbol', 'Символ', CREST_SYMBOLS, crest.symbol, national ? 'Флаг сборной' : 'Автоматически')}
         </div>
         <div class="editor-crest-upload">
             <label class="btn-secondary">Загрузить свою картинку<input type="file" id="ed-crest-file" accept="image/png,image/jpeg,image/webp,image/svg+xml,image/gif" hidden></label>
@@ -128,7 +148,8 @@ function renderEditorForm() {
         return {
             name: editor.isNew ? cleanText($('ed-name').value, 30) : t.name,
             type: editor.isNew ? $('ed-type').value : t.type,
-            emoji: currentEmoji(),
+            emoji: national ? null : currentEmoji(),
+            kit: national ? [$('ed-kit1').value, $('ed-kit2').value] : undefined,
             rating: Number($('ed-rating').value),
             squad,
             crest: { ...crest }
@@ -140,7 +161,7 @@ function renderEditorForm() {
         const check = validateTeamData(d.name, d.squad, d.rating, d.emoji);
         if (editor.isNew) {
             if (!d.name) check.errors.unshift('введите название');
-            else if (worldTeams.names.includes(d.name) || russianTeams.names.includes(d.name)) check.errors.unshift('команда с таким названием уже есть');
+            else if (worldTeams.names.includes(d.name) || russianTeams.names.includes(d.name) || (typeof NATIONS !== 'undefined' && NATIONS[d.name])) check.errors.unshift('команда с таким названием уже есть');
         }
         $('ed-check').innerHTML = check.errors.map(e => `<div class="err-line">⛔ ${e}</div>`).join('')
             + check.warnings.map(w => `<div class="warn-line">⚠️ ${w}</div>`).join('')
@@ -155,7 +176,7 @@ function renderEditorForm() {
         refresh();
     });
     $('ed-rating').oninput = e => { setText('ed-rating-val', e.target.value); refresh(); };
-    form.querySelectorAll('textarea, #ed-name').forEach(el => el.oninput = refresh);
+    form.querySelectorAll('textarea, #ed-name, #ed-kit1, #ed-kit2').forEach(el => el.oninput = refresh);
     form.querySelectorAll('.ed-crest-select').forEach(sel => sel.onchange = () => { crest[sel.dataset.key] = sel.value; refresh(); });
     $('ed-crest-file').onchange = async e => {
         const file = e.target.files[0];
@@ -176,7 +197,9 @@ function renderEditorForm() {
         const d = refresh();
         if ($('btn-ed-save').disabled) return;
         const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
-        if (!saveTeamOverride(d.name, { type: d.type, emoji: d.emoji, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined })) {
+        const payload = { type: d.type, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined };
+        if (d.type === 'national') payload.kit = d.kit; else payload.emoji = d.emoji;
+        if (!saveTeamOverride(d.name, payload)) {
             notify('Не удалось сохранить: хранилище браузера недоступно или переполнено');
             return;
         }
@@ -204,9 +227,9 @@ function renderEditorForm() {
 }
 
 // Выпадающий список для формы/узора/символа эмблемы ('' — автоматически)
-function crestSelect(key, label, options, value) {
+function crestSelect(key, label, options, value, autoLabel = 'Автоматически') {
     return `<label>${label}<select class="ed-crest-select" data-key="${key}">
-        <option value="">Автоматически</option>
+        <option value="">${autoLabel}</option>
         ${Object.entries(options).map(([k, o]) => `<option value="${k}" ${k === value ? 'selected' : ''}>${o.label}</option>`).join('')}
     </select></label>`;
 }
@@ -214,7 +237,8 @@ function crestSelect(key, label, options, value) {
 function crestPreview(team, crest) {
     if (crest.image) return `<span class="crest crest-lg"><img src="${crest.image}" alt=""></span>`;
     const auto = getCrestConfig({ name: team.name, emoji: team.emoji });
-    const config = { shape: crest.shape || auto.shape, pattern: crest.pattern || auto.pattern, symbol: crest.symbol || auto.symbol };
+    const config = { shape: crest.shape || auto.shape, pattern: crest.pattern || auto.pattern, symbol: crest.symbol || auto.symbol,
+        custom: !!(crest.shape || crest.pattern || crest.symbol) }; // у сборной без настроек — флаг
     return `<span class="crest crest-lg">${crestSvg(team, config)}</span>`;
 }
 
