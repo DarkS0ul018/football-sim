@@ -578,8 +578,8 @@ class MatchSimulation {
     goal(side, scorer, assister, note = '', xg = null) {
         this.score[SIDE_KEY[side]]++;
         setLegScore(this.match, this.leg, this.score);
-        addPlayerStat(this.sides[side].team.id, scorer.number, 'goals');
-        if (assister) addPlayerStat(this.sides[side].team.id, assister.number, 'assists');
+        this.addStat(this.sides[side].team.id, scorer.number, 'goals');
+        if (assister) this.addStat(this.sides[side].team.id, assister.number, 'assists');
         const parts = [`ГОЛ! ${scorer.name}`];
         if (assister) parts.push(`пас: ${assister.name}`);
         if (note) parts.push(note);
@@ -604,7 +604,7 @@ class MatchSimulation {
             offender.yellow++;
             s.yellowed.add(offender.number);
             this.stats.yellowCards[side]++;
-            addPlayerStat(s.team.id, offender.number, 'yellowCards');
+            this.addStat(s.team.id, offender.number, 'yellowCards');
             if (offender.yellow >= 2) this.sendOff(side, offender, 'Вторая жёлтая — удаление');
             else this.log('card-yellow', side, `Жёлтая карточка — ${offender.name}`, { player: offender });
         } else {
@@ -636,6 +636,12 @@ class MatchSimulation {
             play.end = { ...(play.end || {}), type: 'penalty-miss', taker: taker.number };
             this.log('penalty-miss', side, `Пенальти не забит — ${taker.name}`, { player: taker });
         }
+    }
+
+    // Статистика игроков: кубковые голы — в отдельную таблицу кубка
+    addStat(teamId, number, field) {
+        if (this.match.cup) addCupStat(teamId, number, field);
+        else addPlayerStat(teamId, number, field);
     }
 
     // ----- Оценки игроков за матч (3–10), как в спортивных приложениях -----
@@ -692,7 +698,7 @@ class MatchSimulation {
         s.onPitch = s.onPitch.filter(p => p !== player);
         s.sentOff.push(player);
         this.stats.redCards[side]++;
-        addPlayerStat(s.team.id, player.number, 'redCards');
+        this.addStat(s.team.id, player.number, 'redCards');
         this.log('card-red', side, `${text} — ${player.name}`, { player, lineupChanged: true });
 
         // Удалён вратарь: выпускаем запасного вместо полевого игрока
@@ -795,7 +801,7 @@ class MatchSimulation {
         const strengths = { team1: this.strength('team1'), team2: this.strength('team2') };
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];
-            s.appeared.forEach(num => addPlayerStat(s.team.id, num, 'matches'));
+            s.appeared.forEach(num => this.addStat(s.team.id, num, 'matches'));
             // Свежесть, восстановление, дисквалификации, форма и мораль — в состав команды
             const all = [...s.onPitch, ...s.subbedOff, ...s.sentOff];
             const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[otherSide(side)]];
@@ -955,6 +961,12 @@ function completeMatch(m, winner) {
 
     const agg = m.aggregateScore;
     const isDraw = agg.t1 === agg.t2;
+    if (m.cup) {
+        // Кубок: только форма команд, таблица лиги не меняется
+        updateTeamForm(m.team1, agg.t1, agg.t2, isDraw ? null : winner === m.team1);
+        updateTeamForm(m.team2, agg.t2, agg.t1, isDraw ? null : winner === m.team2);
+        return;
+    }
     updateTeamStats(m.team1, agg.t1, agg.t2, isDraw ? null : winner === m.team1);
     updateTeamStats(m.team2, agg.t2, agg.t1, isDraw ? null : winner === m.team2);
 

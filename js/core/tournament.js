@@ -86,6 +86,10 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     else if (settings.mode === 'groups') createGroups();
     else if (settings.mode === 'league') createLeague();
     else createKnockoutRound(state.teams);
+
+    // Карьера в лиге: параллельно с чемпионатом разыгрывается кубок
+    state.cup = null;
+    if (cupEnabled(state.settings)) createCup();
 }
 
 // Круговая система «каждый с каждым» (метод вращения): массив туров, в каждом — пары [хозяин, гость]
@@ -261,6 +265,7 @@ function advanceStage() {
         return null;
     }
     if (state.settings.mode === 'league') {
+        finishCupAuto(); // сезон заканчивается — кубок доигран
         state.champion = sortGroup([...state.teams])[0];
         return state.champion;
     }
@@ -272,6 +277,7 @@ function advanceStage() {
     } else {
         const winners = state.matches.map(m => m.winner).filter(Boolean);
         if (winners.length === 1) {
+            finishCupAuto();
             state.champion = winners[0];
             return winners[0];
         }
@@ -286,6 +292,7 @@ function advanceStage() {
 
 // Доигрывает все оставшиеся этапы. Возвращает чемпиона.
 function autoFinishTournament() {
+    finishCupAuto();
     for (let guard = 0; guard < 20; guard++) {
         autoSimulateAllRemainingMatches();
         const champion = advanceStage();

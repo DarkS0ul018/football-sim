@@ -85,14 +85,18 @@ function renderCareerCard() {
     recordCareerSeason();
     const result = getUserResult();
     const career = readCareer();
-    const trophies = career.seasons.filter(s => s.trophy).length;
+    const trophies = career.seasons.reduce((a, s) => a + (s.trophy ? 1 : 0) + (s.cupTrophy ? 1 : 0), 0);
+    const cup = userCupResult();
+    const double = result.trophy && cup && cup.trophy;
     $('career-result').innerHTML = `
         <div class="career-team">${teamLabel(state.userTeam)}</div>
+        ${double ? '<div class="career-double">🏆🏆 ЗОЛОТОЙ ДУБЛЬ: лига и кубок!</div>' : ''}
         <div class="career-outcome ${result.trophy ? 'trophy' : ''}">${result.text}</div>
+        ${cup ? `<div class="career-outcome career-cup ${cup.trophy ? 'trophy' : ''}">${cup.text}${state.cup && state.cup.winner && !cup.trophy ? ` <small class="muted">· кубок взял ${state.cup.winner.name}</small>` : ''}</div>` : ''}
         <div class="muted">Сезонов: ${career.seasons.length} · трофеев: ${trophies} ${'🏆'.repeat(Math.min(trophies, 10))}</div>`;
     $('career-history').innerHTML = [...career.seasons].reverse().map(s => `
-        <tr class="${s.trophy ? 'qualify-third' : ''}">
-            <td>${s.season}</td><td>${s.format}</td><td><b>${s.result}</b></td><td>${s.record}</td><td>${s.goals}</td><td>${s.topScorer}</td>
+        <tr class="${s.trophy || s.cupTrophy ? 'qualify-third' : ''}">
+            <td>${s.season}</td><td>${s.format}</td><td><b>${s.result}</b>${s.cup ? `<br><small>${s.cup}</small>` : ''}</td><td>${s.record}</td><td>${s.goals}</td><td>${s.topScorer}</td>
         </tr>`).join('');
     card.style.display = 'block';
 }

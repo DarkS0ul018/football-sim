@@ -6,6 +6,8 @@ function openDashboard() {
 }
 
 function renderDashboard() {
+    // Кубок (карьера): сыгранный раунд — жеребьёвка следующего; раунды без игрока досчитываются сами
+    if (state.cup) catchUpCup();
     // Карьера: если у команды игрока нет матчей в этом этапе — досчитываем остальные автоматически
     if (isCareer() && !state.matches.some(m => !m.isFinished && isUserMatch(m))) {
         autoSimulateAllRemainingMatches();
@@ -195,6 +197,13 @@ function renderMatchesList(isPlayoff) {
     list.innerHTML = '';
     if (isPlayoff) return;
 
+    // Кубковый матч «созрел» — сначала он, тур лиги ждёт
+    const cupMatch = state.cup ? userCupMatch() : null;
+    if (cupMatch) {
+        list.insertAdjacentHTML('beforeend', cupPanelHtml());
+        list.appendChild(cupMatchButton(cupMatch));
+    }
+
     const current = getCurrentMatchday();
     const finished = state.matches.filter(m => m.isFinished);
     const lastPlayed = finished.length ? Math.max(...finished.map(m => m.matchday || 0)) : null;
@@ -204,7 +213,11 @@ function renderMatchesList(isPlayoff) {
         const shown = finished.filter(m => m.matchday === lastPlayed);
         list.insertAdjacentHTML('beforeend', `<h3>Результаты · тур ${lastPlayed}</h3>` + shown.map(matchResultHtml).join(''));
     }
-    if (!current) return;
+    if (!current) { if (state.cup && !cupMatch) list.insertAdjacentHTML('beforeend', cupPanelHtml()); return; }
+    if (cupMatch) {
+        list.insertAdjacentHTML('beforeend', `<div class="muted" style="margin:6px 0 12px">Тур ${current} лиги — после кубкового матча.</div>`);
+        return;
+    }
 
     // Матчи текущего тура
     const upcoming = state.matches.filter(m => !m.isFinished && m.matchday === current);
@@ -229,12 +242,13 @@ function renderMatchesList(isPlayoff) {
         auto.onclick = () => { autoSimulateAllRemainingMatches(m => m.matchday === current); renderDashboard(); };
         list.appendChild(auto);
     }
+    if (state.cup) list.insertAdjacentHTML('beforeend', cupPanelHtml());
 }
 
 // ----- Кнопка следующего этапа -----
 function renderNextRoundButton() {
     const btn = $('btn-next-round');
-    if (!isStageComplete()) { btn.style.display = 'none'; return; }
+    if (!isStageComplete() || (state.cup && userCupMatch())) { btn.style.display = 'none'; return; }
     btn.style.display = 'block';
     const toPlayoff = (state.settings.mode === 'league' && isLeagueWithPlayoff()) || state.settings.mode === 'groups';
     const isLast = !toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1);

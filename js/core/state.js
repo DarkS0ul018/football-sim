@@ -11,7 +11,8 @@ const state = {
     userTeam: null,         // команда игрока в карьере (Team)
     userTeamEliminated: false,
     champion: null,
-    activeMatch: null       // открытый на экране матч (не сохраняется)
+    activeMatch: null,      // открытый на экране матч (не сохраняется)
+    cup: null               // кубок в карьере (js/core/cup.js)
 };
 
 class Team {
@@ -66,13 +67,17 @@ function isUserMatch(m) {
 }
 
 function updateTeamStats(team, gf, ga, win) {
+    updateTeamForm(team, gf, ga, win);
     team.stats.played++;
     team.stats.gf += gf;
     team.stats.ga += ga;
     if (win === true) { team.stats.won++; team.stats.points += 3; }
     else if (win === false) team.stats.lost++;
     else { team.stats.drawn++; team.stats.points += 1; }
-    // Последние 5 результатов (через все этапы турнира): «W2:1», «D0:0», «L1:3»
+}
+
+// Последние 5 результатов (через все этапы и кубок): «W2:1», «D0:0», «L1:3»
+function updateTeamForm(team, gf, ga, win) {
     team.stats.form = [...(team.stats.form || []), (win === true ? 'W' : win === false ? 'L' : 'D') + gf + ':' + ga].slice(-5);
 }
 

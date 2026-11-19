@@ -197,6 +197,7 @@ function recordCareerSeason() {
     const result = getUserResult();
     const career = readCareer();
     const team = state.userTeam;
+    const cupRes = userCupResult();
     // Новая команда — новая карьера
     if (career.teamName && career.teamName !== team.name) {
         career.seasons = [];
@@ -217,11 +218,14 @@ function recordCareerSeason() {
         champion: state.champion ? `${state.champion.emoji} ${state.champion.name}` : '',
         record: `${team.stats.won}-${team.stats.drawn}-${team.stats.lost}`,
         goals: `${team.stats.gf}:${team.stats.ga}`,
-        topScorer: top && top.goals ? `${top.name} (${top.goals})` : '—'
+        topScorer: top && top.goals ? `${top.name} (${top.goals})` : '—',
+        cup: cupRes ? cupRes.text : null,
+        cupTrophy: !!(cupRes && cupRes.trophy)
     });
     // Развитие игроков и доход за сезон
     career.lastDevelopment = developPlayers(career);
-    const income = seasonIncome(result);
+    // Призовые: лига + кубок (победа 15, финал 8 млн €)
+    const income = seasonIncome(result) + (cupRes ? (cupRes.trophy ? 15 : (cupRes.final ? 8 : 0)) : 0);
     career.lastIncome = income;
     career.budget = Math.round((career.budget + income) * 10) / 10;
     career.lastSettings = { ...state.settings, mode: state.settings.originalMode || state.settings.mode };

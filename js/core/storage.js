@@ -31,7 +31,8 @@ function deserializeMatch(d, teamById) {
 function saveGame() {
     if (!state.teams.length || state.champion) return;
     // Матч, не доигранный до конца, не сохраняем — его счёт ещё не окончательный
-    const live = state.matches.find(m => !m.isFinished && (m.score1 || m.score2 || m.leg1.t1 || m.leg1.t2 || m.currentLeg === 2));
+    const cupMatches = state.cup ? state.cup.rounds.flatMap(r => r.matches) : [];
+    const live = [...state.matches, ...cupMatches].find(m => !m.isFinished && (m.score1 || m.score2 || m.leg1.t1 || m.leg1.t2 || m.currentLeg === 2));
     if (live) return;
 
     // Плей-офф: текущие матчи лежат и в state.matches, и в истории. Храним каждый один раз.
@@ -56,7 +57,8 @@ function saveGame() {
         userTeamEliminated: state.userTeamEliminated,
         squads: state.squads,
         rosters: state.rosters,
-        playerStats
+        playerStats,
+        cup: serializeCup()
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* хранилище недоступно — играем без сохранения */ }
 }
@@ -99,6 +101,7 @@ function loadGame() {
     playerStats = data.playerStats;
     state.squads = data.squads;
     state.rosters = data.rosters || null; // в старых сохранениях составов нет — берутся текущие
+    state.cup = deserializeCup(data.cup, teamById);
     state.seasonRecorded = false;
     return true;
 }

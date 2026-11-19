@@ -418,26 +418,35 @@ function finishMatch(m, winner) {
         : `${prefix}Ничья ${agg.t1}:${agg.t2}${m.stage === 'group' ? ' (по 1 очку)' : ''}`;
     addMatchEvent(m, 'FT', 'finish', text, null);
     if (currentSim && currentSim.match === m) { renderLineups(currentSim); renderShotMap(currentSim); showManOfTheMatch(m, currentSim); }
-    if (isUserMatch(m) && state.userTeamEliminated) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
+    if (isUserMatch(m) && state.userTeamEliminated && !m.cup) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
 
     setText('match-status', 'FINISHED');
     setMatchInProgress(false);
     setVisible(['btn-close-match'], true);
 
     // В карьере остальные матчи этого тура (в плей-офф — раунда) досчитываются автоматически
-    if (isCareer()) {
+    if (isCareer() && m.cup) {
+        playCupAI();     // остальные матчи раунда кубка
+        advanceCup();    // жеребьёвка следующего раунда (или кубок разыгран)
+        cupMatchOutcome(m, winner);
+    } else if (isCareer()) {
         const md = m.matchday ?? Infinity;
         autoSimulateAllRemainingMatches(om => !isUserMatch(om) && (om.matchday ?? 0) <= md);
     }
+    if (state.cup) catchUpCup();
     saveGame();
 
     const btn = $('btn-next-match');
-    const nextMatch = state.matches.find(x => !x.isFinished && (!isCareer() || isUserMatch(x)));
+    const cupNext = state.cup ? userCupMatch() : null;
+    const nextMatch = cupNext || state.matches.find(x => !x.isFinished && (!isCareer() || isUserMatch(x)));
     btn.style.display = 'flex';
-    if (isCareer() && state.userTeamEliminated) {
+    if (cupNext) {
+        btn.innerHTML = `<span class="btn-icon">🏆</span><span class="btn-text">${cupNext.roundName}</span>`;
+        btn.onclick = () => openMatch(cupNext);
+    } else if (isCareer() && state.userTeamEliminated) {
         btn.innerHTML = '<span class="btn-icon">🤖</span><span class="btn-text">Досимулировать турнир</span>';
         btn.onclick = () => showResults(autoFinishTournament());
-    } else if (nextMatch && m.stage === 'group') {
+    } else if (nextMatch && (m.stage === 'group' || m.cup) && nextMatch.stage === 'group') {
         btn.innerHTML = '<span class="btn-icon">➡️</span><span class="btn-text">Следующий матч</span>';
         btn.onclick = () => openMatch(nextMatch);
     } else {
