@@ -44,7 +44,7 @@ function newsWhen(m) {
 function pushNews({ tag, title, text = '', teams = [], weight = 5, when = null, match = null }) {
     ensureNews();
     const ids = teams.filter(Boolean).map(t => t.id);
-    const mine = isCareer() && state.userTeam && ids.includes(state.userTeam.id);
+    const mine = humanTeams().some(t => ids.includes(t.id));
     state.news.push({
         id: ++state.newsMeta.seq, tag, title, text, teamIds: ids,
         weight: weight + (mine ? 3 : 0), mine, when: when || newsWhen(match)
@@ -94,7 +94,7 @@ function newsFromSim(sim) {
 
     // Матч жизни
     const best = sim.manOfTheMatch && sim.manOfTheMatch();
-    const bestMine = best && isCareer() && state.userTeam && sim.sides[best.side].team.id === state.userTeam.id;
+    const bestMine = best && isHuman(sim.sides[best.side].team);
     const involv = best ? sim.events.filter(e => e.type === 'goal' && e.side === best.side && ((e.player && e.player.number === best.number) || (e.assister && e.assister.number === best.number))).length : 0;
     if (best && (bestMine ? best.rating >= 9.5 : best.rating >= 10 && involv >= 3) && ![...byPlayer.values()].some(x => x.n >= 3 && x.ev.player.number === best.number && x.ev.side === best.side)) {
         const team = sim.sides[best.side].team;
@@ -106,14 +106,14 @@ function newsFromSim(sim) {
     ['team1', 'team2'].forEach(side => {
         const s = sim.sides[side];
         (s.injured || new Map()).forEach((inj, num) => {
-            const minePlayer = isCareer() && state.userTeam && s.team.id === state.userTeam.id;
+            const minePlayer = isHuman(s.team);
             if (inj.matches < (minePlayer ? 2 : 4)) return;
             const p = [...s.onPitch, ...s.subbedOff, ...s.sentOff].find(x => x.number === num);
             if (!p) return;
             pushNews({ tag: 'injury', match: m, teams: [s.team], weight: inj.matches >= 8 ? 7 : 5,
                 title: `Травма: ${p.name}`, text: `${inj.type[0].toUpperCase() + inj.type.slice(1)}, пропустит ${matchesWord(inj.matches)}. Удар по ${qn(s.team)}.` });
         });
-        if (isCareer() && state.userTeam && s.team.id === state.userTeam.id) s.sentOff.forEach(p => {
+        if (isHuman(s.team)) s.sentOff.forEach(p => {
             pushNews({ tag: 'club', match: m, teams: [s.team], weight: 3,
                 title: `Удаление: ${p.name}`, text: `${qn(s.team)} доигрывала в меньшинстве (${A.name} ${score} ${B.name}). Следующий матч он пропустит.` });
         });
@@ -126,6 +126,10 @@ function newsFromMatch(m, winner) {
     const loser = winner ? (winner === m.team1 ? m.team2 : m.team1) : null;
     const pens = m.penalties.kicks.length ? ` (пен. ${m.penalties.t1}:${m.penalties.t2})` : '';
     const line = `${m.team1.name} ${agg.t1}:${agg.t2} ${m.team2.name}${pens}`;
+
+    // «Вдвоём»: очная встреча игроков
+    if (isDuo() && isHuman(m.team1) && isHuman(m.team2)) pushNews({ tag: 'result', match: m, teams: [m.team1, m.team2], weight: 7,
+        title: winner ? `Дуэль игроков: ${qn(winner)} сильнее` : 'Дуэль игроков: ничья', text: line });
 
     if (m.cup && winner) {
         if (m.isFinal) pushNews({ tag: 'cup', match: m, teams: [winner, loser], weight: 10, title: `${qn(winner)} — обладатель кубка!`, text: `Финал: ${line}.` });
@@ -178,18 +182,18 @@ function newsBetweenRounds() {
         pushNews({ tag: 'player', teams: [team], weight: 4 + Math.min(3, mark / 5 - 1) + (leader ? 1 : 0),
             title: `${p.name}: ${p.goals} ${plural5(p.goals)} в турнире`, text: leader ? 'Лучший бомбардир турнира.' : `${team ? qn(team) : ''} — ${p.matches} ${plural5m(p.matches)}.` });
     });
-    // Настроение в команде игрока
-    if (isCareer() && state.userTeam && state.squads) {
-        const mo = teamMorale(state.userTeam);
-        const was = meta.moraleLow[state.userTeam.id];
+    // Настроение в командах людей
+    if (state.squads) humanTeams().forEach(userTeam => {
+        const mo = teamMorale(userTeam);
+        const was = meta.moraleLow[userTeam.id];
         if (mo < 48 && !was) {
-            meta.moraleLow[state.userTeam.id] = true;
-            pushNews({ tag: 'club', teams: [state.userTeam], weight: 5, title: `В раздевалке ${qn(state.userTeam)} напряжение`, text: 'Игроки недовольны результатами и игровым временем.' });
+            meta.moraleLow[userTeam.id] = true;
+            pushNews({ tag: 'club', teams: [userTeam], weight: 5, title: `В раздевалке ${qn(userTeam)} напряжение`, text: 'Игроки недовольны результатами и игровым временем.' });
         } else if (mo >= 60 && was) {
-            meta.moraleLow[state.userTeam.id] = false;
-            pushNews({ tag: 'club', teams: [state.userTeam], weight: 4, title: `${qn(state.userTeam)}: настроение наладилось`, text: 'Команда снова верит в успех.' });
+            meta.moraleLow[userTeam.id] = false;
+            pushNews({ tag: 'club', teams: [userTeam], weight: 4, title: `${qn(userTeam)}: настроение наладилось`, text: 'Команда снова верит в успех.' });
         }
-    }
+    });
 }
 
 function plural5(n) { const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? 'гол' : (a >= 2 && a <= 4 && (b < 10 || b >= 20) ? 'гола' : 'голов'); }

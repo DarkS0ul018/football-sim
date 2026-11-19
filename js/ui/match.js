@@ -29,10 +29,17 @@ function stopMatchTimers() {
 let simStep = null;     // функция шага живого матча (для паузы)
 let isPaused = false;
 
-// Сторона команды игрока в текущем матче (только карьера)
+// Стороны команд людей в матче: в карьере — одна, в дерби «Вдвоём» — обе
+function humanSides(m) {
+    return ['team1', 'team2'].filter(s => isHuman(s === 'team1' ? m.team1 : m.team2));
+}
+
+let manageSide = null; // чьей командой управляем в панели паузы (дерби — переключается)
+
 function userSide(m) {
-    if (!isUserMatch(m)) return null;
-    return m.team1.id === state.userTeam.id ? 'team1' : 'team2';
+    const sides = humanSides(m);
+    if (!sides.length) return null;
+    return sides.includes(manageSide) ? manageSide : sides[0];
 }
 
 // ----- Пауза на время повтора гола -----
@@ -67,6 +74,15 @@ function renderManagePanel() {
     const sim = currentSim;
     const side = userSide(sim.match);
     const s = sim.sides[side];
+    // Дерби «Вдвоём»: переключатель — чьей командой управляем
+    const sides = humanSides(sim.match);
+    const sw = $('manage-side');
+    sw.style.display = sides.length > 1 ? 'flex' : 'none';
+    sw.innerHTML = sides.map(sd => {
+        const t = sim.sides[sd].team;
+        return `<button type="button" class="manage-side-btn p${humanIndex(t) + 1} ${sd === side ? 'active' : ''}" data-side="${sd}">${humanLabel(t)}: ${t.name}</button>`;
+    }).join('');
+    sw.querySelectorAll('button').forEach(b => b.onclick = () => { manageSide = b.dataset.side; manageOut = manageIn = null; renderManagePanel(); });
     setText('manage-minute', `${sim.minute}' · ${sim.score.t1}:${sim.score.t2}`);
     renderStyleButtons('manage-style', s.style, style => {
         sim.newEvents = [];
@@ -267,9 +283,11 @@ function openMatchScreen(match) {
     $('events-list').innerHTML = '';
     resetCommentary();
     resetHighlights();
+    manageSide = null;
 
-    setText('match-team-1', match.team1.name);
-    setText('match-team-2', match.team2.name);
+    const tagOf = t => isDuo() && isHuman(t) ? ` <span class="duo-tag p${humanIndex(t) + 1}">${humanLabel(t)}</span>` : '';
+    setHtml('match-team-1', match.team1.name + tagOf(match.team1));
+    setHtml('match-team-2', match.team2.name + tagOf(match.team2));
     updateScoreboard(match);
     setText('match-time', "00'");
     setText('match-status', 'LIVE');
@@ -404,7 +422,7 @@ function concludeMatch(m, sim, live = false) {
     addMatchEvent(m, '', 'penalties', 'Серия пенальти!', null);
     setText('match-status', 'ПЕНАЛЬТИ');
     const done = result => { applyShootout(m, result); finishMatch(m, result.winner); };
-    playShootout(m, sim, userSide(m), done);
+    playShootout(m, sim, humanSides(m).length > 1 ? 'both' : userSide(m), done);
 }
 
 // ----- Завершение матча -----
@@ -423,7 +441,8 @@ function finishMatch(m, winner) {
     if (currentSim && currentSim.match === m) { renderLineups(currentSim); renderShotMap(currentSim); showManOfTheMatch(m, currentSim); }
     buildHighlightsFromSims(highlights.sims); // страховка: незаписанные голы восстанавливаются
     showHighlightsButton();
-    if (isUserMatch(m) && state.userTeamEliminated && !m.cup) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
+    if (!m.cup) humanTeams().filter(t => m.involves(t) && isEliminated(t)).forEach(t =>
+        addMatchEvent(m, '', 'finish', isDuo() ? `😔 «${t.name}» (${humanLabel(t)}) выбывает из турнира` : '😔 Ваша команда выбыла из турнира', null));
 
     setText('match-status', 'FINISHED');
     setMatchInProgress(false);
@@ -434,7 +453,7 @@ function finishMatch(m, winner) {
         playCupAI();     // остальные матчи раунда кубка
         advanceCup();    // жеребьёвка следующего раунда (или кубок разыгран)
         cupMatchOutcome(m, winner);
-    } else if (isCareer()) {
+    } else if (hasHumans()) {
         const md = m.matchday ?? Infinity;
         autoSimulateAllRemainingMatches(om => !isUserMatch(om) && (om.matchday ?? 0) <= md);
     }
@@ -443,16 +462,17 @@ function finishMatch(m, winner) {
 
     const btn = $('btn-next-match');
     const cupNext = state.cup ? userCupMatch() : null;
-    const nextMatch = cupNext || state.matches.find(x => !x.isFinished && (!isCareer() || isUserMatch(x)));
+    const nextMatch = cupNext || state.matches.find(x => !x.isFinished && (!hasHumans() || isUserMatch(x)));
     btn.style.display = 'flex';
     if (cupNext) {
         btn.innerHTML = `<span class="btn-icon">🏆</span><span class="btn-text">${cupNext.roundName}</span>`;
         btn.onclick = () => openMatch(cupNext);
-    } else if (isCareer() && state.userTeamEliminated) {
+    } else if (hasHumans() && state.userTeamEliminated) {
         btn.innerHTML = '<span class="btn-icon">🤖</span><span class="btn-text">Досимулировать турнир</span>';
         btn.onclick = () => showResults(autoFinishTournament());
     } else if (nextMatch && (m.stage === 'group' || m.cup) && nextMatch.stage === 'group') {
-        btn.innerHTML = '<span class="btn-icon">➡️</span><span class="btn-text">Следующий матч</span>';
+        const who = isDuo() ? humanTeams().filter(t => nextMatch.involves(t)).map(humanLabel).join(' и ') : '';
+        btn.innerHTML = `<span class="btn-icon">➡️</span><span class="btn-text">Следующий матч${who ? ' · ' + who : ''}</span>`;
         btn.onclick = () => openMatch(nextMatch);
     } else {
         btn.innerHTML = nextMatch

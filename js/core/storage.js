@@ -55,6 +55,8 @@ function saveGame() {
         currentRound: state.currentRound,
         userTeam: state.userTeam ? state.userTeam.id : null,
         userTeamEliminated: state.userTeamEliminated,
+        userTeams: (state.userTeams || []).map(t => t.id),
+        eliminated: state.eliminated || [],
         squads: state.squads,
         rosters: state.rosters,
         playerStats,
@@ -98,6 +100,8 @@ function loadGame() {
     state.currentRound = data.currentRound;
     state.userTeam = data.userTeam === null ? null : teamById(data.userTeam);
     state.userTeamEliminated = data.userTeamEliminated;
+    state.userTeams = (data.userTeams || []).map(teamById).filter(Boolean);
+    state.eliminated = data.eliminated || (data.userTeamEliminated && state.userTeam ? [state.userTeam.id] : []);
     state.champion = null;
     state.activeMatch = null;
     playerStats = data.playerStats;
@@ -118,7 +122,9 @@ function describeSave(data) {
         : (data.history[data.history.length - 1] || {}).round || '';
     const played = data.currentMatches.filter(i => data.matches[i].isFinished).length;
     return {
-        title: user ? `Карьера: ${user.emoji} ${user.name}` : `Симулятор: ${data.settings.count} команд`,
+        title: data.settings.gameMode === 'duo' && (data.userTeams || []).length === 2
+            ? `Вдвоём: ${data.userTeams.map(id => data.teams.find(t => t.id === id).name).join(' vs ')}`
+            : user ? `Карьера: ${user.emoji} ${user.name}` : `Симулятор: ${data.settings.count} команд`,
         details: `${stage} · сыграно ${played} из ${data.currentMatches.length}`
     };
 }

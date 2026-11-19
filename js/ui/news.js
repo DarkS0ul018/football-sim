@@ -18,7 +18,7 @@ function newsItemHtml(n, fresh) {
     return `<article class="news-item ${big ? 'big' : ''} ${n.mine ? 'mine' : ''} ${fresh ? 'fresh' : ''} t-${n.tag}">
         <div class="ni-icon">${tag.icon}</div>
         <div class="ni-body">
-            <div class="ni-meta"><span class="ni-when">${n.when}</span><span class="ni-tag">${tag.label}</span>${n.mine ? '<span class="ni-mine">ваша команда</span>' : ''}</div>
+            <div class="ni-meta"><span class="ni-when">${n.when}</span><span class="ni-tag">${tag.label}</span>${n.mine ? `<span class="ni-mine">${isDuo() ? n.teamIds.map(id => getTeamById(id)).filter(isHuman).map(humanLabel).join(', ') : 'ваша команда'}</span>` : ''}</div>
             <div class="ni-title">${n.title}</div>
             ${n.text ? `<div class="ni-text">${n.text}</div>` : ''}
         </div>
@@ -37,7 +37,7 @@ function renderNews() {
     // Фильтры: все / моя команда / темы, которые встречаются
     const tags = Object.keys(NEWS_TAGS).filter(t => all.some(n => n.tag === t));
     const chips = [['all', 'Все']];
-    if (isCareer() && state.userTeam && all.some(n => n.mine)) chips.push(['mine', 'Моя команда']);
+    if (hasHumans() && all.some(n => n.mine)) chips.push(['mine', isDuo() ? 'Наши команды' : 'Моя команда']);
     tags.forEach(t => chips.push([t, NEWS_TAGS[t].label]));
     if (!chips.some(c => c[0] === newsView.filter)) newsView.filter = 'all';
     $('news-filters').innerHTML = chips.map(([k, l]) => `<button type="button" class="news-chip ${newsView.filter === k ? 'active' : ''}" data-f="${k}">${l}</button>`).join('');

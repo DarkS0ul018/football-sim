@@ -163,8 +163,7 @@ function rosterTeamRating(roster) {
 }
 
 // Насколько далеко прошла команда игрока: { text, place, trophy }
-function getUserResult() {
-    const team = state.userTeam;
+function getUserResult(team = state.userTeam) {
     if (!team) return null;
     if (state.settings.mode === 'league') {
         const table = sortGroup([...state.teams]);

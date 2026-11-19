@@ -62,13 +62,17 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     state.userTeamEliminated = false;
     state.champion = null;
     state.activeMatch = null;
-    state.userTeam = settings.gameMode === 'career'
-        ? state.teams.find(t => t.name === userTeamName) || null
-        : null;
+    // userTeamName: имя команды игрока (карьера) или массив из двух имён («Вдвоём»)
+    const names = Array.isArray(userTeamName) ? userTeamName : (userTeamName ? [userTeamName] : []);
+    const humans = settings.gameMode === 'career' || settings.gameMode === 'duo'
+        ? names.map(n => state.teams.find(t => t.name === n)).filter(Boolean) : [];
+    state.userTeams = settings.gameMode === 'duo' ? humans : [];
+    state.userTeam = humans[0] || null;
+    state.eliminated = [];
 
     // Фиксируем составы участников на весь турнир
     // (в карьере — с учётом развития игроков и трансферов из прошлых сезонов)
-    if (settings.gameMode === 'career' && userTeamName) activateCareerPlayers(userTeamName);
+    if (settings.gameMode === 'career' && names[0]) activateCareerPlayers(names[0]);
     else careerPlayers = null;
     state.rosters = null;
     const rosters = {};
@@ -262,7 +266,7 @@ function advanceStage() {
         state.groupMatches = state.matches;
         state.settings.mode = 'knockout';
         createKnockoutRound(null, pairs);
-        if (isCareer() && state.userTeam && !state.matches.some(isUserMatch)) state.userTeamEliminated = true;
+        humanTeams().forEach(t => { if (!state.matches.some(m => m.involves(t))) markEliminated(t); });
         return null;
     }
     if (state.settings.mode === 'league') {
@@ -285,9 +289,7 @@ function advanceStage() {
         createKnockoutRound(winners);
     }
     // Если команда игрока не попала в новый этап — она выбыла
-    if (isCareer() && state.userTeam && !state.matches.some(isUserMatch)) {
-        state.userTeamEliminated = true;
-    }
+    humanTeams().forEach(t => { if (!state.matches.some(m => m.involves(t))) markEliminated(t); });
     return null;
 }
 

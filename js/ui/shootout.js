@@ -176,6 +176,22 @@ function playShootout(m, sim, userSide, onDone) {
         if (run.cancelled) return;
         contBtn.style.display = 'none';
         const { side, taker, keeper } = soPrepareKick(so, m, kits);
+        if (userSide === 'both') {
+            // Дерби «Вдвоём»: сначала бьющий (втайне) выбирает угол, затем вратарь соперника — прыжок
+            const shooterTeam = side === 'team1' ? m.team1 : m.team2;
+            const keeperTeam = side === 'team1' ? m.team2 : m.team1;
+            const pickZone = (prompt, onPick) => {
+                setText('so-prompt', prompt);
+                zones.forEach(z => {
+                    z.classList.add('pickable');
+                    z.onclick = () => { zones.forEach(x => { x.onclick = null; x.classList.remove('pickable'); }); onPick(z.dataset.dir); };
+                });
+            };
+            pickZone(`⚽ ${humanLabel(shooterTeam)} (${shooterTeam.name}): бьёт ${taker.name}. Выберите угол — сопернику не смотреть!`, shotDir => {
+                pickZone(`🧤 ${humanLabel(keeperTeam)} (${keeperTeam.name}): куда прыгнет ${keeper.name}?`, diveDir => afterKick(so.kick(shotDir, diveDir)));
+            });
+            return;
+        }
         if (userSide) {
             const mine = side === userSide;
             setText('so-prompt', mine

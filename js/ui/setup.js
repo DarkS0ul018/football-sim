@@ -86,7 +86,7 @@ function onStartClick() {
 
 // Дальше: в карьере — выбор своей команды из участников, иначе — сразу турнир
 function proceedWithPool(settings, pool) {
-    if (settings.gameMode === 'career') showTeamSelect(settings, pool);
+    if (settings.gameMode === 'career' || settings.gameMode === 'duo') showTeamSelect(settings, pool);
     else startTournament(settings, pool, null);
 }
 
@@ -98,16 +98,28 @@ function startTournament(settings, teamsPool, userTeamName) {
 }
 
 // ----- Выбор команды в карьере -----
-function showTeamSelect(settings, pool) {
+// «Вдвоём»: команды выбирают по очереди — firstPick — команда Игрока 1 (на втором шаге)
+function showTeamSelect(settings, pool, firstPick = null) {
     careerTeamsPool = pool || pickRandomTeams(settings.teamType, settings.count);
     pickedTeamName = null;
+    const duo = settings.gameMode === 'duo';
+    const step = duo ? (firstPick ? 2 : 1) : 0;
+    const head = document.querySelector('#screen-team-select .screen-header');
+    head.querySelector('.kicker').textContent = duo ? 'Вдвоём' : 'Карьера';
+    head.querySelector('h1').innerHTML = duo ? `<span class="duo-tag p${step}">Игрок ${step}</span> выбирает команду` : 'Выберите команду';
+    head.querySelector('.subtitle').textContent = duo
+        ? (step === 1 ? 'Каждый управляет своей командой: состав, тактика, решения по ходу матча. Ходите по очереди на одном устройстве.'
+                      : `Игрок 1 играет за «${firstPick}». Теперь выбор Игрока 2.`)
+        : 'Вы будете управлять только ею: состав, тактика, решения по ходу матча.';
 
     const list = $('team-select-list');
     list.innerHTML = '';
     careerTeamsPool.forEach(teamData => {
         const card = document.createElement('div');
-        card.className = 'team-select-card';
-        card.innerHTML = `<span class="team-emoji">${crestHtml(teamData, 'lg')}</span><h3>${teamData.name}</h3><div class="rating">Рейтинг: ${teamData.rating}</div>`;
+        const taken = firstPick === teamData.name;
+        card.className = `team-select-card ${taken ? 'taken' : ''}`;
+        card.innerHTML = `<span class="team-emoji">${crestHtml(teamData, 'lg')}</span><h3>${teamData.name}</h3><div class="rating">Рейтинг: ${teamData.rating}</div>${taken ? '<div class="duo-tag p1">Игрок 1</div>' : ''}`;
+        if (taken) { list.appendChild(card); return; }
         card.onclick = () => {
             list.querySelectorAll('.team-select-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
@@ -122,7 +134,8 @@ function showTeamSelect(settings, pool) {
     btn.innerHTML = '<span class="btn-icon">✅</span><span class="btn-text">Далее →</span>';
     btn.onclick = () => {
         if (!pickedTeamName) { alert('⚠️ Выберите команду!'); return; }
-        startTournament(settings, careerTeamsPool, pickedTeamName);
+        if (step === 1) { showTeamSelect(settings, careerTeamsPool, pickedTeamName); return; }
+        startTournament(settings, careerTeamsPool, step === 2 ? [firstPick, pickedTeamName] : pickedTeamName);
     };
     list.appendChild(btn);
     showScreen('teamSelect');
@@ -134,13 +147,13 @@ function renderTeamsList() {
     const sorted = [...state.teams].sort((a, b) => b.rating - a.rating);
     container.innerHTML = sorted.map((team, index) => {
         const ratingClass = team.rating >= 90 ? 'rating-high' : (team.rating < 80 ? 'rating-low' : 'rating-medium');
-        const isUser = state.userTeam && team.id === state.userTeam.id;
+        const isUser = isHuman(team);
         return `
             <div class="team-list-item ${isUser ? 'user-team' : ''}">
                 <span class="team-num">${index + 1}.</span>
                 <div class="team-info">
                     <span class="team-emoji">${crestHtml(team)}</span>
-                    <span class="team-name">${team.name}${isUser ? ' ⚽' : ''}</span>
+                    <span class="team-name">${team.name}${isUser ? (isDuo() ? ` <span class="duo-tag p${humanIndex(team) + 1}">${humanLabel(team)}</span>` : ' ⚽') : ''}</span>
                 </div>
                 <span class="team-rating ${ratingClass}">${team.rating}</span>
                 <span class="team-badge">${getRatingBadge(team.rating)}</span>
@@ -202,7 +215,7 @@ function initSetupScreens() {
         // Турнир ещё не начат — возвращаемся к настройкам без сохранения
         clearSave();
         renderResumeCard();
-        if (isCareer()) showScreen('teamSelect');
+        if (hasHumans()) showScreen('teamSelect');
         else showScreen(readSettings().teamPick === 'manual' ? 'picker' : 'setup');
     });
     $('btn-start-tournament').addEventListener('click', openDashboard);

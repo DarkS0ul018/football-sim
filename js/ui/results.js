@@ -3,8 +3,8 @@
 const achievements = [
     { title: 'Первый гол', desc: 'Забейте первый гол', icon: '⚽', check: () => Object.values(playerStats).some(p => p.goals >= 1) },
     { title: 'Хет-трик', desc: '3+ гола игроком', icon: '🎯', check: () => Object.values(playerStats).some(p => p.goals >= 3) },
-    { title: '5 побед', desc: '5 побед за турнир', icon: '🔥', check: () => !!state.userTeam && state.userTeam.stats.won >= 5 },
-    { title: 'Чемпион!', desc: 'Выиграйте турнир в карьере', icon: '🏆', check: () => !!(state.champion && state.userTeam && state.champion.id === state.userTeam.id) }
+    { title: '5 побед', desc: '5 побед за турнир', icon: '🔥', check: () => isCareer() && !!state.userTeam && state.userTeam.stats.won >= 5 },
+    { title: 'Чемпион!', desc: 'Выиграйте турнир в карьере', icon: '🏆', check: () => isCareer() && !!(state.champion && state.userTeam && state.champion.id === state.userTeam.id) }
 ];
 
 function renderAchievements() {
@@ -79,8 +79,55 @@ function renderTournamentPath() {
         </div>`).join('');
 }
 
+// ----- «Вдвоём»: итог дуэли -----
+// Кто выше: чемпион > финалист > дальше в плей-офф > выше в таблице
+function duoRank(team) {
+    if (state.champion && state.champion.id === team.id) return 1000;
+    const rounds = state.tournamentHistory.filter(r => r.matches.some(m => m.involves(team)));
+    const deepest = rounds.length ? Math.max(...rounds.map(r => r.roundIndex)) + 10 : 0;
+    const table = sortGroup([...(state.groups.find(g => g.some(t => t.id === team.id)) || state.teams)]);
+    const place = table.findIndex(t => t.id === team.id) + 1;
+    return deepest * 100 + (100 - place) + team.stats.points / 1000;
+}
+
+function renderDuoCard() {
+    const card = $('career-card');
+    const [a, b] = humanTeams();
+    if (!a || !b) { card.style.display = 'none'; return; }
+    const ra = duoRank(a), rb = duoRank(b);
+    const winner = ra === rb ? null : (ra > rb ? a : b);
+    // Очные встречи: все этапы
+    const all = [...(state.groupMatches || []), ...state.matches, ...state.tournamentHistory.flatMap(r => r.matches)];
+    const h2h = [...new Set(all)].filter(m => m.isFinished && m.involves(a) && m.involves(b));
+    const side = (t, res) => {
+        const r = getUserResult(t);
+        return `<div class="duo-side ${winner === t ? 'win' : ''}">
+            <span class="duo-tag p${humanIndex(t) + 1}">${humanLabel(t)}</span>
+            <div class="duo-crest">${crestHtml(t, 'xl')}</div>
+            <div class="duo-name">${t.name}</div>
+            <div class="duo-res">${r ? r.text : ''}</div>
+            <div class="muted">${t.stats.won}-${t.stats.drawn}-${t.stats.lost} · мячи ${t.stats.gf}:${t.stats.ga}</div>
+        </div>`;
+    };
+    card.querySelector('h3').textContent = 'Итог дуэли';
+    $('career-result').innerHTML = `
+        <div class="duo-verdict">${winner ? `🏆 Побеждает ${humanLabel(winner)} — «${winner.name}»` : 'Ничья в дуэли — одинаковый результат'}</div>
+        <div class="duo-board">${side(a)}<div class="duo-vs">VS</div>${side(b)}</div>
+        <div class="duo-h2h"><b>Личные встречи</b>${h2h.length ? h2h.map(m => {
+            const g = m.aggregateScore;
+            return `<div>${teamLabel(m.team1)} ${g.t1}:${g.t2}${m.penalties.kicks.length ? ` (пен. ${m.penalties.t1}:${m.penalties.t2})` : ''} ${teamLabel(m.team2)} <small class="muted">${m.roundName}</small></div>`;
+        }).join('') : '<div class="muted">Команды не встретились</div>'}</div>`;
+    card.querySelector('table').style.display = 'none';
+    $('btn-next-season').style.display = 'none';
+    card.style.display = 'block';
+}
+
 function renderCareerCard() {
     const card = $('career-card');
+    if (isDuo()) { renderDuoCard(); return; }
+    card.querySelector('h3').textContent = 'Ваша карьера';
+    card.querySelector('table').style.display = '';
+    $('btn-next-season').style.display = '';
     if (!isCareer() || !state.userTeam) { card.style.display = 'none'; return; }
     recordCareerSeason();
     const result = getUserResult();

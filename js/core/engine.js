@@ -207,7 +207,7 @@ class MatchSimulation {
 
     // Команда под управлением компьютера? (в карьере команда игрока — нет)
     isAI(side) {
-        return !(isCareer() && state.userTeam && this.sides[side].team.id === state.userTeam.id);
+        return !isHuman(this.sides[side].team);
     }
 
     // Перед матчем тренер подстраивается под соперника: против намного более сильного — играет от обороны
@@ -972,8 +972,8 @@ function completeMatch(m, winner) {
     updateTeamStats(m.team1, agg.t1, agg.t2, isDraw ? null : winner === m.team1);
     updateTeamStats(m.team2, agg.t2, agg.t1, isDraw ? null : winner === m.team2);
 
-    if (isCareer() && m.stage === 'playoff' && m.involves(state.userTeam) && winner !== state.userTeam) {
-        state.userTeamEliminated = true;
+    if (hasHumans() && m.stage === 'playoff') {
+        humanTeams().forEach(t => { if (m.involves(t) && winner !== t) markEliminated(t); });
     }
     try { newsFromMatch(m, winner); } catch (e) { /* ignore */ }
 }

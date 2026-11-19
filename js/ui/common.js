@@ -31,8 +31,11 @@ function setVisible(ids, visible, display = 'flex') {
 }
 
 const USER_ROW_STYLE = 'background:rgba(233,69,96,0.2)';
+const P2_ROW_STYLE = 'background:rgba(76,201,240,0.18)';
 function userRowStyle(teamId) {
-    return state.userTeam && teamId === state.userTeam.id ? USER_ROW_STYLE : '';
+    const i = humanTeams().findIndex(t => t.id === teamId);
+    if (i < 0) return '';
+    return isDuo() && i === 1 ? P2_ROW_STYLE : USER_ROW_STYLE; // «Вдвоём»: у Игрока 2 свой цвет
 }
 
 // Эмблема + название (HTML — вставлять через innerHTML)

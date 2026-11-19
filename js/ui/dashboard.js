@@ -12,7 +12,7 @@ function renderDashboard() {
     newsBetweenRounds();   // лидер, рубежи бомбардиров, настроение
     markNewsSeen();
     // Карьера: если у команды игрока нет матчей в этом этапе — досчитываем остальные автоматически
-    if (isCareer() && !state.matches.some(m => !m.isFinished && isUserMatch(m))) {
+    if (hasHumans() && !state.matches.some(m => !m.isFinished && isUserMatch(m))) {
         autoSimulateAllRemainingMatches();
     }
     saveGame();
@@ -36,10 +36,14 @@ function renderDashboard() {
 
 function renderUserBadge() {
     const badge = $('user-team-badge');
-    if (isCareer() && state.userTeam) {
+    if (hasHumans() && humanTeams().length) {
         badge.style.display = 'inline-block';
-        const mi = moraleInfo(teamMorale(state.userTeam));
-        badge.innerHTML = `${teamLabel(state.userTeam)}${state.userTeamEliminated ? ' · выбыла' : ''} <span class="badge-morale" title="Мораль команды: ${mi.label.toLowerCase()}">${mi.icon}</span>`;
+        // Карьера — одна команда; «Вдвоём» — обе, с ярлыками игроков
+        badge.innerHTML = humanTeams().map(t => {
+            const mi = moraleInfo(teamMorale(t));
+            const tag = isDuo() ? `<span class="duo-tag p${humanIndex(t) + 1}">${humanLabel(t)}</span> ` : '';
+            return `<span class="ub-team">${tag}${teamLabel(t)}${isEliminated(t) ? ' · выбыла' : ''} <span class="badge-morale" title="Мораль команды: ${mi.label.toLowerCase()}">${mi.icon}</span></span>`;
+        }).join(isDuo() ? '<span class="ub-vs">vs</span>' : '');
     } else {
         badge.style.display = 'none';
     }
@@ -55,11 +59,10 @@ function renderAbsentees() {
         box.className = 'user-absent';
         $('user-team-badge').insertAdjacentElement('afterend', box);
     }
-    const out = isCareer() && state.userTeam && getSquad(state.userTeam)
-        ? getSquadPlayers(state.userTeam).filter(p => !isAvailable(p)).sort((a, b) => b.rating - a.rating)
-        : [];
+    const out = humanTeams().filter(t => getSquad(t)).flatMap(t =>
+        getSquadPlayers(t).filter(p => !isAvailable(p)).sort((a, b) => b.rating - a.rating).map(p => ({ p, t })));
     box.style.display = out.length ? 'flex' : 'none';
-    box.innerHTML = out.map(p => `<span class="ua-item ${isInjured(p) ? 'inj' : 'susp'}" title="${absenceText(p)}">${isInjured(p) ? '🚑' : '🚫'} ${p.name}${isInjured(p) ? ` <b>${p.injury.matches}</b>` : ''}</span>`).join('');
+    box.innerHTML = out.map(({ p, t }) => `<span class="ua-item ${isInjured(p) ? 'inj' : 'susp'}" title="${isDuo() ? t.name + ': ' : ''}${absenceText(p)}">${isInjured(p) ? '🚑' : '🚫'} ${isDuo() ? `<i class="ua-p p${humanIndex(t) + 1}">${humanIndex(t) + 1}</i>` : ''}${p.name}${isInjured(p) ? ` <b>${p.injury.matches}</b>` : ''}</span>`).join('');
 }
 
 // ----- Лига -----
@@ -180,7 +183,7 @@ function renderBracket() {
                 <div class="bracket-team ${cls(m.team2)}"><span style="flex:1">${teamLabel(m.team2)}</span><span class="bracket-score">${m.isFinished ? agg.t2 : '-'}</span></div>
                 ${legs}${pens}${auto}`;
 
-            if (!m.isFinished && (!isCareer() || isUserMatch(m))) el.onclick = () => openMatch(m);
+            if (!m.isFinished && (!hasHumans() || isUserMatch(m))) el.onclick = () => openMatch(m);
             roundDiv.appendChild(el);
         });
         container.appendChild(roundDiv);
@@ -226,15 +229,16 @@ function renderMatchesList(isPlayoff) {
     // Матчи текущего тура
     const upcoming = state.matches.filter(m => !m.isFinished && m.matchday === current);
     list.insertAdjacentHTML('beforeend', `<h4>Тур ${current}${getTotalMatchdays() ? ' из ' + getTotalMatchdays() : ''}:</h4>`);
-    upcoming.filter(m => !isCareer() || isUserMatch(m)).forEach(m => {
+    upcoming.filter(m => !hasHumans() || isUserMatch(m)).forEach(m => {
         const btn = document.createElement('button');
         btn.className = 'btn-secondary';
         btn.style.marginBottom = '10px';
-        btn.innerHTML = `⚽ ${teamLabel(m.team1)} vs ${teamLabel(m.team2)} <small>(${m.roundName})</small>${isUserMatch(m) ? ' ⚽ ВАШ МАТЧ' : ''}`;
+        const tags = isDuo() ? humanTeams().filter(t => m.involves(t)).map(t => ` <span class="duo-tag p${humanIndex(t) + 1}">${humanLabel(t)}</span>`).join('') : (isUserMatch(m) ? ' ⚽ ВАШ МАТЧ' : '');
+        btn.innerHTML = `⚽ ${teamLabel(m.team1)} vs ${teamLabel(m.team2)} <small>(${m.roundName})</small>${tags}`;
         btn.onclick = () => openMatch(m);
         list.appendChild(btn);
     });
-    if (isCareer()) {
+    if (hasHumans()) {
         const others = upcoming.filter(m => !isUserMatch(m));
         if (others.length) list.insertAdjacentHTML('beforeend', `<div class="muted" style="margin:6px 0 12px">Остальные матчи тура (${others.length}) сыграются после вашего.</div>`);
     } else {

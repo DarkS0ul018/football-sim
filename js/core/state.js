@@ -9,7 +9,9 @@ const state = {
     tournamentHistory: [],  // раунды плей-офф: { round, roundIndex, matches }
     currentRound: 0,
     userTeam: null,         // команда игрока в карьере (Team)
-    userTeamEliminated: false,
+    userTeamEliminated: false,  // все команды людей выбыли
+    userTeams: [],          // «Вдвоём»: две команды игроков (Team)
+    eliminated: [],         // id выбывших команд людей
     champion: null,
     activeMatch: null,      // открытый на экране матч (не сохраняется)
     cup: null               // кубок в карьере (js/core/cup.js)
@@ -62,8 +64,49 @@ function isCareer() {
     return state.settings.gameMode === 'career';
 }
 
+// ----- Команды людей -----
+// Карьера — одна команда игрока; «Вдвоём» — две команды на одном устройстве (по очереди).
+function isDuo() {
+    return state.settings.gameMode === 'duo';
+}
+
+function hasHumans() {
+    return isCareer() || isDuo();
+}
+
+function humanTeams() {
+    if (!hasHumans()) return [];
+    if (state.userTeams && state.userTeams.length) return state.userTeams;
+    return state.userTeam ? [state.userTeam] : [];
+}
+
+function isHuman(team) {
+    return !!team && humanTeams().some(t => t.id === team.id);
+}
+
 function isUserMatch(m) {
-    return isCareer() && m.involves(state.userTeam);
+    return humanTeams().some(t => m.involves(t));
+}
+
+// Номер игрока (0, 1) или −1; ярлык «Игрок 1» — только во «Вдвоём»
+function humanIndex(team) {
+    return team ? humanTeams().findIndex(t => t.id === team.id) : -1;
+}
+
+function humanLabel(team) {
+    const i = humanIndex(team);
+    return isDuo() && i >= 0 ? `Игрок ${i + 1}` : '';
+}
+
+function isEliminated(team) {
+    return !!team && (state.eliminated || []).includes(team.id);
+}
+
+// Команда человека выбыла; турнир для людей окончен, когда выбыли все
+function markEliminated(team) {
+    if (!isHuman(team) || isEliminated(team)) return;
+    state.eliminated = [...(state.eliminated || []), team.id];
+    state.userTeamEliminated = humanTeams().every(isEliminated);
 }
 
 function updateTeamStats(team, gf, ga, win) {

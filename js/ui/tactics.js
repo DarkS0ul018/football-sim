@@ -1,6 +1,8 @@
 // ===== ЭКРАН ТАКТИКИ: схема, стиль, стартовый состав (карьера) =====
 
 let tacticsMatch = null;
+let tacticsTeam = null;   // чью тактику сейчас настраиваем
+let tacticsQueue = [];    // «Вдвоём», дерби: кто ещё должен настроить свою команду
 let tacticsSelection = null; // { from: 'lineup' | 'reserve', index | number }
 
 function playerRowHtml(p, opts = {}) {
@@ -26,23 +28,25 @@ function playerRowHtml(p, opts = {}) {
         </div>`;
 }
 
-function openTactics(match) {
+function openTactics(match, team = humanTeams().find(t => match.involves(t))) {
     tacticsMatch = match;
     tacticsSelection = null;
-    const team = state.userTeam;
+    tacticsTeam = team;
     const opp = match.team1.id === team.id ? match.team2 : match.team1;
     const leg = match.legs === 2 ? match.currentLeg : 1;
     const homeSide = getHomeSide(match, leg);
     const isHome = homeSide && (homeSide === 'team1' ? match.team1 : match.team2).id === team.id;
     const venue = !homeSide ? 'нейтральное поле' : (isHome ? 'дома 🏠' : 'в гостях');
-    setHtml('tactics-opponent', `${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}` + teamMoodHtml(team, opp));
+    const who = humanLabel(team) ? `<span class="duo-tag p${humanIndex(team) + 1}">${humanLabel(team)}</span> ` : '';
+    setHtml('tactics-opponent', `${who}${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}` + teamMoodHtml(team, opp));
 
     const changes = validateLineup(team);
     $('tactics-warnings').innerHTML = changes.map(c => `<div>⚠️ ${c}</div>`).join('');
 
     prepareTeamForMatch(opp); // соперник выбирает состав (видим его силу и привычную тактику)
     const os = getSquad(opp);
-    setHtml('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)} · ${os.formation} · ${(STYLES[os.style] || STYLES.balance).label}`);
+    if (isHuman(opp)) setHtml('tactics-opp-strength', `${teamLabel(opp)} · ${humanLabel(opp)} — тактика соперника скрыта`);
+    else setHtml('tactics-opp-strength', `${teamLabel(opp)} ${lineupStrength(opp).toFixed(1)} · ${os.formation} · ${(STYLES[os.style] || STYLES.balance).label}`);
 
     $('tactics-formation').innerHTML = Object.keys(FORMATIONS).map(f => `<option value="${f}">${f}</option>`).join('');
     renderTactics();
@@ -62,7 +66,7 @@ function renderStyleButtons(containerId, current, onPick) {
 }
 
 function renderTactics() {
-    const team = state.userTeam;
+    const team = tacticsTeam;
     const squad = getSquad(team);
     const players = getSquadPlayers(team);
     const byNum = Object.fromEntries(players.map(p => [p.number, p]));
@@ -91,8 +95,8 @@ function renderTactics() {
 }
 
 function onTacticsClick(key) {
-    const squad = getSquad(state.userTeam);
-    const byNum = Object.fromEntries(getSquadPlayers(state.userTeam).map(p => [p.number, p]));
+    const squad = getSquad(tacticsTeam);
+    const byNum = Object.fromEntries(getSquadPlayers(tacticsTeam).map(p => [p.number, p]));
     if (!tacticsSelection) {
         tacticsSelection = { key };
         renderTactics();
@@ -117,28 +121,52 @@ function onTacticsClick(key) {
 
 function initTacticsScreen() {
     $('tactics-formation').addEventListener('change', e => {
-        setFormation(state.userTeam, e.target.value);
+        setFormation(tacticsTeam, e.target.value);
         tacticsSelection = null;
         renderTactics();
     });
     $('btn-auto-lineup').onclick = () => {
-        getSquad(state.userTeam).lineup = autoLineup(state.userTeam);
+        getSquad(tacticsTeam).lineup = autoLineup(tacticsTeam);
         tacticsSelection = null;
         renderTactics();
     };
     $('btn-tactics-back').onclick = () => { saveGame(); openDashboard(); };
     $('btn-tactics-play').onclick = () => {
-        const squad = getSquad(state.userTeam);
+        const squad = getSquad(tacticsTeam);
         if (squad.lineup.filter(n => n !== null).length < 11) { alert('⚠️ В стартовом составе должно быть 11 игроков'); return; }
         saveGame();
+        // Дерби «Вдвоём»: теперь тактику настраивает второй игрок
+        const next = tacticsQueue.shift();
+        if (next) { showHandoff(next, () => openTactics(tacticsMatch, next)); return; }
         openMatchScreen(tacticsMatch);
     };
 }
 
 // В карьере перед своим матчем — экран тактики, иначе сразу матч
 function openMatch(match) {
-    if (isUserMatch(match)) openTactics(match);
-    else openMatchScreen(match);
+    const humans = humanTeams().filter(t => match.involves(t));
+    if (!humans.length) { openMatchScreen(match); return; }
+    tacticsQueue = humans.slice(1);
+    if (isDuo()) showHandoff(humans[0], () => openTactics(match, humans[0]));
+    else openTactics(match, humans[0]);
+}
+
+// «Вдвоём»: экран-заставка «Передайте устройство Игроку N» (чтобы соперник не подсмотрел тактику)
+function showHandoff(team, onReady) {
+    if (!isDuo()) { onReady(); return; }
+    document.querySelector('.handoff')?.remove();
+    const i = humanIndex(team) + 1;
+    const el = document.createElement('div');
+    el.className = `handoff p${i}`;
+    el.innerHTML = `<div class="handoff-box">
+        <div class="duo-tag p${i}">Игрок ${i}</div>
+        <div class="handoff-crest">${crestHtml(team, 'xl')}</div>
+        <h2>${team.name}</h2>
+        <p>Передайте устройство Игроку ${i}: его очередь готовить состав и тактику.</p>
+        <button type="button" class="btn-primary">Я готов →</button>
+    </div>`;
+    document.body.appendChild(el);
+    el.querySelector('button').onclick = () => { el.remove(); onReady(); };
 }
 
 // ----- Форма и мораль на экране тактики -----

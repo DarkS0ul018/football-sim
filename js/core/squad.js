@@ -242,7 +242,7 @@ function setFormation(team, formation) {
 
 // Перед матчем ИИ выбирает лучший состав (с учётом усталости — получается ротация)
 function prepareTeamForMatch(team) {
-    if (isCareer() && state.userTeam && team.id === state.userTeam.id) validateLineup(team);
+    if (isHuman(team)) validateLineup(team);
     else getSquad(team).lineup = autoLineup(team);
 }
 
