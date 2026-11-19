@@ -27,8 +27,33 @@ let customCrests = {};
 // Копия стандартных данных — для сброса
 const DEFAULT_DATA = JSON.parse(JSON.stringify({
     world: worldTeams, russia: russianTeams, ratings: teamRatings, squads: SQUADS,
-    nations: typeof NATIONS !== 'undefined' ? NATIONS : {}   // сборные: состав, рейтинг, цвета формы
+    nations: typeof NATIONS !== 'undefined' ? NATIONS : {},  // сборные: состав, рейтинг, цвета формы
+    cups: typeof NATION_CUPS !== 'undefined' ? Object.fromEntries(Object.entries(NATION_CUPS).map(([k, c]) => [k, c.names])) : {}
 }));
+
+const FLAG_TYPES = ['h', 'v', 'cross', 'nordic', 'saltire', 'circle', 'diamond', 'taeguk', 'plain'];
+
+// Флаг сборной из редактора: тип, 1–7 цветов, пропорции полос, звезда
+function cleanFlag(flag) {
+    if (!flag || typeof flag !== 'object' || !FLAG_TYPES.includes(flag.t)) return null;
+    const c = (Array.isArray(flag.c) ? flag.c : []).map(x => cleanHex(x, null)).filter(Boolean).slice(0, 7);
+    if (!c.length) return null;
+    const out = { t: flag.t, c };
+    if (Array.isArray(flag.w) && flag.w.length === c.length && flag.w.every(n => Number.isFinite(n) && n > 0 && n < 10)) out.w = flag.w;
+    const star = cleanHex(flag.star, null);
+    if (star) out.star = star;
+    return out;
+}
+
+// Код для табло: 2–4 буквы
+function cleanCode(code) {
+    const s = String(code || '').toUpperCase().replace(/[^A-ZА-ЯЁ]/g, '').slice(0, 4);
+    return s.length >= 2 ? s : null;
+}
+
+function cleanCups(cups) {
+    return Array.isArray(cups) ? cups.filter(k => typeof NATION_CUPS !== 'undefined' && NATION_CUPS[k]) : undefined;
+}
 
 // Цвет формы сборной: только #rrggbb
 function cleanHex(c, fallback) {
@@ -88,18 +113,39 @@ function applyCustomData() {
     ['world', 'russia'].forEach(type => {
         SQUADS[type] = JSON.parse(JSON.stringify(DEFAULT_DATA.squads[type]));
     });
-    // Сборные: стандартные состав, рейтинг и форма, затем правки
-    if (typeof NATIONS !== 'undefined') Object.entries(DEFAULT_DATA.nations).forEach(([name, d]) => {
-        Object.assign(NATIONS[name], JSON.parse(JSON.stringify({ squad: d.squad, rating: d.rating, kit: d.kit })));
-    });
+    // Сборные: стандартные данные, затем правки (и свои сборные). Участники турниров — тоже заново.
+    if (typeof NATIONS !== 'undefined') {
+        Object.keys(NATIONS).forEach(n => { if (!isNationName(n)) { delete NATIONS[n]; delete teamMeta[n]; } });
+        Object.entries(DEFAULT_DATA.nations).forEach(([name, d]) => {
+            NATIONS[name] = JSON.parse(JSON.stringify(d));
+            teamMeta[name] = [d.code, null];
+        });
+        Object.entries(NATION_CUPS).forEach(([k, c]) => { c.names = [...(DEFAULT_DATA.cups[k] || [])]; });
+    }
     customCrests = {};
     Object.entries(custom).forEach(([name, o]) => {
         if (o.crest) customCrests[name] = o.crest;
         if (o.type === 'national') {
-            if (!isNationName(name)) return;
-            if (typeof o.rating === 'number') { teamRatings[name] = o.rating; NATIONS[name].rating = o.rating; }
-            if (o.squad) NATIONS[name].squad = o.squad;
-            if (Array.isArray(o.kit)) NATIONS[name].kit = [cleanHex(o.kit[0], NATIONS[name].kit[0]), cleanHex(o.kit[1], NATIONS[name].kit[1])];
+            if (typeof NATIONS === 'undefined') return;
+            if (o.isNew) {
+                // Своя сборная: нужны флаг, код и состав
+                if (!o.flag || !o.squad || !o.code) return;
+                NATIONS[name] = { code: o.code, rating: 75, kit: ['#1e4fd8', '#f2f2f2'], flag: o.flag, squad: o.squad };
+                teamRatings[name] = 75;
+            } else if (!isNationName(name)) return;
+            const n = NATIONS[name];
+            if (typeof o.rating === 'number') { teamRatings[name] = o.rating; n.rating = o.rating; }
+            if (o.squad) n.squad = o.squad;
+            if (Array.isArray(o.kit)) n.kit = [cleanHex(o.kit[0], n.kit[0]), cleanHex(o.kit[1], n.kit[1])];
+            if (o.flag) n.flag = o.flag;
+            if (o.code) n.code = o.code;
+            teamMeta[name] = [n.code, null];
+            // Участие в турнирах сборных
+            if (Array.isArray(o.cups)) Object.entries(NATION_CUPS).forEach(([k, c]) => {
+                const has = c.names.includes(name), want = o.cups.includes(k);
+                if (want && !has) c.names.push(name);
+                if (!want && has) c.names = c.names.filter(x => x !== name);
+            });
             return;
         }
         const type = o.type || (DEFAULT_DATA.russia.names.includes(name) ? 'russia' : 'world');
@@ -118,7 +164,8 @@ function saveTeamOverride(name, data) {
     const squad = data.squad && Object.fromEntries(Object.entries(data.squad).map(([k, v]) => [k, v.map(s => cleanText(s)).filter(Boolean)]));
     const crest = cleanCrest(data.crest);
     const kit = Array.isArray(data.kit) ? [cleanHex(data.kit[0], '#1e4fd8'), cleanHex(data.kit[1], '#f2f2f2')] : undefined;
-    all.teams[name] = { ...data, squad, kit, crest: crest || undefined, isNew: !isDefaultTeam(name) };
+    const extra = data.type === 'national' ? { flag: cleanFlag(data.flag) || undefined, code: cleanCode(data.code) || undefined, cups: cleanCups(data.cups) } : {};
+    all.teams[name] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew: !isDefaultTeam(name) };
     const ok = writeCustomData(all);
     applyCustomData();
     return ok;
@@ -148,8 +195,9 @@ function importCustomData(json) {
     const teams = {};
     Object.entries(data.teams).forEach(([name, o]) => {
         if (!o || typeof o !== 'object') return;
-        const nation = o.type === 'national' && isNationName(name);
-        if (o.type === 'national' && !nation) return;  // сборную нельзя создать — только изменить
+        // Сборная: стандартная или своя (у своей должны быть флаг и код)
+        const nation = o.type === 'national' && (isNationName(name) || (cleanFlag(o.flag) && cleanCode(o.code)));
+        if (o.type === 'national' && !nation) return;
         const clean = {
             type: nation ? 'national' : (o.type === 'russia' ? 'russia' : 'world'),
             emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 8) : '⚪',
@@ -163,6 +211,12 @@ function importCustomData(json) {
             });
         }
         if (nation && Array.isArray(o.kit)) clean.kit = [cleanHex(o.kit[0], '#1e4fd8'), cleanHex(o.kit[1], '#f2f2f2')];
+        if (nation) {
+            const fl = cleanFlag(o.flag), code = cleanCode(o.code), cups = cleanCups(o.cups);
+            if (fl) clean.flag = fl;
+            if (code) clean.code = code;
+            if (cups) clean.cups = cups;
+        }
         const crest = cleanCrest(o.crest);
         if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);

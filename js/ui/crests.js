@@ -133,8 +133,7 @@ function nationFlagSvg(flag) {
     }
 }
 
-function nationCrestSvg(team) {
-    const n = NATIONS[team.name];
+function nationCrestSvg(team, n = NATIONS[team.name]) {
     const id = `nc${++crestCounter}`;
     const shape = CREST_SHAPES.badge.path;
     const star = n.flag.star ? crestStar(50, 22, 8, n.flag.star) : '';

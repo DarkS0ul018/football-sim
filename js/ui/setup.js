@@ -229,11 +229,19 @@ function onTeamTypeChange() {
     const hint = $('team-type-hint');
     const career = $('game-mode').querySelector('option[value="career"]');
     if (cup) {
-        $('team-count').value = String(cup.count);
-        $('tournament-mode').value = cup.mode;
-        const fmt = getGroupFormat(cup.count);
-        hint.textContent = `${cup.icon} ${cup.title}: ${cup.count} сборных, ${fmt.groups} групп по 4 → плей-офф` +
-            (fmt.thirds ? ` (2 лучших из группы + ${fmt.thirds} лучших третьих)` : ' (по 2 лучших из группы)') + '. Формат можно поменять.';
+        // Участников могли поменять в редакторе: берём настоящий размер турнира или ближайший возможный
+        const pool = cup.names.length;
+        let count = pool >= cup.count ? cup.count : [32, 24, 16, 12, 8].find(n => n <= pool);
+        let mode = cup.mode;
+        if (!count) { count = pool >= 4 ? 4 : pool; mode = 'knockout'; }
+        $('team-count').value = String(count);
+        $('tournament-mode').value = mode;
+        const fmt = mode === 'groups' ? getGroupFormat(count) : null;
+        const extra = pool > count ? ` В списке ${pool} сборных — сыграют ${count}: случайные или «Выбрать самому».` : '';
+        hint.textContent = (fmt
+            ? `${cup.icon} ${cup.title}: ${count} сборных, ${fmt.groups} групп по 4 → плей-офф` +
+              (fmt.thirds ? ` (2 лучших из группы + ${fmt.thirds} лучших третьих)` : ' (по 2 лучших из группы)')
+            : `${cup.icon} ${cup.title}: ${count} сборных, сразу плей-офф`) + '.' + extra + ' Формат можно поменять.';
         hint.style.display = 'block';
         career.disabled = true;
         career.textContent = 'Карьера — только для клубов';
