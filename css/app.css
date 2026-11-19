@@ -1011,3 +1011,22 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .duo-vs { font-family: var(--font-display); font-size: 1.4rem; color: var(--muted); }
 .duo-h2h { margin-top: 14px; display: grid; gap: 4px; font-size: 14px; }
 @media (max-width: 520px) { .duo-board { grid-template-columns: 1fr; } .duo-vs { display: none; } }
+
+/* ----- Установка на телефон (PWA) ----- */
+.topbar-actions { display: flex; align-items: center; gap: 8px; }
+.install-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 999px; border: 1px solid rgba(184, 242, 74, 0.5);
+    background: rgba(184, 242, 74, 0.12); color: var(--accent); font-weight: 700; font-size: 13px; cursor: pointer; }
+.install-btn:hover { background: rgba(184, 242, 74, 0.22); }
+@media (max-width: 420px) { .install-btn span { display: none; } }
+.install-help { position: fixed; inset: 0; z-index: 3500; display: grid; place-items: end center; padding: 16px; background: rgba(4, 8, 18, 0.75); backdrop-filter: blur(4px); animation: eventIn 0.25s ease-out; }
+@media (min-width: 640px) { .install-help { place-items: center; } }
+.install-box { width: 100%; max-width: 380px; padding: 22px 20px 18px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); text-align: center; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); }
+.install-box img { border-radius: 16px; }
+.install-box h3 { margin: 10px 0 8px; }
+.install-box ol { text-align: left; margin: 0 0 10px; padding-left: 22px; line-height: 1.7; }
+.install-box .btn-primary { width: 100%; margin-top: 8px; }
+.ih-ico { display: inline-block; padding: 0 6px; border-radius: 4px; background: var(--surface-2); }
+/* Запуск как приложение: учитываем вырез экрана и «чёлку» */
+.is-standalone .topbar { padding-top: max(10px, env(safe-area-inset-top)); }
+.is-standalone body { padding-bottom: env(safe-area-inset-bottom); }
+.is-standalone .app-container { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
