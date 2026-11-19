@@ -178,7 +178,7 @@ function renderLineups(sim) {
         const cards = p.yellow ? ' 🟨' : '';
         const mr = cls === 'bench' ? undefined : marks.get(`${side}:${p.number}`);
         const badge = mr !== undefined ? `<span class="lp-mr ${ratingClass(mr)}" title="Оценка за матч">${mr.toFixed(1)}</span>` : '';
-        return `<div class="lineup-player ${cls}"><span class="lp-num">${p.number}</span><span class="lp-pos">${p.position}</span><span class="lp-name" title="${p.name}">${p.name}${cards}</span><span class="lp-rating">${p.rating}</span>${badge}</div>`;
+        return `<div class="lineup-player ${cls}"><span class="lp-num">${p.number}</span><span class="lp-pos">${p.position}</span><span class="lp-name" title="${p.name}">${p.name}${cards}</span>${lineupForm(p)}<span class="lp-rating">${p.rating}</span>${badge}</div>`;
     };
     $('lineups').innerHTML = ['team1', 'team2'].map(sd => {
         side = sd;

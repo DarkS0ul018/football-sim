@@ -780,16 +780,29 @@ class MatchSimulation {
         this.isOver = true;
         this.phase = 'over';
         setLegScore(this.match, this.leg, this.score);
+        // Оценки за матч — в форму игроков; результат — в мораль
+        const ratings = this.playerRatings();
+        const motm = this.manOfTheMatch();
+        const strengths = { team1: this.strength('team1'), team2: this.strength('team2') };
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];
             s.appeared.forEach(num => addPlayerStat(s.team.id, num, 'matches'));
-            // Свежесть, восстановление и дисквалификации — в состав команды
+            // Свежесть, восстановление, дисквалификации, форма и мораль — в состав команды
             const all = [...s.onPitch, ...s.subbedOff, ...s.sentOff];
+            const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[otherSide(side)]];
+            const goals = new Map();
+            this.events.forEach(e => { if (e.type === 'goal' && e.side === side && e.player) goals.set(e.player.number, (goals.get(e.player.number) || 0) + 1); });
             applyPostMatch(s.team, {
                 served: s.served,
                 endFitness: new Map(all.map(p => [p.number, p.fitness])),
                 redCards: new Set(s.sentOff.map(p => p.number)),
-                yellowCards: s.yellowed
+                yellowCards: s.yellowed,
+                ratings: new Map(ratings.filter(r => r.side === side).map(r => [r.number, r.rating])),
+                result: my > their ? 'W' : (my < their ? 'L' : 'D'),
+                margin: Math.abs(my - their),
+                underdog: strengths[otherSide(side)] - strengths[side] >= 4,
+                goals,
+                motm: motm && motm.side === side ? motm.number : null
             });
         });
         this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;

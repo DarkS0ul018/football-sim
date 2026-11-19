@@ -49,10 +49,89 @@ function positionPenalty(natural, slot) {
     return Math.abs(order[natural] - order[slot]) === 1 ? 5 : 10;
 }
 
-// Рейтинг игрока с учётом свежести и позиции (используется и в составе, и в матче)
+// Рейтинг игрока с учётом свежести, позиции, формы и морали (используется и в составе, и в матче)
 function effectiveRating(player, slot = player.natPos || player.position) {
     const fatigue = (100 - (player.fitness ?? 100)) * 0.15;
-    return player.rating - fatigue - positionPenalty(player.natPos || player.position, slot);
+    return player.rating - fatigue - positionPenalty(player.natPos || player.position, slot)
+        + formBonus(player) + moraleBonus(player);
+}
+
+// ----- Форма и мораль -----
+// Форма — средняя оценка за последние матчи (оценки 3–10 из движка).
+// Мораль (5–100) растёт от побед, игрового времени и ярких матчей, падает от поражений и скамейки;
+// со временем возвращается к обычной (65).
+const MORALE_DEFAULT = 65;
+const FORM_LEN = 5;   // сколько последних оценок хранится
+const FORM_AVG = 3;   // по скольким считается форма
+
+function playerForm(p) {
+    const f = p.form;
+    if (!f || !f.length) return null;
+    const last = f.slice(-FORM_AVG);
+    return last.reduce((a, b) => a + b, 0) / last.length;
+}
+
+function formBonus(p) {
+    const f = playerForm(p);
+    return f === null ? 0 : Math.max(-2, Math.min(2, (f - 6.5) * 1.0));
+}
+
+function moraleBonus(p) {
+    const m = p.morale ?? MORALE_DEFAULT;
+    return Math.max(-2, Math.min(1.5, (m - MORALE_DEFAULT) / 15));
+}
+
+const MORALE_LEVELS = [
+    { min: 85, label: 'Отличная', icon: '😄', cls: 'm-top' },
+    { min: 70, label: 'Хорошая', icon: '🙂', cls: 'm-good' },
+    { min: 50, label: 'Нормальная', icon: '😐', cls: 'm-ok' },
+    { min: 30, label: 'Плохая', icon: '🙁', cls: 'm-bad' },
+    { min: 0, label: 'Ужасная', icon: '😠', cls: 'm-awful' }
+];
+
+function moraleInfo(value = MORALE_DEFAULT) {
+    return MORALE_LEVELS.find(l => value >= l.min) || MORALE_LEVELS[MORALE_LEVELS.length - 1];
+}
+
+// Стрелка формы: ▲ на подъёме, ▼ на спаде
+function formInfo(p) {
+    const f = playerForm(p);
+    if (f === null) return { arrow: '–', cls: 'f-none', label: 'Нет матчей', value: null };
+    if (f >= 7.4) return { arrow: '▲▲', cls: 'f-hot', label: 'Блестящая форма', value: f };
+    if (f >= 6.9) return { arrow: '▲', cls: 'f-up', label: 'Хорошая форма', value: f };
+    if (f > 6.1) return { arrow: '●', cls: 'f-flat', label: 'Обычная форма', value: f };
+    if (f > 5.6) return { arrow: '▼', cls: 'f-down', label: 'Спад', value: f };
+    return { arrow: '▼▼', cls: 'f-cold', label: 'Глубокий спад', value: f };
+}
+
+// Мораль команды — средняя по 14 сильнейшим игрокам заявки
+function teamMorale(team) {
+    const squad = getSquad(team);
+    if (!squad) return MORALE_DEFAULT;
+    const players = getSquadPlayers(team).sort((a, b) => b.rating - a.rating).slice(0, 14);
+    return players.reduce((a, p) => a + (p.morale ?? MORALE_DEFAULT), 0) / Math.max(1, players.length);
+}
+
+// Изменение формы и морали игрока после матча
+function updateFormAndMorale(p, num, report) {
+    const r = report.ratings ? report.ratings.get(num) : undefined;
+    if (r !== undefined) p.form = [...(p.form || []), r].slice(-FORM_LEN);
+    else if (p.form && p.form.length) p.form = p.form.slice(1); // без игры форма «остывает»
+    if (!report.result) return;
+    let m = p.morale ?? MORALE_DEFAULT;
+    m += { W: 4, D: 0, L: -4 }[report.result];
+    if (report.result === 'L' && report.margin >= 3) m -= 4;   // разгром бьёт по всем
+    if (report.result === 'W' && report.underdog) m += 3;      // победа над фаворитом окрыляет
+    if (r !== undefined) {
+        m += 2;                                                 // игровое время
+        if (r >= 8) m += 4; else if (r < 5.8) m -= 3;
+        m += Math.min(2, report.goals.get(num) || 0) * 2;
+        if (report.motm === num) m += 4;
+    } else if (!p.suspended && !(report.served && report.served.has(num))) {
+        m -= 3;                                                 // не попал в состав
+    }
+    m += (MORALE_DEFAULT - m) * 0.18;                           // эмоции со временем выравниваются
+    p.morale = Math.round(Math.max(5, Math.min(100, m)));
 }
 
 function initSquads() {
@@ -150,6 +229,7 @@ function applyPostMatch(team, report) {
         // Сыгравшие восстанавливаются не полностью — при игре без ротации свежесть понемногу падает
         if (report.endFitness.has(num)) p.fitness = Math.min(100, report.endFitness.get(num) + 17);
         else p.fitness = Math.min(100, p.fitness + 30);
+        updateFormAndMorale(p, num, report); // до новой дисквалификации: отбывший её не «обижается» на скамейку
         if (report.redCards.has(num)) { p.suspended += 1; }
         else if (report.yellowCards.has(num)) {
             p.yellowAcc++;

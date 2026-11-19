@@ -55,6 +55,16 @@ function commentKickoff(m, sim) {
         `Судья даёт свисток — встреча ${q(s1.team)} и ${q(s2.team)} началась!`
     ]), { type: 'half' });
     cmSay(m, 0, `${q(s1.team)}: ${s1.formation}, ${st(s1)}. ${q(s2.team)}: ${s2.formation}, ${st(s2)}.`, { type: 'tactic', delay: 250 });
+    // Форма и настроение перед матчем
+    [s1, s2].forEach((s, i) => {
+        const streak = teamStreak(s.team);
+        const mood = moraleInfo(teamMorale(s.team));
+        let line = null;
+        if (streak) line = streak.good ? `${q(s.team)} на ходу: ${streak.text}.` : `${q(s.team)} в кризисе: ${streak.text}.`;
+        else if (mood.min >= 85) line = `В раздевалке ${q(s.team)} отличное настроение.`;
+        else if (mood.min < 50) line = `${q(s.team)} подходит к матчу с плохой моралью.`;
+        if (line) cmSay(m, 0, line, { delay: 450 + i * 150, team: s.team });
+    });
 }
 
 // ----- Завязка атаки -----

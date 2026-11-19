@@ -32,7 +32,8 @@ function renderUserBadge() {
     const badge = $('user-team-badge');
     if (isCareer() && state.userTeam) {
         badge.style.display = 'inline-block';
-        badge.innerHTML = `${teamLabel(state.userTeam)}${state.userTeamEliminated ? ' · выбыла' : ''}`;
+        const mi = moraleInfo(teamMorale(state.userTeam));
+        badge.innerHTML = `${teamLabel(state.userTeam)}${state.userTeamEliminated ? ' · выбыла' : ''} <span class="badge-morale" title="Мораль команды: ${mi.label.toLowerCase()}">${mi.icon}</span>`;
     } else {
         badge.style.display = 'none';
     }
@@ -41,6 +42,12 @@ function renderUserBadge() {
 // ----- Лига -----
 // Последние результаты команды: В/Н/П за 5 матчей
 function teamFormHtml(team) {
+    const form = team.stats && team.stats.form;
+    if (form) return form.map(f => {
+        const [cls, letter] = { W: ['win', 'В'], D: ['draw', 'Н'], L: ['loss', 'П'] }[f[0]];
+        return `<span class="form-pill ${cls}" title="${letter === 'В' ? 'Победа' : letter === 'Н' ? 'Ничья' : 'Поражение'} ${f.slice(1)}">${letter}</span>`;
+    }).join('');
+    // Старое сохранение без истории формы — по матчам текущего этапа
     const played = state.matches.filter(m => m.isFinished && m.involves(team)).slice(-5);
     return played.map(m => {
         const agg = m.aggregateScore;
@@ -89,12 +96,13 @@ function renderGroupTables() {
         <div class="table-container">
             <h4>Группа ${String.fromCharCode(65 + idx)}</h4>
             <table>
-                <tr><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>О</th><th>РМ</th></tr>
+                <tr><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>О</th><th>РМ</th><th class="col-form">Форма</th></tr>
                 ${sortGroup(group).map(t => `
                     <tr class="${q[t.id] ? 'qualify-' + q[t.id] : ''}" style="${userRowStyle(t.id)}" title="${QUALIFY_LABELS[q[t.id]] || ''}">
                         <td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td><b>${t.stats.points}</b></td><td>${t.stats.gf - t.stats.ga}</td>
+                        <td class="form-cell col-form">${teamFormHtml(t)}</td>
                     </tr>`).join('')}
             </table>
         </div>`).join('');

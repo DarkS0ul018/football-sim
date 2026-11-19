@@ -19,8 +19,9 @@ function playerRowHtml(p, opts = {}) {
             <span class="tp-name" title="${p.name}">${p.name}</span>
             ${p.age ? `<span class="tr-age" title="Возраст">${p.age}</span>` : ''}
             ${badges.join('')}
+            ${moodHtml(p)}
             <span class="tp-fitness" title="Свежесть ${f}%"><span style="width:${f}%;background:${fitnessColor(f)}"></span></span>
-            <span class="tp-rating" title="Базовый рейтинг ${p.rating}, с учётом свежести и позиции ${eff}">${eff}</span>
+            <span class="tp-rating" title="Базовый рейтинг ${p.rating}, с учётом свежести, позиции, формы и морали ${eff}">${eff}</span>
         </div>`;
 }
 
@@ -33,7 +34,7 @@ function openTactics(match) {
     const homeSide = getHomeSide(match, leg);
     const isHome = homeSide && (homeSide === 'team1' ? match.team1 : match.team2).id === team.id;
     const venue = !homeSide ? 'нейтральное поле' : (isHome ? 'дома 🏠' : 'в гостях');
-    setHtml('tactics-opponent', `${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}`);
+    setHtml('tactics-opponent', `${match.roundName}: ${teamLabel(team)} — ${teamLabel(opp)} · ${venue}` + teamMoodHtml(team, opp));
 
     const changes = validateLineup(team);
     $('tactics-warnings').innerHTML = changes.map(c => `<div>⚠️ ${c}</div>`).join('');
@@ -137,4 +138,20 @@ function initTacticsScreen() {
 function openMatch(match) {
     if (isUserMatch(match)) openTactics(match);
     else openMatchScreen(match);
+}
+
+// ----- Форма и мораль на экране тактики -----
+function moodHtml(p) {
+    const fi = formInfo(p);
+    const mi = moraleInfo(p.morale ?? MORALE_DEFAULT);
+    const fTitle = fi.value === null ? 'Форма: ещё нет матчей' : `Форма: ${fi.label.toLowerCase()} (средняя оценка ${fi.value.toFixed(1)})`;
+    return `<span class="tp-form ${fi.cls}" title="${fTitle}">${fi.arrow}</span><span class="tp-morale" title="Мораль: ${mi.label.toLowerCase()} (${p.morale ?? MORALE_DEFAULT})">${mi.icon}</span>`;
+}
+
+function teamMoodHtml(team, opp) {
+    const side = t => {
+        const mi = moraleInfo(teamMorale(t));
+        return `<span class="tm-side">${t.name}: <span class="tm-morale ${mi.cls}">${mi.icon} ${mi.label.toLowerCase()} мораль</span> ${teamFormHtml(t)}</span>`;
+    };
+    return `<div class="tactics-mood">${side(team)}${side(opp)}</div>`;
 }

@@ -867,3 +867,23 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .motm-meta { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .motm-rating { font-family: var(--font-display); font-size: 1.4rem; padding: 4px 10px; border-radius: 6px; color: #08101e; }
 @media (prefers-reduced-motion: reduce) { .sm-dot.sm-new, .motm { animation: none; } }
+
+/* ----- Форма и мораль ----- */
+.tp-form, .lp-form { font-size: 10px; letter-spacing: -1px; width: 16px; text-align: center; flex-shrink: 0; }
+.tp-morale { font-size: 13px; width: 18px; text-align: center; flex-shrink: 0; }
+.f-hot { color: #3fd1ff; }
+.f-up { color: var(--accent); }
+.f-flat, .f-none { color: var(--muted); }
+.f-down { color: #f5a742; }
+.f-cold { color: #ff5a5a; }
+.tactics-mood { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 8px; font-size: 13px; color: var(--text-2); }
+.tm-side { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.tm-morale { font-weight: 600; }
+.m-top, .m-good { color: var(--accent); }
+.m-ok { color: var(--text-2); }
+.m-bad { color: #f5a742; }
+.m-awful { color: #ff5a5a; }
+.badge-morale { margin-left: 4px; }
+.mi-form { margin-top: 8px; min-height: 18px; }
+.mi-form .form-pill { transform: scale(1.1); margin: 0 2px; }
+@media (max-width: 520px) { .col-form { display: none; } }

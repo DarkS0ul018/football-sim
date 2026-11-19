@@ -72,8 +72,8 @@ function showMatchIntro(m, done) {
     intro.style.setProperty('--kit2', kits.team2.primary);
     const stage = $('match-stage-info') ? $('match-stage-info').textContent : '';
     intro.innerHTML = `
-        <div class="mi-side mi-home">${crestHtml(m.team1, 'xl')}<h2>${m.team1.name}</h2></div>
-        <div class="mi-side mi-away">${crestHtml(m.team2, 'xl')}<h2>${m.team2.name}</h2></div>
+        <div class="mi-side mi-home">${crestHtml(m.team1, 'xl')}<h2>${m.team1.name}</h2><div class="mi-form">${teamFormHtml(m.team1)}</div></div>
+        <div class="mi-side mi-away">${crestHtml(m.team2, 'xl')}<h2>${m.team2.name}</h2><div class="mi-form">${teamFormHtml(m.team2)}</div></div>
         <div class="mi-vs"><b>VS</b><small>${stage}</small></div>`;
     document.body.appendChild(intro);
     playSound('whistle-short');

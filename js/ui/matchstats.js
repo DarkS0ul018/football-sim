@@ -99,3 +99,25 @@ function plural(n, one, few, many) {
     if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return few;
     return many;
 }
+
+// Форма игрока в составе на матч: только заметные подъёмы и спады (чтобы не шуметь)
+function lineupForm(p) {
+    const fi = formInfo(p);
+    if (!['f-hot', 'f-up', 'f-down', 'f-cold'].includes(fi.cls)) return '';
+    const mi = moraleInfo(p.morale ?? MORALE_DEFAULT);
+    return `<span class="lp-form ${fi.cls}" title="${fi.label} (средняя оценка ${fi.value.toFixed(1)}) · мораль: ${mi.label.toLowerCase()}">${fi.arrow}</span>`;
+}
+
+// Серия команды словами: «3 победы подряд», «без побед в 4 матчах»
+function teamStreak(team) {
+    const form = (team.stats && team.stats.form) || [];
+    if (form.length < 3) return null;
+    const res = form.map(f => f[0]).reverse();
+    const count = pred => { let n = 0; for (const r of res) { if (!pred(r)) break; n++; } return n; };
+    const wins = count(r => r === 'W'), losses = count(r => r === 'L'), noWin = count(r => r !== 'W'), unbeaten = count(r => r !== 'L');
+    if (wins >= 3) return { good: true, text: `${wins} ${plural(wins, 'победа', 'победы', 'побед')} подряд` };
+    if (losses >= 3) return { good: false, text: `${losses} ${plural(losses, 'поражение', 'поражения', 'поражений')} подряд` };
+    if (noWin >= 4) return { good: false, text: `без побед в ${noWin} матчах` };
+    if (unbeaten >= 5) return { good: true, text: `без поражений в ${unbeaten} матчах` };
+    return null;
+}

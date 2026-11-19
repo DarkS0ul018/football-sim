@@ -72,6 +72,8 @@ function updateTeamStats(team, gf, ga, win) {
     if (win === true) { team.stats.won++; team.stats.points += 3; }
     else if (win === false) team.stats.lost++;
     else { team.stats.drawn++; team.stats.points += 1; }
+    // Последние 5 результатов (через все этапы турнира): «W2:1», «D0:0», «L1:3»
+    team.stats.form = [...(team.stats.form || []), (win === true ? 'W' : win === false ? 'L' : 'D') + gf + ':' + ga].slice(-5);
 }
 
 // Матчи группового этапа (во время групп — текущие матчи, потом — сохранённая копия)
