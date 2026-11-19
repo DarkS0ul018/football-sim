@@ -3,6 +3,11 @@
 // data → core (state, engine, tournament, storage) → ui → main
 
 applyCustomData(); // правки из редактора команд — до всего остального
+// Свежий опубликованный стандарт с сайта: если изменился — обновляем открытые экраны
+fetchPublishedData(() => {
+    if (screens.editor && screens.editor.classList.contains("active")) { renderEditorList(); renderEditorForm(); }
+    if (screens.setup && screens.setup.classList.contains("active") && typeof onTeamTypeChange === "function") onTeamTypeChange();
+});
 initStatTabs();
 initEditorScreen();
 initSetupScreens();

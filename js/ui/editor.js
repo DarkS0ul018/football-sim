@@ -38,17 +38,20 @@ function editorTeamInfo(name) {
 
 function renderEditorList() {
     document.querySelectorAll('#editor-type-tabs .style-btn').forEach(b => b.classList.toggle('active', b.dataset.type === editor.type));
+    refreshPublishButton();
     const national = editor.type === 'national';
     const data = editor.type === 'russia' ? russianTeams : worldTeams;
     const names = national ? Object.keys(NATIONS).sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) : data.names;
-    const custom = readCustomData().teams;
+    const custom = effectiveTeams();
+    const mine = readCustomData().teams;
     $('btn-editor-new').innerHTML = national ? '+ Новая сборная' : '+ Новая команда';
     $('editor-team-list').innerHTML = names.map(name => {
         const t = editorTeamInfo(name);
         const check = validateTeamData(name, t.squad, t.rating, t.emoji);
         const marks = [
             national ? nationCupTags(name).map(x => `<span class="badge" title="Участник турнира">${x}</span>`).join('') : '',
-            (() => { const o = custom[t.key]; return o ? (o.isNew ? '<span class="badge" title="Своя команда">новая</span>' : '<span class="badge" title="Изменена в редакторе">✏️</span>') : ''; })(),
+            (() => { const o = custom[t.key]; return o && o.isNew ? '<span class="badge" title="Своя команда">новая</span>' : ''; })(),
+            mine[t.key] ? `<span class="badge" title="${getPublishToken() ? 'Изменена, ещё не опубликована' : 'Изменена в редакторе'}">✏️</span>` : '',
             t.key !== name ? `<span class="badge" title="Стандартное название: ${t.key}">↺</span>` : '',
             check.errors.length ? '<span class="badge badge-red" title="Есть ошибки">!</span>' : (check.warnings.length ? '<span class="badge badge-yellow" title="Есть замечания">⚠️</span>' : '')
         ].join('');
@@ -106,7 +109,7 @@ function renderEditorForm() {
                 flag: { t: 'h', c: ['#ffffff', '#1e4fd8', '#d62839'] }, cups: [], squad: emptySquad() }
             : { name: '', type: editor.type, emoji: '🔵⚪', rating: 75, squad: emptySquad() })
         : editorTeamInfo(editor.selected);
-    const custom = readCustomData().teams[t.key || t.name];
+    const custom = effectiveTeams()[t.key || t.name];
     const isStandard = !editor.isNew && isDefaultTeam(t.key);
     const national = t.type === 'national';
     const colors = Array.from(t.emoji || '').filter(ch => COLOR_EMOJI.includes(ch));
@@ -345,6 +348,94 @@ function downloadText(filename, text) {
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
 }
 
+// ----- Публикация для всех (автор игры, нужен ключ GitHub) -----
+function refreshPublishButton() {
+    const btn = $('btn-editor-publish');
+    if (!btn) return;
+    const has = !!getPublishToken();
+    const n = unpublishedCount();
+    btn.style.display = has ? '' : 'none';
+    btn.disabled = !n;
+    btn.innerHTML = n ? `🌐 Опубликовать для всех <span class="publish-count">${n}</span>` : '🌐 Всё опубликовано';
+    btn.title = n ? 'Отправить правки на сайт: через минуту они станут стандартом у всех' : 'Неопубликованных правок нет';
+    $('btn-editor-key').classList.toggle('key-set', has);
+}
+
+function openPublishKeyDialog() {
+    document.querySelector('.publish-overlay')?.remove();
+    const { owner, repo } = publishRepo();
+    const has = !!getPublishToken();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay publish-overlay';
+    el.innerHTML = `<div class="confirm-box publish-box" role="dialog" aria-modal="true">
+        <h3>🔑 Ключ публикации</h3>
+        <p class="muted">Нужен только автору игры. С ключом в редакторе появится кнопка «Опубликовать для всех»:
+            правки уходят на сайт и через минуту становятся стандартом у всех игроков.</p>
+        <ol class="publish-steps">
+            <li>Откройте <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com → новый fine-grained ключ</a></li>
+            <li>Repository access: <b>Only select repositories</b> → <b>${escapeHtml(repo)}</b></li>
+            <li>Permissions → Repository permissions → <b>Contents: Read and write</b></li>
+            <li>Нажмите <b>Generate token</b>, скопируйте ключ и вставьте сюда</li>
+        </ol>
+        <input id="publish-token-input" type="password" autocomplete="off" spellcheck="false"
+            placeholder="${has ? 'Ключ сохранён — вставьте новый, чтобы заменить' : 'github_pat_…'}">
+        <div class="muted publish-note">Ключ хранится только в этом браузере и даёт доступ лишь к ${escapeHtml(owner)}/${escapeHtml(repo)}.</div>
+        <div id="publish-key-status" class="publish-status"></div>
+        <div class="confirm-actions">
+            ${has ? '<button type="button" class="btn-secondary" data-act="forget">Удалить ключ</button>' : ''}
+            <button type="button" class="btn-secondary" data-act="close">Закрыть</button>
+            <button type="button" class="btn-primary" data-act="save">Проверить и сохранить</button>
+        </div>
+    </div>`;
+    document.body.appendChild(el);
+    const status = el.querySelector('#publish-key-status');
+    const input = el.querySelector('#publish-token-input');
+    input.focus();
+    el.addEventListener('click', async e => {
+        const act = e.target.closest('button')?.dataset.act;
+        if (e.target === el || act === 'close') { el.remove(); return; }
+        if (act === 'forget') {
+            setPublishToken('');
+            el.remove();
+            refreshPublishButton();
+            notify('Ключ удалён из этого браузера');
+            return;
+        }
+        if (act === 'save') {
+            const token = input.value.trim();
+            if (!token) { status.textContent = 'Вставьте ключ'; return; }
+            status.textContent = 'Проверяю ключ…';
+            try {
+                await checkPublishToken(token);
+                setPublishToken(token);
+                el.remove();
+                renderEditorList();
+                notify('✅ Ключ сохранён. Кнопка «Опубликовать для всех» — вверху редактора');
+            } catch (err) {
+                status.textContent = '⚠️ ' + err.message;
+            }
+        }
+    });
+}
+
+async function doPublish() {
+    const n = unpublishedCount();
+    if (!n) { notify('Неопубликованных правок нет'); return; }
+    if (!(await askConfirm(`Опубликовать правки (${n}) для всех? Через минуту они станут стандартом у всех игроков.`, { ok: 'Опубликовать' }))) return;
+    const btn = $('btn-editor-publish');
+    btn.disabled = true;
+    btn.textContent = '⏳ Публикую…';
+    try {
+        await publishStandard();
+        notify('✅ Опубликовано. У всех — примерно через минуту, после повторного открытия игры');
+    } catch (err) {
+        notify('⚠️ ' + err.message);
+    }
+    renderEditorList();
+    renderEditorForm();
+    if (typeof validateSettings === 'function') validateSettings();
+}
+
 function initEditorScreen() {
     $('btn-open-editor').onclick = openEditor;
     $('btn-editor-back').onclick = () => { onTeamTypeChange(); showScreen('setup'); }; // участники сборных могли измениться
@@ -361,6 +452,8 @@ function initEditorScreen() {
         renderEditorList();
         renderEditorForm();
     };
+    $('btn-editor-key').onclick = openPublishKeyDialog;
+    $('btn-editor-publish').onclick = doPublish;
     $('btn-editor-export').onclick = () => {
         const count = Object.keys(readCustomData().teams).length;
         if (!count) { notify('Пока нет изменений для экспорта'); return; }
@@ -385,7 +478,8 @@ function initEditorScreen() {
         reader.readAsText(file);
     };
     $('btn-editor-reset-all').onclick = async () => {
-        if (!(await askConfirm('Сбросить все правки и удалить свои команды?', { ok: 'Сбросить', danger: true }))) return;
+        const msg = getPublishToken() ? 'Отменить все неопубликованные правки? Опубликованное останется.' : 'Сбросить все правки и удалить свои команды?';
+        if (!(await askConfirm(msg, { ok: 'Сбросить', danger: true }))) return;
         resetAllCustomData();
         editor.selected = null;
         editor.isNew = false;

@@ -3,7 +3,7 @@
 // Дальше: «сначала свежая версия с сервера, без сети — из кэша» — изменения видны сразу,
 // а без интернета игра всё равно запускается.
 
-const CACHE = 'football-sim-v2';
+const CACHE = 'football-sim-v3';
 const EXTRA = ['./', 'index.html', 'manifest.webmanifest',
     'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
@@ -36,13 +36,15 @@ self.addEventListener('fetch', event => {
 
     event.respondWith((async () => {
         const cache = await caches.open(CACHE);
-        const cached = await cache.match(req, { ignoreSearch: sameOrigin });
+        // Свои файлы кэшируем без «?t=…» в адресе — иначе кэш разрастался бы копиями
+        const key = sameOrigin && req.mode !== 'navigate' ? url.origin + url.pathname : req;
+        const cached = await cache.match(key, { ignoreSearch: sameOrigin });
         // Шрифты не меняются — сразу из кэша
         if (fonts && cached) return cached;
         // Файлы игры: сначала свежая версия с сервера (мимо HTTP-кэша браузера),
         // кэш — только если сети нет или она не отвечает 4 секунды
-        const network = fetch(req, sameOrigin ? { cache: 'no-cache' } : undefined).then(res => {
-            if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
+        const network = fetch(sameOrigin ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' }) : req).then(res => {
+            if (res && (res.ok || res.type === 'opaque')) cache.put(key, res.clone());
             return res;
         }).catch(() => null);
         const timeout = new Promise(r => setTimeout(() => r(null), cached ? 4000 : 60000));

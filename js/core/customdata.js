@@ -97,6 +97,68 @@ function writeCustomData(data) {
     try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(data)); return true; } catch (e) { return false; }
 }
 
+// ----- Опубликованный стандарт (data/standard.json на сайте) -----
+// Слои: данные в коде ← опубликованные автором правки ← личные правки этого браузера.
+// Личная правка с _reset: true значит «вернуть команду к данным из кода» (при публикации — убрать из стандарта).
+const PUBLISHED_KEY = 'footballSimPro.published';
+
+function readPublishedData() {
+    try {
+        const data = JSON.parse(localStorage.getItem(PUBLISHED_KEY));
+        if (data && typeof data.teams === 'object') return data;
+    } catch (e) { /* ignore */ }
+    return { teams: {} };
+}
+
+function writePublishedData(data) {
+    try { localStorage.setItem(PUBLISHED_KEY, JSON.stringify({ teams: data.teams || {}, updated: data.updated || null })); return true; } catch (e) { return false; }
+}
+
+// Итоговые правки: стандарт + личные (личная правка команды целиком заменяет опубликованную)
+function effectiveTeams() {
+    const teams = { ...readPublishedData().teams };
+    Object.entries(readCustomData().teams).forEach(([k, o]) => {
+        if (o && o._reset) delete teams[k];
+        else teams[k] = o;
+    });
+    return teams;
+}
+
+// Сколько личных правок ещё не опубликовано
+function unpublishedCount() {
+    return Object.keys(readCustomData().teams).length;
+}
+
+// Стандарт с личными правками поверх — то, что уйдёт на сайт при публикации
+function mergeForPublish(published) {
+    const teams = { ...(published || {}) };
+    Object.entries(readCustomData().teams).forEach(([k, o]) => {
+        if (o && o._reset) delete teams[k];
+        else teams[k] = o;
+    });
+    return teams;
+}
+
+// Свежий стандарт с сайта. Без интернета или при открытии файла напрямую — остаётся сохранённый.
+// onChange вызывается, если стандарт изменился с прошлого раза.
+function fetchPublishedData(onChange) {
+    if (location.protocol === 'file:') return;
+    fetch('data/standard.json?t=' + Date.now(), { cache: 'no-store' })
+        .then(res => {
+            if (res.status === 404) return { teams: {} };     // ещё ничего не публиковали
+            if (!res.ok) throw new Error(res.status);
+            return res.json();
+        })
+        .then(data => {
+            if (!data || typeof data.teams !== 'object') return;
+            if (JSON.stringify(data.teams) === JSON.stringify(readPublishedData().teams)) return;
+            writePublishedData(data);
+            applyCustomData();
+            if (onChange) onChange();
+        })
+        .catch(() => { /* без сети — работаем на сохранённом */ });
+}
+
 function isDefaultTeam(name) {
     return isNationName(name) || DEFAULT_DATA.world.names.includes(name) || DEFAULT_DATA.russia.names.includes(name);
 }
@@ -116,7 +178,7 @@ let TEAM_ALIAS = {};
 // Правки стандартной команды хранятся под её исходным названием (rename — новое название в игре),
 // поэтому «Вернуть стандартные данные» всегда находит команду. Свои команды — под своим названием.
 function applyCustomData() {
-    const custom = readCustomData().teams;
+    const custom = effectiveTeams();
     TEAM_ALIAS = {};
     const shown = (key, o) => (o && o.rename) || key;
 
@@ -225,7 +287,7 @@ function cleanYear(y) {
 function saveTeamOverride(key, data, oldKey = null) {
     const all = readCustomData();
     key = cleanText(key, 30);
-    if (oldKey && oldKey !== key) delete all.teams[oldKey];
+    if (oldKey && oldKey !== key) dropTeamOverride(all, oldKey);
     const squad = data.squad && Object.fromEntries(Object.entries(data.squad).map(([k, v]) => [k, v.map(s => cleanText(s)).filter(Boolean)]));
     const crest = cleanCrest(data.crest);
     const kit = Array.isArray(data.kit) ? [cleanHex(data.kit[0], '#1e4fd8'), cleanHex(data.kit[1], '#f2f2f2')] : undefined;
@@ -244,16 +306,25 @@ function saveTeamOverride(key, data, oldKey = null) {
 // Убрать стандартную команду из игры / вернуть (остальные правки сохраняются)
 function setTeamHidden(key, hidden) {
     const all = readCustomData();
-    const o = all.teams[key] || { type: isNationName(key) ? 'national' : (DEFAULT_DATA.russia.names.includes(key) ? 'russia' : 'world'), isNew: false };
+    const base = all.teams[key] && !all.teams[key]._reset ? all.teams[key] : readPublishedData().teams[key];
+    const o = base ? JSON.parse(JSON.stringify(base)) : { type: isNationName(key) ? 'national' : (DEFAULT_DATA.russia.names.includes(key) ? 'russia' : 'world'), isNew: false };
     if (hidden) o.hidden = true; else delete o.hidden;
     all.teams[key] = o;
     writeCustomData(all);
     applyCustomData();
 }
 
+// Убирает правку команды. Если команда есть в опубликованном стандарте — помечает «вернуть к исходной»
+// (для своей команды — удалить), иначе стандарт вернул бы её обратно.
+function dropTeamOverride(all, name) {
+    const pub = readPublishedData().teams[name];
+    if (pub) all.teams[name] = { _reset: true, type: pub.type, isNew: !!pub.isNew };
+    else delete all.teams[name];
+}
+
 function removeTeamOverride(name) {
     const all = readCustomData();
-    delete all.teams[name];
+    dropTeamOverride(all, name);
     writeCustomData(all);
     applyCustomData();
 }
