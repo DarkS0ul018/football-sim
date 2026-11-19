@@ -828,3 +828,42 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .event-item.comment.c-goal { background: rgba(184, 242, 74, 0.06); box-shadow: inset 3px 0 0 var(--accent); }
 .event-item.comment.c-goal .event-text { color: var(--accent); font-weight: 600; }
 .event-item.comment.finish .event-text, .event-item.comment.half .event-text { color: inherit; font-weight: 600; }
+
+/* ----- Карта ударов и xG ----- */
+.shotmap { margin-top: 14px; }
+.shotmap-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.shotmap-legend { text-transform: none; letter-spacing: 0; font-size: 11px; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.shotmap-legend .lg { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-left: 4px; border: 1.5px solid var(--text-2); }
+.shotmap-legend .lg-goal { background: var(--text); border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.shotmap-legend .lg-save { background: var(--text-2); }
+.shotmap-legend .lg-off { background: transparent; }
+#shot-map { width: 100%; height: auto; display: block; border-radius: 6px; }
+.sm-grass { fill: #0f3a22; }
+.sm-line { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 0.35; }
+.sm-goalframe { fill: rgba(255, 255, 255, 0.55); }
+.sm-dot { stroke-width: 0.45; }
+.sm-dot.sm-team1 { --c: var(--kit1, var(--info)); }
+.sm-dot.sm-team2 { --c: var(--kit2, var(--live)); }
+.sm-dot.sm-save { fill: var(--c); fill-opacity: 0.75; stroke: rgba(255, 255, 255, 0.85); }
+.sm-dot.sm-off { fill: var(--c); fill-opacity: 0.12; stroke: var(--c); stroke-width: 0.6; }
+.sm-dot.sm-goal { fill: var(--c); stroke: var(--accent); stroke-width: 0.9; filter: drop-shadow(0 0 1.2px var(--accent)); }
+.sm-dot.sm-new { transform-box: fill-box; transform-origin: center; animation: smPop 0.5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes smPop { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* ----- Оценки за матч ----- */
+.lp-mr { font-family: var(--font-display); font-size: 11px; min-width: 28px; text-align: center; padding: 1px 4px; border-radius: 4px; color: #08101e; }
+.r-top { background: #3fd1ff; }
+.r-good { background: var(--accent); }
+.r-ok { background: #f5c542; }
+.r-bad { background: #ff7a59; }
+
+/* ----- Лучший игрок матча ----- */
+.motm { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 12px 14px; border-radius: 8px;
+    background: linear-gradient(110deg, rgba(184, 242, 74, 0.14), rgba(184, 242, 74, 0.02)); border: 1px solid rgba(184, 242, 74, 0.35); animation: eventIn 0.5s ease-out; }
+.motm-star { font-size: 26px; color: var(--accent); text-shadow: 0 0 12px rgba(184, 242, 74, 0.6); }
+.motm-body { flex: 1; min-width: 0; }
+.motm-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.motm-name { font-family: var(--font-display); font-size: 1.15rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.motm-meta { font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.motm-rating { font-family: var(--font-display); font-size: 1.4rem; padding: 4px 10px; border-radius: 6px; color: #08101e; }
+@media (prefers-reduced-motion: reduce) { .sm-dot.sm-new, .motm { animation: none; } }

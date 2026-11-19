@@ -172,11 +172,16 @@ function showSimEvent(m, ev, prefix = '') {
 
 // ----- Составы -----
 function renderLineups(sim) {
+    const marks = ratingsMap(sim); // оценки за матч (после стартового свистка)
+    let side;
     const row = (p, cls = '') => {
         const cards = p.yellow ? ' 🟨' : '';
-        return `<div class="lineup-player ${cls}"><span class="lp-num">${p.number}</span><span class="lp-pos">${p.position}</span><span class="lp-name" title="${p.name}">${p.name}${cards}</span><span class="lp-rating">${p.rating}</span></div>`;
+        const mr = cls === 'bench' ? undefined : marks.get(`${side}:${p.number}`);
+        const badge = mr !== undefined ? `<span class="lp-mr ${ratingClass(mr)}" title="Оценка за матч">${mr.toFixed(1)}</span>` : '';
+        return `<div class="lineup-player ${cls}"><span class="lp-num">${p.number}</span><span class="lp-pos">${p.position}</span><span class="lp-name" title="${p.name}">${p.name}${cards}</span><span class="lp-rating">${p.rating}</span>${badge}</div>`;
     };
-    $('lineups').innerHTML = ['team1', 'team2'].map(side => {
+    $('lineups').innerHTML = ['team1', 'team2'].map(sd => {
+        side = sd;
         const s = sim.sides[side];
         const color = side === 'team1' ? 'var(--accent-primary)' : 'var(--highlight)';
         const home = sim.homeSide === side ? ' 🏠' : '';
@@ -249,6 +254,7 @@ function prepareLeg(m, leg) {
     renderLineups(currentSim);
     renderSubstitutions(currentSim);
     updateStatsDisplay(currentSim);
+    resetShotMap();
     return currentSim;
 }
 
@@ -304,20 +310,23 @@ function startSimulation(m) {
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
-        if (lineupChanged || events.some(e => e.type === 'card-yellow' || e.type === 'tactic')) renderLineups(sim);
+        if (lineupChanged || sim.minute % 5 === 0 || events.some(e => e.type === 'card-yellow' || e.type === 'tactic' || e.type === 'card-red')) renderLineups(sim); // оценки обновляются раз в 5 минут
 
         const plan = animateMinute(sim, events, ms, span) || {};
         // Голы показываем, когда мяч влетит в ворота
         // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
         const goalDelay = plan.goalAt != null ? plan.goalAt + 60 : ms * span * 0.85; // +60 мс: табло меняется, когда мяч уже в сетке
         events.forEach(ev => {
-            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); }, goalDelay);
+            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); renderLineups(sim); }, goalDelay);
         });
         commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора
         crowdIntensity(sim);
         setText('match-time', sim.minute + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
         updateStatsDisplay(sim);
+        // Точка на карте ударов и xG — когда мяч долетит (не раскрываем исход заранее)
+        const mapSim = sim;
+        setTimeout(() => { if (currentSim === mapSim) renderShotMap(mapSim); }, plan.finishAt != null ? plan.finishAt + 40 : 0);
 
         if (!sim.isOver) return;
         if (m.legs === 2 && sim.leg === 1) {
@@ -407,6 +416,7 @@ function finishMatch(m, winner) {
         ? `${prefix}${winner.name} победил ${agg.t1}:${agg.t2}${et}${pen}`
         : `${prefix}Ничья ${agg.t1}:${agg.t2}${m.stage === 'group' ? ' (по 1 очку)' : ''}`;
     addMatchEvent(m, 'FT', 'finish', text, null);
+    if (currentSim && currentSim.match === m) { renderLineups(currentSim); renderShotMap(currentSim); showManOfTheMatch(m, currentSim); }
     if (isUserMatch(m) && state.userTeamEliminated) addMatchEvent(m, '', 'finish', '😔 Ваша команда выбыла из турнира', null);
 
     setText('match-status', 'FINISHED');

@@ -94,9 +94,12 @@ function shotLines(sim, play, side) {
     const gk = cmPlayer(sim, otherSide(side), end.keeper);
     const sh = shooter ? shooter.name : 'Игрок';
     let shot;
-    if (play.kind === 'corner') shot = cmPick('shotC', [`Подача в штрафную… ${sh} бьёт головой!`, `Навес с углового — ${sh} в борьбе, удар!`, `${sh} первым на мяче после подачи!`]);
+    if (play.kind === 'corner') shot = end.header
+        ? cmPick('shotC', [`Подача в штрафную… ${sh} бьёт головой!`, `Навес с углового — ${sh} выигрывает верх!`, `${sh} первым на мяче после подачи — головой!`])
+        : cmPick('shotCF', [`Мяч отскакивает в штрафной — ${sh} бьёт с ходу!`, `После подачи ${sh} подхватывает мяч и бьёт!`]);
     else if (passer && passer !== shooter && Math.random() < 0.6)
         shot = cmPick('shotP', [`${passer.name} отдаёт, и ${sh} бьёт!`, `Пас вразрез — ${passer.name}! ${sh} один на один…`, `${passer.name} прострелил! ${sh} замыкает…`]);
+    else if (end.at && end.at.r < 83) shot = cmPick('shotFar', [`${sh} пробивает издали!`, `${sh} решается на дальний удар!`, `Удар из-за штрафной — ${sh}!`]);
     else shot = cmPick('shot', [`${sh} бьёт!`, `${sh} пробивает из штрафной!`, `${sh} решается на удар!`, `${sh} обыгрывает защитника и бьёт!`]);
 
     let result = null;
@@ -105,6 +108,8 @@ function shotLines(sim, play, side) {
         const g = gk ? gk.name : 'Вратарь';
         result = cmPick('save', [`${g} на месте — сейв!`, `Блестящий сейв! ${g} тащит!`, `${g} отбивает в падении!`, `${g} уверенно забирает мяч.`, `${g} переводит мяч на угловой!`]);
     }
+    // Огромный момент не реализован — комментатор хватается за голову
+    if (result && end.xg >= 0.35) result = cmPick('bigMiss', ['Стопроцентный момент! ', 'Как можно было не забить?! ', 'Невероятно! ']) + result;
     return { shot, result };
 }
 
@@ -125,6 +130,7 @@ function goalFlavor(sim, ev) {
     else if (my - their >= 3) bits.push(cmPick('rout', ['Это уже разгром!', `${q(team)} не останавливается!`]));
     else if (my < their) bits.push(`${q(team)} сокращает отставание — ещё не вечер!`);
 
+    if (ev.xg != null && ev.xg < 0.05) bits.push(cmPick('screamer', ['Какой удар издалека — шедевр!', 'Гол из ничего!']));
     if (ev.minute >= 85) bits.push('Гол на последних минутах!');
     else if (ev.minute <= 3) bits.push('Молниеносный старт!');
     if (ev.assister && !String(ev.text).includes('пенальти')) bits.push(`${ev.assister.name} — с голевой передачей.`);

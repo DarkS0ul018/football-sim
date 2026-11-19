@@ -441,6 +441,10 @@
                                 <div class="stat-label">Удары</div>
                                 <div class="stat-value-pair"><span id="shots-1">0</span><span>-</span><span id="shots-2">0</span></div>
                             </div>
+                            <div class="stat-box" title="Ожидаемые голы: сумма качества всех моментов (0.10 — обычный удар, 0.76 — пенальти)">
+                                <div class="stat-label">xG</div>
+                                <div class="stat-value-pair"><span id="xg-1">0.00</span><span>-</span><span id="xg-2">0.00</span></div>
+                            </div>
                             <div class="stat-box">
                                 <div class="stat-label">В створ</div>
                                 <div class="stat-value-pair"><span id="shots-on-target-1">0</span><span>-</span><span id="shots-on-target-2">0</span></div>
@@ -462,6 +466,14 @@
                                 </div>
                             </div>
                         </div>
+                        <div class="shotmap">
+                            <div class="shotmap-head">
+                                <span>Карта ударов</span>
+                                <span class="shotmap-legend"><i class="lg lg-goal"></i>гол <i class="lg lg-save"></i>в створ <i class="lg lg-off"></i>мимо · размер — xG</span>
+                            </div>
+                            <svg id="shot-map" viewBox="-2 -2 109 72" role="img" aria-label="Карта ударов"></svg>
+                        </div>
+                        <div class="motm" id="motm" style="display:none"></div>
                     </div>
 
                     <div class="lineups-container">
@@ -694,6 +706,7 @@
     <script src="js/ui/editor.js"></script>
     <script src="js/ui/transfers.js"></script>
     <script src="js/ui/shootout.js"></script>
+    <script src="js/ui/matchstats.js"></script>
     <script src="js/ui/commentary.js"></script>
     <script src="js/ui/match.js"></script>
     <script src="js/ui/results.js"></script>

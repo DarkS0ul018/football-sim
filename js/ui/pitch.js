@@ -359,7 +359,8 @@ function animateMinute(sim, events, ms, span = 1) {
     // Бьющий заранее бежит в зону удара; если не успевает — бьёт издали, откуда добежал
     if (shooter && !String(end.type).startsWith('penalty')) {
         const depth = { FWD: [83, 8], MID: [80, 9], DEF: [80, 8] }[shooter.position] || [81, 8]; // из штрафной
-        const want = play.kind === 'corner'
+        const want = end.at ? { r: end.at.r, y: end.at.y }           // точка удара из движка (по ней считается xG)
+            : play.kind === 'corner'
             ? { r: 87 + Math.random() * 4, y: 42 + Math.random() * 16 }
             : { r: depth[0] + Math.random() * depth[1], y: clampv(shooter.y, 28, 72) };
         // Бежит прямо в зону удара; пас найдёт его там, куда он успеет (см. follow в stepBall)

@@ -134,6 +134,38 @@ function getHomeSide(m, leg) {
     return m.legs === 2 && leg === 2 ? 'team2' : 'team1';
 }
 
+// ----- Ожидаемые голы (xG) -----
+// Точка удара: r — путь к воротам соперника в % длины поля (100 — линия ворот), y — поперёк поля (0–100).
+// Модель как у аналитиков: чем ближе и чем шире угол обзора ворот, тем выше шанс; удар головой — ниже.
+const PITCH_M = { len: 105, wid: 68, goal: 7.32 };
+
+function shotXg(r, y, { header = false, counter = false } = {}) {
+    const dx = Math.max(0.5, (100 - r) * PITCH_M.len / 100);
+    const dy = Math.abs(y - 50) * PITCH_M.wid / 100;
+    const d = Math.hypot(dx, dy);
+    const g = PITCH_M.goal;
+    let angle = Math.atan2(g * dx, dx * dx + dy * dy - (g / 2) ** 2); // угол, под которым видны ворота
+    if (angle < 0) angle += Math.PI;
+    let xg = 1 / (1 + Math.exp(-(-1.0 - 0.12 * d + 1.2 * angle)));
+    if (header) xg *= 0.55;
+    if (counter) xg *= 1.25; // выход один на один после контратаки
+    return clamp(xg, 0.01, 0.8);
+}
+
+// Откуда бьёт игрок: нападающие — из штрафной, полузащитники и защитники — чаще издали
+function pickShotSpot(position, kind, counter) {
+    const rnd = Math.random;
+    let r;
+    if (kind === 'corner') r = 88 + rnd() * 6;
+    else if (counter) r = 84 + rnd() * 11;
+    else r = ({ FWD: 82 + rnd() * 13, MID: 74 + rnd() * 17, DEF: 73 + rnd() * 15 })[position] ?? 80 + rnd() * 12;
+    const spread = clamp((100 - r) * 2.4, 16, 44); // вблизи ворот бьют по центру, издали — откуда угодно
+    const y = 50 + (rnd() - 0.5) * spread;
+    return { r: Math.round(r * 10) / 10, y: Math.round(y * 10) / 10 };
+}
+
+const XG_MEAN = 0.11; // средний xG удара в этой модели (калибровка: общая результативность не меняется)
+
 const SIDE_KEY = { team1: 't1', team2: 't2' };
 const otherSide = side => side === 'team1' ? 'team2' : 'team1';
 
@@ -162,8 +194,10 @@ class MatchSimulation {
             fouls: { team1: 0, team2: 0 },
             yellowCards: { team1: 0, team2: 0 },
             redCards: { team1: 0, team2: 0 },
-            substitutions: { team1: [], team2: [] }
+            substitutions: { team1: [], team2: [] },
+            xg: { team1: 0, team2: 0 }
         };
+        this.shotLog = []; // все удары: { side, minute, r, y, xg, result, player, name, keeper, header }
         this.sides = {
             team1: this.createSide(match.team1, 'team1'),
             team2: this.createSide(match.team2, 'team2')
@@ -506,25 +540,39 @@ class MatchSimulation {
             [...pre.filter(p => p !== shooter && p !== passer), passer, shooter]);
         const gk = this.goalkeeper(otherSide(side));
         this.stats.shots[side]++;
-        const onTarget = Math.random() < clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
-        if (!onTarget) {
-            play.end = { type: 'off', shooter: shooter.number };
-            this.log('shot-off', side, `Удар мимо — ${shooter.name}`, { player: shooter });
+        // Точка удара и xG (качество момента); навес с углового — чаще удар головой
+        const header = kind === 'corner' && Math.random() < 0.75;
+        const at = pickShotSpot(shooter.position, kind, counter);
+        const xg = shotXg(at.r, at.y, { header, counter });
+        this.stats.xg[side] += xg;
+        // Мастерство бьющего и вратаря, тактика — как раньше; xG смещает шанс относительно среднего момента
+        const pOnTarget = clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
+        const pConvert = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + this.finishBonus(side), 0.12, 0.5);
+        const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN, 0.005, 0.85);
+        const pSave = Math.min(1 - pGoal, pOnTarget * (1 - pConvert) * clamp(0.6 + xg / XG_MEAN * 0.4, 0.6, 1.6));
+        const u = Math.random();
+        const result = u < pGoal ? 'goal' : (u < pGoal + pSave ? 'save' : 'off');
+        const shotInfo = { side, minute: this.minute, r: at.r, y: at.y, xg, result, header,
+            player: shooter.number, name: shooter.name, keeper: gk ? gk.number : null };
+        this.shotLog.push(shotInfo);
+        if (result === 'off') {
+            play.end = { type: 'off', shooter: shooter.number, at, xg, header };
+            this.log('shot-off', side, `Удар мимо — ${shooter.name}`, { player: shooter, xg });
             return;
         }
         this.stats.shotsOnTarget[side]++;
-        const pGoal = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + this.finishBonus(side), 0.12, 0.5);
-        if (Math.random() < pGoal) {
+        if (result === 'goal') {
             const assister = Math.random() < 0.75 ? passer : null;
-            play.end = { type: 'goal', shooter: shooter.number };
-            this.goal(side, shooter, assister, kind === 'corner' ? 'после углового' : '');
+            shotInfo.assister = assister ? assister.number : null;
+            play.end = { type: 'goal', shooter: shooter.number, at, xg, header };
+            this.goal(side, shooter, assister, kind === 'corner' ? 'после углового' : '', xg);
         } else {
-            play.end = { type: 'save', shooter: shooter.number, keeper: gk.number };
-            this.log('shot', side, `${gk.name} отражает удар (${shooter.name})`, { player: shooter });
+            play.end = { type: 'save', shooter: shooter.number, keeper: gk.number, at, xg, header };
+            this.log('shot', side, `${gk.name} отражает удар (${shooter.name})`, { player: shooter, xg });
         }
     }
 
-    goal(side, scorer, assister, note = '') {
+    goal(side, scorer, assister, note = '', xg = null) {
         this.score[SIDE_KEY[side]]++;
         setLegScore(this.match, this.leg, this.score);
         addPlayerStat(this.sides[side].team.id, scorer.number, 'goals');
@@ -532,7 +580,7 @@ class MatchSimulation {
         const parts = [`ГОЛ! ${scorer.name}`];
         if (assister) parts.push(`пас: ${assister.name}`);
         if (note) parts.push(note);
-        this.log('goal', side, parts.join(' · '), { player: scorer, assister });
+        this.log('goal', side, parts.join(' · '), { player: scorer, assister, xg });
     }
 
     foul(side, victimSide, victim = null) {
@@ -572,14 +620,68 @@ class MatchSimulation {
         this.stats.shots[side]++;
         if (!this.play || this.play.side !== side) this.startPlay(side, 'foul', []);
         const play = this.play;
+        const PEN_XG = 0.76;
+        this.stats.xg[side] += PEN_XG;
+        const shotInfo = { side, minute: this.minute, r: 89.5, y: 50, xg: PEN_XG, result: "pen-miss", penalty: true, player: taker.number, name: taker.name, keeper: gk ? gk.number : null };
+        this.shotLog.push(shotInfo);
         if (Math.random() < clamp(0.76 + (effRating(taker) - effRating(gk)) * 0.005, 0.6, 0.9)) {
             this.stats.shotsOnTarget[side]++;
+            shotInfo.result = 'pen-goal';
             play.end = { ...(play.end || {}), type: 'penalty-goal', taker: taker.number };
-            this.goal(side, taker, null, 'с пенальти');
+            this.goal(side, taker, null, 'с пенальти', PEN_XG);
         } else {
             play.end = { ...(play.end || {}), type: 'penalty-miss', taker: taker.number };
             this.log('penalty-miss', side, `Пенальти не забит — ${taker.name}`, { player: taker });
         }
+    }
+
+    // ----- Оценки игроков за матч (3–10), как в спортивных приложениях -----
+    // Голы, передачи, качество ударов (xG), сейвы, пропущенные, «сухарь», карточки, результат команды
+    playerRatings() {
+        const out = [];
+        ['team1', 'team2'].forEach(side => {
+            const s = this.sides[side], opp = otherSide(side);
+            const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[opp]];
+            const result = my > their ? 0.3 : (my < their ? -0.3 : 0);
+            const seen = new Set();
+            [...s.onPitch, ...s.subbedOff, ...s.sentOff].forEach(p => {
+                if (seen.has(p.number)) return;
+                seen.add(p.number);
+                const mine = e => e.side === side && e.player && e.player.number === p.number;
+                let r = 6.3 + result;
+                this.events.forEach(e => {
+                    if (e.type === 'goal' && mine(e)) r += String(e.text).includes('пенальти') ? 0.6 : 1.0;
+                    if (e.type === 'goal' && e.side === side && e.assister && e.assister.number === p.number) r += 0.6;
+                    if (e.type === 'card-yellow' && mine(e)) r -= 0.3;
+                    if (e.type === 'card-red' && mine(e)) r -= 1.5;
+                });
+                let shots = 0;
+                this.shotLog.forEach(sh => {
+                    if (sh.side === side && sh.player === p.number) {
+                        shots++;
+                        r += sh.xg * 1.2 + (sh.result === 'save' ? 0.08 : 0);
+                    }
+                    if (sh.side === opp && sh.keeper === p.number && p.position === 'GK') {
+                        if (sh.result === 'save') r += 0.3;
+                        if (sh.result === 'goal' || sh.result === 'pen-goal') r -= 0.4;
+                    }
+                });
+                if (p.position === 'GK' && their === 0) r += 0.6;
+                if (p.position === 'DEF') r += their === 0 ? 0.4 : -0.2 * their;
+                if (p.position === 'MID' && their === 0) r += 0.1;
+                if (p.position === 'FWD' && shots === 0) r -= 0.2;
+                r += ((p.number * 37 + (side === 'team1' ? 11 : 23)) % 9 - 4) * 0.05; // небольшой разброс «по игре»
+                out.push({ side, number: p.number, name: p.name, position: p.position, rating: Math.round(clamp(r, 3, 10) * 10) / 10 });
+            });
+        });
+        return out;
+    }
+
+    // Лучший игрок матча: высшая оценка, при равенстве — из победившей команды
+    manOfTheMatch() {
+        const { t1, t2 } = this.score;
+        const winner = t1 > t2 ? 'team1' : (t2 > t1 ? 'team2' : null);
+        return this.playerRatings().sort((a, b) => b.rating - a.rating || (b.side === winner) - (a.side === winner))[0] || null;
     }
 
     sendOff(side, player, text) {
