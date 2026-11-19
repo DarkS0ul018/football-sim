@@ -186,7 +186,7 @@ function renderLineups(sim) {
         const color = side === 'team1' ? 'var(--accent-primary)' : 'var(--highlight)';
         const home = sim.homeSide === side ? ' 🏠' : '';
         const tactic = `<div class="lineup-tactic">${s.formation} · ${(STYLES[s.style] || STYLES.balance).label}${s.plan ? ' · ' + s.plan : ''}</div>`;
-        const off = [...s.sentOff.map(p => row({ ...p, name: p.name + ' 🟥' }, 'off')), ...s.subbedOff.map(p => row({ ...p, name: p.name + ' ↩' }, 'off'))];
+        const off = [...s.sentOff.map(p => row({ ...p, name: p.name + ' 🟥' }, 'off')), ...s.subbedOff.map(p => row({ ...p, name: p.name + (s.injured && s.injured.has(p.number) ? ' 🚑' : ' ↩') }, 'off'))];
         return `<div>
             <div class="lineup-team-name" style="color:${color}">${teamLabel(s.team)}${home}</div>
             ${tactic}
@@ -194,6 +194,7 @@ function renderLineups(sim) {
             ${off.length ? `<div class="lineup-subtitle">Ушли с поля</div>${off.join('')}` : ''}
             <div class="lineup-subtitle">Запасные (замен ${s.subsUsed}/${MAX_SUBS})</div>
             ${s.bench.map(p => row(p, 'bench')).join('')}
+            ${(s.absent || []).length ? `<div class="lineup-subtitle">Не сыграют</div>${s.absent.map(a => `<div class="lineup-player absent" title="${a.reason}"><span class="lp-num">${a.number}</span><span class="lp-pos">${a.injured ? '🚑' : '🚫'}</span><span class="lp-name">${a.name}</span><span class="lp-why">${a.reason}</span></div>`).join('')}` : ''}
         </div>`;
     }).join('');
 }

@@ -37,6 +37,23 @@ function renderUserBadge() {
     } else {
         badge.style.display = 'none';
     }
+    renderAbsentees();
+}
+
+// Лазарет и дисквалифицированные своей команды (карьера)
+function renderAbsentees() {
+    let box = $('user-absent');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'user-absent';
+        box.className = 'user-absent';
+        $('user-team-badge').insertAdjacentElement('afterend', box);
+    }
+    const out = isCareer() && state.userTeam && getSquad(state.userTeam)
+        ? getSquadPlayers(state.userTeam).filter(p => !isAvailable(p)).sort((a, b) => b.rating - a.rating)
+        : [];
+    box.style.display = out.length ? 'flex' : 'none';
+    box.innerHTML = out.map(p => `<span class="ua-item ${isInjured(p) ? 'inj' : 'susp'}" title="${absenceText(p)}">${isInjured(p) ? '🚑' : '🚫'} ${p.name}${isInjured(p) ? ` <b>${p.injury.matches}</b>` : ''}</span>`).join('');
 }
 
 // ----- Лига -----

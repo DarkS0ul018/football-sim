@@ -159,7 +159,42 @@ function getSquadPlayers(team) {
 }
 
 function isAvailable(p) {
-    return !p.suspended;
+    return !p.suspended && !isInjured(p);
+}
+
+// ----- Травмы -----
+// Срок — в матчах своей команды. Лёгкие травмы частые, тяжёлые — редкие.
+const INJURY_TYPES = [
+    { type: 'ушиб', min: 1, max: 1, w: 30 },
+    { type: 'растяжение', min: 1, max: 2, w: 25 },
+    { type: 'травма мышцы бедра', min: 2, max: 4, w: 20 },
+    { type: 'травма голеностопа', min: 3, max: 5, w: 12 },
+    { type: 'травма колена', min: 4, max: 8, w: 9 },
+    { type: 'разрыв связок', min: 10, max: 18, w: 4 }
+];
+
+function rollInjury() {
+    const total = INJURY_TYPES.reduce((a, t) => a + t.w, 0);
+    let r = Math.random() * total;
+    const t = INJURY_TYPES.find(x => (r -= x.w) <= 0) || INJURY_TYPES[0];
+    return { type: t.type, matches: t.min + Math.floor(Math.random() * (t.max - t.min + 1)) };
+}
+
+function isInjured(p) {
+    return !!(p.injury && p.injury.matches > 0);
+}
+
+function matchesWord(n) {
+    const n10 = n % 10, n100 = n % 100;
+    const w = n10 === 1 && n100 !== 11 ? 'матч' : (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20) ? 'матча' : 'матчей');
+    return `${n} ${w}`;
+}
+
+// Почему игрок пропускает матч (для подсказок и ленты)
+function absenceText(p) {
+    if (isInjured(p)) return `${p.injury.type}, ещё ${matchesWord(p.injury.matches)}`;
+    if (p.suspended) return 'дисквалификация';
+    return '';
 }
 
 // Лучший доступный состав под схему: жадно по слотам, вратарь и нападающие — первыми
@@ -193,7 +228,7 @@ function validateLineup(team) {
             .sort((a, b) => effectiveRating(b, slot) - effectiveRating(a, slot))[0];
         if (!pick) return null;
         used.add(pick.number);
-        if (num !== null && byNum[num]) changes.push(`${byNum[num].name} дисквалифицирован → ${pick.name}`);
+        if (num !== null && byNum[num]) changes.push(`${byNum[num].name} ${isInjured(byNum[num]) ? 'травмирован (' + absenceText(byNum[num]) + ')' : 'дисквалифицирован'} → ${pick.name}`);
         return pick.number;
     });
     return changes;
@@ -229,6 +264,14 @@ function applyPostMatch(team, report) {
         // Сыгравшие восстанавливаются не полностью — при игре без ротации свежесть понемногу падает
         if (report.endFitness.has(num)) p.fitness = Math.min(100, report.endFitness.get(num) + 17);
         else p.fitness = Math.min(100, p.fitness + 30);
+        // Травмы: новая — со сроком; старая — на матч ближе к выздоровлению
+        if (report.injuries && report.injuries.has(num)) {
+            p.injury = { ...report.injuries.get(num) };
+            p.fitness = Math.min(p.fitness, 60);
+        } else if (isInjured(p)) {
+            p.injury.matches--;
+            if (p.injury.matches <= 0) { delete p.injury; p.fitness = Math.min(p.fitness, 80); } // вернулся, но ещё не в тонусе
+        }
         updateFormAndMorale(p, num, report); // до новой дисквалификации: отбывший её не «обижается» на скамейку
         if (report.redCards.has(num)) { p.suspended += 1; }
         else if (report.yellowCards.has(num)) {

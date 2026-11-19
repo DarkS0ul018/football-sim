@@ -265,7 +265,10 @@ class MatchSimulation {
             subbedOff: [],
             yellowed: new Set(),
             appeared: new Set(onPitch.map(p => p.number)),
-            served: new Set(players.filter(p => !isAvailable(p)).map(p => p.number)) // отбывают дисквалификацию
+            served: new Set(players.filter(p => !isAvailable(p)).map(p => p.number)), // пропускают матч: дисквалификация или травма
+            injured: new Map(),    // травмы этого матча: номер → { type, matches }
+            absent: players.filter(p => !isAvailable(p)).sort((a, b) => b.rating - a.rating)
+                .map(p => ({ number: p.number, name: p.name, rating: p.rating, injured: isInjured(p), reason: absenceText(p) }))
         };
     }
 
@@ -734,12 +737,18 @@ class MatchSimulation {
 
     injury(side) {
         const s = this.sides[side];
-        const field = s.onPitch.filter(p => p.position !== 'GK');
+        const field = s.onPitch.filter(p => p.position !== 'GK' && !s.injured.has(p.number));
         if (!field.length) return;
-        const player = field[Math.floor(Math.random() * field.length)];
-        this.log('injury', side, `Травма — ${player.name}`, { player });
+        // Уставшие травмируются чаще
+        const player = weightedPick(field, p => 1 + (100 - (p.fitness ?? 100)) / 25);
+        const inj = rollInjury();
+        s.injured.set(player.number, inj);
+        const note = inj.matches >= 6 ? ' Похоже, надолго.' : '';
+        this.log('injury', side, `${player.name} травмирован (${inj.type}) — пропустит ${matchesWord(inj.matches)}.${note}`, { player, injury: inj });
         const replacement = this.bestBenchFor(side, player.position);
-        if (replacement) this.substitute(side, player, replacement, 'травма');
+        if (!(replacement && this.substitute(side, player, replacement, 'травма'))) {
+            player.fitness = Math.min(player.fitness ?? 100, 25); // замен не осталось — доигрывает через боль
+        }
     }
 
     // Тренеры делают 3-5 замен во втором тайме, в первую очередь меняя уставших
@@ -802,7 +811,8 @@ class MatchSimulation {
                 margin: Math.abs(my - their),
                 underdog: strengths[otherSide(side)] - strengths[side] >= 4,
                 goals,
-                motm: motm && motm.side === side ? motm.number : null
+                motm: motm && motm.side === side ? motm.number : null,
+                injuries: s.injured
             });
         });
         this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;

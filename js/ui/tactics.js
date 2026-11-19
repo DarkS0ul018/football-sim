@@ -8,12 +8,13 @@ function playerRowHtml(p, opts = {}) {
     const eff = Math.round(effectiveRating(p, slot || p.natPos));
     const outOfPos = slot && slot !== p.natPos;
     const badges = [];
+    if (isInjured(p)) badges.push(`<span class="badge badge-injury" title="Травма: ${absenceText(p)}">🚑 ${p.injury.matches}</span>`);
     if (p.suspended) badges.push('<span class="badge badge-red" title="Пропускает матч">🚫 дискв.</span>');
-    else if (p.yellowAcc) badges.push('<span class="badge badge-yellow" title="Ещё одна жёлтая — пропуск матча">🟨</span>');
+    else if (p.yellowAcc && !isInjured(p)) badges.push('<span class="badge badge-yellow" title="Ещё одна жёлтая — пропуск матча">🟨</span>');
     if (outOfPos) badges.push(`<span class="badge" title="Играет не на своей позиции">${p.natPos}→${slot}</span>`);
     const f = Math.round(p.fitness);
     return `
-        <div class="tactics-player ${opts.selected ? 'selected' : ''} ${p.suspended ? 'unavailable' : ''}" data-key="${opts.key}">
+        <div class="tactics-player ${opts.selected ? 'selected' : ''} ${isAvailable(p) ? '' : 'unavailable'}" data-key="${opts.key}">
             ${slot ? `<span class="tp-slot">${slot}</span>` : `<span class="tp-slot muted">${p.natPos}</span>`}
             <span class="tp-num">${p.number}</span>
             <span class="tp-name" title="${p.name}">${p.name}</span>
@@ -108,7 +109,7 @@ function onTacticsClick(key) {
     } else if (isL(a) !== isL(b)) {
         const slotIdx = val(isL(a) ? a : b);
         const reserve = byNum[val(isL(a) ? b : a)];
-        if (reserve.suspended) { alert(`${reserve.name} дисквалифицирован и пропускает этот матч`); renderTactics(); return; }
+        if (!isAvailable(reserve)) { alert(`${reserve.name} пропускает этот матч: ${absenceText(reserve)}`); renderTactics(); return; }
         squad.lineup[slotIdx] = reserve.number;
     }
     renderTactics();

@@ -64,6 +64,13 @@ function commentKickoff(m, sim) {
         else if (mood.min >= 85) line = `В раздевалке ${q(s.team)} отличное настроение.`;
         else if (mood.min < 50) line = `${q(s.team)} подходит к матчу с плохой моралью.`;
         if (line) cmSay(m, 0, line, { delay: 450 + i * 150, team: s.team });
+        // Важные потери: травмированные лидеры
+        const lost = (s.absent || []).filter(a => a.injured).slice(0, 2);
+        const avg = s.onPitch.reduce((a, p) => a + p.rating, 0) / Math.max(1, s.onPitch.length);
+        if (lost.length && lost[0].rating >= avg) {
+            const names = lost.map(a => a.name).join(' и ');
+            cmSay(m, 0, `У ${q(s.team)} ${lost.length > 1 ? 'не сыграют травмированные' : 'не сыграет травмированный'} ${names}.`, { type: 'injury', delay: 750 + i * 150, team: s.team });
+        }
     });
 }
 
