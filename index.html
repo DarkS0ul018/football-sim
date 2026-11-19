@@ -84,7 +84,13 @@
                                 <option value="world">🌍 Европейские клубы</option>
                                 <option value="russia">🇷🇺 Российская Премьер-лига</option>
                                 <option value="mixed">🌍 + 🇷🇺 Все вместе</option>
+                                <optgroup label="Сборные">
+                                    <option value="euro">⭐ Чемпионат Европы — 24 сборные</option>
+                                    <option value="worldcup">🌍 Чемпионат мира — 32 сборные</option>
+                                    <option value="copa">🌎 Кубок Америки — 16 сборных</option>
+                                </optgroup>
                             </select>
+                            <div class="field-hint" id="team-type-hint" style="display:none"></div>
                         </div>
                         <div class="form-group">
                             <label for="team-pick">Участники</label>
@@ -271,7 +277,7 @@
         <section id="screen-dashboard" class="screen">
             <header class="dashboard-header">
                 <div>
-                    <span class="kicker">Турнир</span>
+                    <span class="kicker" id="dashboard-kicker">Турнир</span>
                     <h2 id="dashboard-title">Групповой этап</h2>
                     <div id="user-team-badge" class="team-badge"></div>
                 </div>
@@ -707,6 +713,7 @@
     <!-- Данные -->
     <script src="js/data/teams.js"></script>
     <script src="js/data/squads.js"></script>
+    <script src="js/data/nations.js"></script>
     <script src="js/data/ages.js"></script>
     <script src="js/data/tactics.js"></script>
     <!-- Логика (без DOM) -->

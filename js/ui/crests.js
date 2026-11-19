@@ -55,13 +55,15 @@ function getCrestConfig(team) {
         shape: custom.shape || hashPick(team.name, 'shape', Object.keys(CREST_SHAPES)),
         pattern: custom.pattern || hashPick(team.name, 'pattern', Object.keys(CREST_PATTERNS)),
         symbol: custom.symbol || hashPick(team.name, 'symbol', ['none', 'star', 'stars', 'crown', 'ball', 'laurel', 'none']),
-        image: custom.image || null
+        image: custom.image || null,
+        custom: !!(custom.shape || custom.pattern || custom.symbol) // эмблема настроена в редакторе
     };
 }
 
 let crestCounter = 0;
 
 function crestSvg(team, config = getCrestConfig(team)) {
+    if (typeof NATIONS !== 'undefined' && NATIONS[team.name] && !config.custom) return nationCrestSvg(team);
     const c = getTeamColors(team);
     const id = `cr${++crestCounter}`;
     const shape = (CREST_SHAPES[config.shape] || CREST_SHAPES.heater).path;
@@ -99,4 +101,52 @@ function crestHtml(team, size = 'sm') {
         ? `<img src="${config.image}" alt="${team.name}">`
         : crestSvg(team, config);
     return `<span class="crest crest-${size}" title="${team.name}">${inner}</span>`;
+}
+
+// ----- Эмблема сборной: щит с флагом и кодом страны -----
+function nationFlagSvg(flag) {
+    const c = flag.c;
+    const W = 100, H = 120;
+    const stripes = (dir) => {
+        const w = flag.w || c.map(() => 1);
+        const total = w.reduce((a, b) => a + b, 0);
+        let pos = 0;
+        return c.map((col, i) => {
+            const size = (dir === 'h' ? H : W) * w[i] / total;
+            const r = dir === 'h' ? `<rect x="0" y="${pos.toFixed(1)}" width="${W}" height="${(size + 0.5).toFixed(1)}" fill="${col}"/>`
+                : `<rect x="${pos.toFixed(1)}" y="0" width="${(size + 0.5).toFixed(1)}" height="${H}" fill="${col}"/>`;
+            pos += size;
+            return r;
+        }).join('');
+    };
+    switch (flag.t) {
+        case 'h': return stripes('h');
+        case 'v': return stripes('v');
+        case 'cross': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><rect x="40" y="0" width="20" height="${H}" fill="${c[1]}"/><rect x="0" y="50" width="${W}" height="20" fill="${c[1]}"/>`;
+        case 'nordic': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><rect x="26" y="0" width="20" height="${H}" fill="${c[1]}"/><rect x="0" y="50" width="${W}" height="20" fill="${c[1]}"/>`
+            + (c[2] ? `<rect x="31" y="0" width="10" height="${H}" fill="${c[2]}"/><rect x="0" y="55" width="${W}" height="10" fill="${c[2]}"/>` : '');
+        case 'saltire': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><path d="M-10 -6 L110 126 M110 -6 L-10 126" stroke="${c[1]}" stroke-width="16"/>`;
+        case 'circle': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><circle cx="50" cy="40" r="20" fill="${c[1]}"/>`;
+        case 'taeguk': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><path d="M30 40 A20 20 0 0 1 70 40 Z" fill="${c[1]}"/><path d="M30 40 A20 20 0 0 0 70 40 Z" fill="${c[2]}"/><path d="M14 14 l8 10 M78 14 l8 10 M14 66 l8 -10 M78 66 l8 -10" stroke="#111" stroke-width="3"/>`;
+        case 'diamond': return `<rect width="${W}" height="${H}" fill="${c[0]}"/><polygon points="50,8 94,60 50,112 6,60" fill="${c[1]}"/><circle cx="50" cy="60" r="20" fill="${c[2]}"/>`;
+        default: return `<rect width="${W}" height="${H}" fill="${c[0]}"/>`;
+    }
+}
+
+function nationCrestSvg(team) {
+    const n = NATIONS[team.name];
+    const id = `nc${++crestCounter}`;
+    const shape = CREST_SHAPES.badge.path;
+    const star = n.flag.star ? crestStar(50, 22, 8, n.flag.star) : '';
+    return `<svg viewBox="0 0 100 120" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${team.name}">
+        <defs>
+            <clipPath id="${id}c"><path d="${shape}"/></clipPath>
+            <linearGradient id="${id}g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0.25"/><stop offset="0.55" stop-color="#fff" stop-opacity="0"/></linearGradient>
+        </defs>
+        <g clip-path="url(#${id}c)">${nationFlagSvg(n.flag)}${star}<rect width="100" height="120" fill="url(#${id}g)"/></g>
+        <path d="${shape}" fill="none" stroke="#0b1220" stroke-width="5"/>
+        <path d="${shape}" fill="none" stroke="#fff" stroke-opacity="0.6" stroke-width="1.6" transform="translate(50 60) scale(0.9) translate(-50 -60)"/>
+        <rect x="22" y="72" width="56" height="26" rx="6" fill="#0b1220" stroke="#fff" stroke-opacity="0.7" stroke-width="1.5"/>
+        <text x="50" y="91" text-anchor="middle" font-family="Oswald, 'Arial Narrow', sans-serif" font-weight="700" font-size="17" fill="#fff" letter-spacing="1">${n.code}</text>
+    </svg>`;
 }

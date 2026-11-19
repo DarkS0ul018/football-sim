@@ -31,6 +31,11 @@ const teamColorCache = {};
 function getTeamColors(team) {
     const key = team.name + team.emoji;
     if (teamColorCache[key]) return teamColorCache[key];
+    // Сборные: цвета формы из js/data/nations.js
+    if (typeof NATIONS !== 'undefined' && NATIONS[team.name]) {
+        const [primary, secondary] = NATIONS[team.name].kit;
+        return (teamColorCache[key] = { primary, secondary, text: textOn(primary) });
+    }
     const colors = Array.from(team.emoji || '').map(ch => EMOJI_COLORS[ch]).filter(Boolean);
     const primary = colors[0] || '#6b7280';
     let secondary = colors[1] || (luminance(primary) > 0.55 ? '#1c1c1c' : '#f2f2f2');

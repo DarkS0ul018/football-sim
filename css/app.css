@@ -1077,3 +1077,4 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .sb-legs b { color: var(--text); font-family: var(--font-display); }
 .sb-agg { color: var(--gold); }
 .sb-agg b { color: var(--gold); }
+.field-hint { margin-top: 6px; font-size: 12px; line-height: 1.4; color: var(--text-2); }

@@ -221,3 +221,29 @@ function initSetupScreens() {
     });
     $('btn-start-tournament').addEventListener('click', openDashboard);
 }
+
+// ----- Турниры сборных: настоящий формат и без карьеры с трансферами -----
+function onTeamTypeChange() {
+    const type = $('team-type').value;
+    const cup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[type] : null;
+    const hint = $('team-type-hint');
+    const career = $('game-mode').querySelector('option[value="career"]');
+    if (cup) {
+        $('team-count').value = String(cup.count);
+        $('tournament-mode').value = cup.mode;
+        const fmt = getGroupFormat(cup.count);
+        hint.textContent = `${cup.icon} ${cup.title}: ${cup.count} сборных, ${fmt.groups} групп по 4 → плей-офф` +
+            (fmt.thirds ? ` (2 лучших из группы + ${fmt.thirds} лучших третьих)` : ' (по 2 лучших из группы)') + '. Формат можно поменять.';
+        hint.style.display = 'block';
+        career.disabled = true;
+        career.textContent = 'Карьера — только для клубов';
+        if ($('game-mode').value === 'career') $('game-mode').value = 'simulator';
+    } else {
+        hint.style.display = 'none';
+        career.disabled = false;
+        career.textContent = 'Карьера — одна команда';
+    }
+    validateSettings();
+}
+$('team-type').addEventListener('change', onTeamTypeChange);
+onTeamTypeChange();

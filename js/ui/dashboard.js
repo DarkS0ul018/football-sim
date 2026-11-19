@@ -18,6 +18,8 @@ function renderDashboard() {
     saveGame();
 
     setText('dashboard-title', getStageTitle());
+    const natCup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[state.settings.teamType] : null;
+    setText('dashboard-kicker', natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир');
     renderUserBadge();
 
     const isPlayoff = !isRoundRobinStage();

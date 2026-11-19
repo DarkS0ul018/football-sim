@@ -44,7 +44,8 @@ function buildBaseRoster(teamName, teamRating) {
     if (rosterCache[key]) return rosterCache[key];
 
     const origin = getTeamOrigin(teamName);
-    const data = (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName]) || fallbackPlayerNames[origin];
+    const data = origin === 'national' ? NATIONS[teamName].squad
+        : (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName]) || fallbackPlayerNames[origin];
     const used = new Set();
     const unique = list => (list || []).filter(n => !used.has(n) && used.add(n));
     const lines = {};

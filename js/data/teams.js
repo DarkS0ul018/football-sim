@@ -78,12 +78,15 @@ function teamFounded(name) {
 }
 
 function getTeamsData(teamType) {
+    // Сборные: состав турнира из js/data/nations.js
+    if (typeof NATION_CUPS !== 'undefined' && NATION_CUPS[teamType]) return { names: NATION_CUPS[teamType].names, emojis: NATION_CUPS[teamType].names.map(() => '') };
     if (teamType === 'mixed') return mixedTeams;
     return teamType === 'russia' ? russianTeams : worldTeams;
 }
 
 // Реальный тип конкретной команды (для смешанного режима)
 function getTeamOrigin(teamName) {
+    if (typeof NATIONS !== 'undefined' && NATIONS[teamName]) return 'national';
     return russianTeams.names.includes(teamName) ? 'russia' : 'world';
 }
 
