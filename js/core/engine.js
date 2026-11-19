@@ -481,8 +481,8 @@ class MatchSimulation {
         }
     }
 
-    pickShooter(side, kind) {
-        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
+    pickShooter(side, kind, exclude = null) {
+        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p !== exclude);
         const posWeight = kind === 'corner'
             ? { FWD: 3, MID: 1, DEF: 3 }
             : { FWD: 5, MID: 2.5, DEF: 0.7 };
@@ -498,7 +498,7 @@ class MatchSimulation {
 
     // pre — начало розыгрыша; cornerTaker — кто подавал угловой
     shot(side, kind, pre = [], counter = false, cornerTaker = null) {
-        const shooter = this.pickShooter(side, kind);
+        const shooter = this.pickShooter(side, kind, cornerTaker); // подающий угловой сам себе не забивает
         if (!shooter) return;
         // Последний пас перед ударом: подающий угловой или партнёр (он же — кандидат на голевую передачу)
         const passer = kind === 'corner' ? cornerTaker : this.pickAssister(side, shooter);

@@ -464,9 +464,15 @@ function animateMinute(sim, events, ms, span = 1) {
     }));
     pitch.focus = { x: wps[0].x, y: wps[0].y };
     // Когда мяч влетит в ворота (для показа гола на табло ровно в этот момент)
-    let acc = 0, goalAt = null;
-    pitch.path.forEach((seg, i) => { acc += seg.dur; if (wps[i].goal && goalAt === null) goalAt = acc; });
-    return { goalAt };
+    // и когда бьющий получает мяч / эпизод заканчивается (для комментатора)
+    let acc = 0, goalAt = null, finishAt = null, shotAt = null;
+    pitch.path.forEach((seg, i) => {
+        const w = wps[i];
+        if ((w.goal || w.save || w.miss) && finishAt === null) { shotAt = acc; finishAt = acc + seg.dur; }
+        acc += seg.dur;
+        if (w.goal && goalAt === null) goalAt = acc;
+    });
+    return { goalAt, shotAt, finishAt, total: acc };
 }
 
 function onGoalAnimation(sim, ev) {

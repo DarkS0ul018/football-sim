@@ -147,19 +147,20 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁'
+    'half': '⏱️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
 };
 
-function addMatchEvent(match, minute, type, text, team = null) {
+function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
     const list = $('events-list');
     const el = document.createElement('div');
-    el.className = `event-item ${type}`;
+    el.className = `event-item ${type} ${extraCls}`.trim();
     const timeLabel = typeof minute === 'number' ? `${minute}'` : (minute || '');
     const isTeam1 = team && team.id === match.team1.id;
     const color = team ? (isTeam1 ? 'var(--accent-primary)' : 'var(--highlight)') : 'var(--text-muted)';
     const emoji = team ? crestHtml(team, 'xs') : '•';
     el.innerHTML = `<span class="event-time">${timeLabel}</span><span class="event-icon">${EVENT_ICONS[type] || '•'}</span><span class="event-team" style="color:${color};font-weight:600">${emoji}</span><span class="event-text">${text}</span>`;
     list.prepend(el);
+    while (list.children.length > 220) list.lastElementChild.remove(); // длинная лента не тормозит
 }
 
 function showSimEvent(m, ev, prefix = '') {
@@ -256,6 +257,7 @@ function openMatchScreen(match) {
     stopMatchTimers();
     state.activeMatch = match;
     $('events-list').innerHTML = '';
+    resetCommentary();
 
     setText('match-team-1', match.team1.name);
     setText('match-team-2', match.team2.name);
@@ -282,6 +284,7 @@ function startSimulation(m) {
     let sim = currentSim;
     playSound('whistle-long');
     startCrowd();
+    commentKickoff(m, sim);
 
     // Атака с ударом показывается две минуты: следующий шаг движка пропускается
     let holdTicks = 0;
@@ -309,8 +312,8 @@ function startSimulation(m) {
         const goalDelay = plan.goalAt != null ? plan.goalAt + 60 : ms * span * 0.85; // +60 мс: табло меняется, когда мяч уже в сетке
         events.forEach(ev => {
             if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); }, goalDelay);
-            else showSimEvent(m, ev);
         });
+        commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора
         crowdIntensity(sim);
         setText('match-time', sim.minute + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
@@ -321,15 +324,23 @@ function startSimulation(m) {
             addMatchEvent(m, 90, 'half', `Конец 1-го матча: ${m.leg1.t1}:${m.leg1.t2}`, null);
             setText('match-status', '2-й матч');
             sim = prepareLeg(m, 2);
+            cm.trailed = { team1: false, team2: false };
+            commentKickoff(m, sim);
             updateScoreboard(m);
             playSound('whistle-long');
             return;
         }
         stopMatchTimers();
-        updateScoreboard(m);
-        playSound('whistle-end');
-        stopCrowd();
-        concludeMatch(m, sim, true);
+        // Финальный свисток — когда мяч последней минуты долетит (и гол, если он был, появится на табло)
+        const endDelay = Math.max(events.some(e => e.type === 'goal') ? goalDelay + 300 : 0, plan.finishAt != null ? plan.finishAt + 200 : Math.min(ms * 0.85, 1200));
+        const lastSim = sim;
+        setTimeout(() => {
+            updateScoreboard(m);
+            playSound('whistle-end');
+            stopCrowd();
+            commentFinal(m, lastSim);
+            concludeMatch(m, lastSim, true);
+        }, endDelay);
     }
 
     onSpeedChange = () => {

@@ -818,3 +818,13 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
     #picker-search { max-width: none; }
     .picker-actions { margin-left: 0; }
 }
+
+/* Репортаж: фразы комментатора тише фактов, удар и развязка — ярче */
+.event-item.comment { background: transparent; font-weight: 400; }
+.event-item.comment .event-text { color: var(--text-2); }
+.event-item.comment.c-shot .event-text { color: var(--text); font-style: italic; }
+.event-item.comment.c-result .event-text { color: var(--text); font-weight: 600; }
+.event-item.goal.comment { animation: eventIn 0.3s ease-out; }
+.event-item.comment.c-goal { background: rgba(184, 242, 74, 0.06); box-shadow: inset 3px 0 0 var(--accent); }
+.event-item.comment.c-goal .event-text { color: var(--accent); font-weight: 600; }
+.event-item.comment.finish .event-text, .event-item.comment.half .event-text { color: inherit; font-weight: 600; }
