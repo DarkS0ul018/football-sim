@@ -6,3 +6,6 @@ _backup/
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Сборка Android-приложения: ключ подписи и APK — только локально, не в публичный репозиторий
+android/

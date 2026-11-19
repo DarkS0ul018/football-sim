@@ -3,6 +3,7 @@
     "short_name": "Football Sim",
     "description": "Футбольные турниры, карьера и кубок: живые матчи, тактика, статистика. Работает без интернета.",
     "lang": "ru",
+    "id": "./",
     "start_url": "./",
     "scope": "./",
     "display": "standalone",
