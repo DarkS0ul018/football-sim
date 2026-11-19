@@ -822,6 +822,7 @@ class MatchSimulation {
             });
         });
         this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;
+        try { newsFromSim(this); } catch (e) { /* новости не должны ломать матч */ }
     }
 
     runToEnd() {
@@ -965,6 +966,7 @@ function completeMatch(m, winner) {
         // Кубок: только форма команд, таблица лиги не меняется
         updateTeamForm(m.team1, agg.t1, agg.t2, isDraw ? null : winner === m.team1);
         updateTeamForm(m.team2, agg.t2, agg.t1, isDraw ? null : winner === m.team2);
+        try { newsFromMatch(m, winner); } catch (e) { /* ignore */ }
         return;
     }
     updateTeamStats(m.team1, agg.t1, agg.t2, isDraw ? null : winner === m.team1);
@@ -973,6 +975,7 @@ function completeMatch(m, winner) {
     if (isCareer() && m.stage === 'playoff' && m.involves(state.userTeam) && winner !== state.userTeam) {
         state.userTeamEliminated = true;
     }
+    try { newsFromMatch(m, winner); } catch (e) { /* ignore */ }
 }
 
 function autoSimulateMatch(m) {

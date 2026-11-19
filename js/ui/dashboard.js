@@ -9,6 +9,8 @@ function openDashboard() {
 function renderDashboard() {
     // Кубок (карьера): сыгранный раунд — жеребьёвка следующего; раунды без игрока досчитываются сами
     if (state.cup) catchUpCup();
+    newsBetweenRounds();   // лидер, рубежи бомбардиров, настроение
+    markNewsSeen();
     // Карьера: если у команды игрока нет матчей в этом этапе — досчитываем остальные автоматически
     if (isCareer() && !state.matches.some(m => !m.isFinished && isUserMatch(m))) {
         autoSimulateAllRemainingMatches();
@@ -26,6 +28,7 @@ function renderDashboard() {
     else if (state.settings.mode === 'league') renderLeagueTable();
     else renderGroupTables();
 
+    renderNews();
     renderTopScorers();
     renderMatchesList(isPlayoff);
     renderNextRoundButton();

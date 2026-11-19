@@ -90,8 +90,9 @@ function advanceCup() {
         winners = [...c.byes.map(id => state.teams.find(t => t.id === id)), ...winners];
         c.byes = [];
     }
-    if (winners.length <= 1) { c.winner = winners[0] || null; return; }
+    if (winners.length <= 1) { c.winner = winners[0] || null; return; } // новость о победителе — в newsFromMatch
     createCupRound(winners, getRoundName(winners.length), getRoundIndex(winners.length));
+    try { newsCupDraw(); } catch (e) { /* ignore */ }
 }
 
 // Досчитывает матчи раунда без команды игрока

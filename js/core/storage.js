@@ -58,7 +58,9 @@ function saveGame() {
         squads: state.squads,
         rosters: state.rosters,
         playerStats,
-        cup: serializeCup()
+        cup: serializeCup(),
+        news: state.news || [],
+        newsMeta: state.newsMeta || null
     };
     try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* хранилище недоступно — играем без сохранения */ }
 }
@@ -102,6 +104,8 @@ function loadGame() {
     state.squads = data.squads;
     state.rosters = data.rosters || null; // в старых сохранениях составов нет — берутся текущие
     state.cup = deserializeCup(data.cup, teamById);
+    state.news = data.news || [];
+    state.newsMeta = data.newsMeta || null;
     state.seasonRecorded = false;
     return true;
 }

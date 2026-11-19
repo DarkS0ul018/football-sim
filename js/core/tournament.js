@@ -90,6 +90,7 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     // Карьера в лиге: параллельно с чемпионатом разыгрывается кубок
     state.cup = null;
     if (cupEnabled(state.settings)) createCup();
+    newsSeasonStart();
 }
 
 // Круговая система «каждый с каждым» (метод вращения): массив туров, в каждом — пары [хозяин, гость]
