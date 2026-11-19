@@ -65,17 +65,18 @@ function resumeTournament() {
     openDashboard();
 }
 
-function discardSave() {
-    if (!confirm('Удалить сохранённый турнир?')) return;
+async function discardSave() {
+    if (!(await askConfirm('Удалить сохранённый турнир? Продолжить его будет нельзя.', { ok: 'Удалить', danger: true }))) return;
     clearSave();
     renderResumeCard();
 }
 
 // ----- Старт -----
-function onStartClick() {
+async function onStartClick() {
     if (!validateSettings()) return;
     const settings = readSettings();
-    if (readSave() && !confirm('Начать новый турнир? Сохранённый турнир будет удалён.')) return;
+    if (readSave() && !(await askConfirm('Начать новый турнир? Сохранённый турнир будет удалён.', { ok: 'Начать новый', danger: true }))) return;
+    if (readSave()) { clearSave(); renderResumeCard(); }
     // Участники: случайно или на выбор
     if (settings.teamPick === 'manual') {
         openParticipantPicker(settings, pool => proceedWithPool(settings, pool));
@@ -133,7 +134,7 @@ function showTeamSelect(settings, pool, firstPick = null) {
     btn.style.marginTop = '20px';
     btn.innerHTML = '<span class="btn-icon">✅</span><span class="btn-text">Далее →</span>';
     btn.onclick = () => {
-        if (!pickedTeamName) { alert('⚠️ Выберите команду!'); return; }
+        if (!pickedTeamName) { notify('⚠️ Выберите команду'); return; }
         if (step === 1) { showTeamSelect(settings, careerTeamsPool, pickedTeamName); return; }
         startTournament(settings, careerTeamsPool, step === 2 ? [firstPick, pickedTeamName] : pickedTeamName);
     };
@@ -193,8 +194,8 @@ function renderHall() {
                 </div>`).join('')}
         </div>
         <button id="btn-clear-hall" class="btn-secondary hall-clear">🗑️ Очистить зал славы</button>`;
-    $('btn-clear-hall').onclick = () => {
-        if (!confirm('Очистить зал славы и историю карьеры?')) return;
+    $('btn-clear-hall').onclick = async () => {
+        if (!(await askConfirm('Очистить зал славы и историю карьеры?', { ok: 'Очистить', danger: true }))) return;
         clearHall();
         clearCareer();
         renderHall();

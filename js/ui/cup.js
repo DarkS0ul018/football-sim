@@ -7,7 +7,7 @@ function cupScoreLine(m) {
     const pens = m.penalties.kicks.length ? ` <small>(пен. ${m.penalties.t1}:${m.penalties.t2})</small>` : '';
     const et = m.extraTime && !m.penalties.kicks.length ? ' <small>д.в.</small>' : '';
     const cls = t => m.isFinished ? (m.winner === t ? 'cw' : 'cl') : '';
-    return `<div class="cup-line ${isUserMatch(m) ? 'user' : ''}">
+    return `<div class="cup-line ${isUserMatch(m) ? 'user' : ''} ${m.isFinished ? 'clickable' : ''}"${reportAttr(m)}>
         <span class="${cls(m.team1)}">${teamLabel(m.team1)}</span>
         <b>${m.isFinished ? `${agg.t1}:${agg.t2}` : '–'}</b>
         <span class="${cls(m.team2)}">${teamLabel(m.team2)}</span>${pens}${et}

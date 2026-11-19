@@ -92,12 +92,12 @@ function renderTransfers() {
     document.querySelectorAll('#screen-transfers .tr-btn').forEach(b => b.onclick = () => onTransferClick(b.dataset.action, b.dataset.key));
 }
 
-function onTransferClick(action, key) {
+async function onTransferClick(action, key) {
     const user = trUserTeam();
     let error;
     if (action === 'sell') {
         const p = careerSquad(user).find(x => `${x.origTeam || user}|${x.name}` === key);
-        if (!p || !confirm(`Продать ${p.name} за ${formatMoney(Math.round(playerValue(p.rating, p.age) * 0.8 * 10) / 10)}?`)) return;
+        if (!p || !(await askConfirm(`Продать ${p.name} за ${formatMoney(Math.round(playerValue(p.rating, p.age) * 0.8 * 10) / 10)}?`, { ok: 'Продать' }))) return;
         error = sellPlayer(trCareer, user, p, trMarketTeams());
     } else {
         const [team, origTeam, ...rest] = key.split('|');
@@ -106,7 +106,7 @@ function onTransferClick(action, key) {
         if (!p) return;
         error = buyPlayer(trCareer, user, p, team);
     }
-    if (error) { alert('⚠️ ' + error); return; }
+    if (error) { notify('⚠️ ' + error); return; }
     writeCareer(trCareer);
     careerPlayers = trCareer.players;
     renderTransfers();

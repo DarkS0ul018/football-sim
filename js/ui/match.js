@@ -234,10 +234,20 @@ function updateStatsDisplay(sim) {
 }
 
 // На табло: в 1-м матче — его счёт, во 2-м — сумма двух матчей
+// Табло: счёт текущей игры. В паре из двух матчей во 2-й игре счёт начинается с 0:0,
+// а под табло — счёт 1-го матча и сумма двух игр (обновляется с каждым голом).
 function updateScoreboard(m) {
-    const score = m.legs === 2 && m.currentLeg === 1 ? m.leg1 : m.aggregateScore;
+    const leg = m.legs === 2 ? (currentSim && currentSim.match === m ? currentSim.leg : m.currentLeg) : 1;
+    const score = m.legs === 2 ? (leg === 1 ? m.leg1 : m.leg2) : m.aggregateScore;
     setText('score-1', score.t1);
     setText('score-2', score.t2);
+    const info = $('sb-legs');
+    if (!info) return;
+    if (m.legs !== 2 || leg !== 2) { info.style.display = 'none'; return; }
+    const agg = m.aggregateScore;
+    const pens = m.penalties.kicks.length ? ` · пен. ${m.penalties.t1}:${m.penalties.t2}` : '';
+    info.innerHTML = `<span>1-й матч <b>${m.leg1.t1}:${m.leg1.t2}</b></span><span class="sb-agg">Сумма <b>${agg.t1}:${agg.t2}</b>${pens}</span>`;
+    info.style.display = '';
 }
 
 function renderSubstitutions(sim) {
@@ -273,6 +283,7 @@ function prepareLeg(m, leg) {
     renderSubstitutions(currentSim);
     updateStatsDisplay(currentSim);
     resetShotMap();
+    setText('stats-title', 'Статистика');
     return currentSim;
 }
 
@@ -393,7 +404,7 @@ function instantResult(m) {
     while (true) {
         sim.runToEnd();
         legs.push(sim);
-        if (m.legs === 2 && sim.leg === 1) sim = new MatchSimulation(m, 2);
+        if (m.legs === 2 && sim.leg === 1) { sim = new MatchSimulation(m, 2); highlights.sims.push(sim); }
         else break;
     }
     currentSim = sim;
@@ -438,7 +449,17 @@ function finishMatch(m, winner) {
         ? `${prefix}${winner.name} победил ${agg.t1}:${agg.t2}${et}${pen}`
         : `${prefix}Ничья ${agg.t1}:${agg.t2}${m.stage === 'group' ? ' (по 1 очку)' : ''}`;
     addMatchEvent(m, 'FT', 'finish', text, null);
-    if (currentSim && currentSim.match === m) { renderLineups(currentSim); renderShotMap(currentSim); showManOfTheMatch(m, currentSim); }
+    if (currentSim && currentSim.match === m) {
+        // Пара из двух матчей — итоги за обе игры
+        const view = m.legs === 2 ? (combinedView(highlights.sims.filter(s => s.match === m)) || currentSim) : currentSim;
+        updateStatsDisplay(view);
+        renderSubstitutions(view);
+        renderLineups(view);
+        renderShotMap(view);
+        showManOfTheMatch(m, view);
+        setText('stats-title', view.combined ? 'Статистика · сумма двух матчей' : 'Статистика');
+    }
+    updateScoreboard(m);
     buildHighlightsFromSims(highlights.sims); // страховка: незаписанные голы восстанавливаются
     showHighlightsButton();
     if (!m.cup) humanTeams().filter(t => m.involves(t) && isEliminated(t)).forEach(t =>
@@ -470,22 +491,26 @@ function finishMatch(m, winner) {
     } else if (hasHumans() && state.userTeamEliminated) {
         btn.innerHTML = '<span class="btn-icon">🤖</span><span class="btn-text">Досимулировать турнир</span>';
         btn.onclick = () => showResults(autoFinishTournament());
-    } else if (nextMatch && (m.stage === 'group' || m.cup) && nextMatch.stage === 'group') {
+    } else if (nextMatch) {
+        // Следующий матч — сразу, хоть в группе, хоть в плей-офф
         const who = isDuo() ? humanTeams().filter(t => nextMatch.involves(t)).map(humanLabel).join(' и ') : '';
         btn.innerHTML = `<span class="btn-icon">➡️</span><span class="btn-text">Следующий матч${who ? ' · ' + who : ''}</span>`;
+        btn.title = `${nextMatch.team1.name} — ${nextMatch.team2.name} · ${nextMatch.roundName}`;
         btn.onclick = () => openMatch(nextMatch);
     } else {
-        btn.innerHTML = nextMatch
-            ? '<span class="btn-icon">📊</span><span class="btn-text">К сетке</span>'
-            : '<span class="btn-icon">🏆</span><span class="btn-text">Завершить раунд</span>';
-        btn.onclick = openDashboard;
+        // Этап доигран: дальше — жеребьёвка следующего этапа (её видно в сетке) или итоги турнира
+        const toPlayoff = (state.settings.mode === 'league' && isLeagueWithPlayoff()) || state.settings.mode === 'groups';
+        const isLast = !toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1);
+        btn.innerHTML = isLast ? '<span class="btn-icon">🏆</span><span class="btn-text">Итоги турнира</span>'
+            : `<span class="btn-icon">➡️</span><span class="btn-text">${toPlayoff ? 'К плей-офф' : 'Следующий раунд'}</span>`;
+        btn.onclick = goToNextStage;
     }
 }
 
 function initMatchScreen() {
     $('btn-sim-match').onclick = () => beginMatch(startSimulation);
     $('btn-instant-match').onclick = () => beginMatch(instantResult);
-    $('btn-close-match').onclick = openDashboard;
+    $('btn-close-match').onclick = openDashboard; // «К сетке»
     document.querySelector('#screen-match .btn-back').onclick = openDashboard;
     $('btn-manage-match').onclick = openManagePanel;
     $('btn-manage-sub').onclick = doManualSub;

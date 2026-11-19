@@ -12,7 +12,8 @@ function serializeMatch(m) {
         isFinished: m.isFinished, isFinal: m.isFinal,
         leg1: m.leg1, leg2: m.leg2, currentLeg: m.currentLeg,
         score1: m.score1, score2: m.score2, penalties: m.penalties,
-        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated, extraTime: m.extraTime, matchday: m.matchday || null
+        winner: m.winner ? m.winner.id : null, isAutoSimulated: m.isAutoSimulated, extraTime: m.extraTime, matchday: m.matchday || null,
+        goals: m.goals || [], reds: m.reds || [], motms: m.motms || []
     };
 }
 
@@ -23,7 +24,8 @@ function deserializeMatch(d, teamById) {
         leg1: d.leg1, leg2: d.leg2, currentLeg: d.currentLeg,
         score1: d.score1, score2: d.score2, penalties: d.penalties,
         winner: d.winner === null ? null : teamById(d.winner),
-        isAutoSimulated: d.isAutoSimulated, extraTime: !!d.extraTime, matchday: d.matchday || undefined
+        isAutoSimulated: d.isAutoSimulated, extraTime: !!d.extraTime, matchday: d.matchday || undefined,
+        goals: d.goals || [], reds: d.reds || [], motms: d.motms || []
     });
     return m;
 }

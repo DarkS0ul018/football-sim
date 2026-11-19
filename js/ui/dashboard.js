@@ -181,7 +181,8 @@ function renderBracket() {
             el.innerHTML = `
                 <div class="bracket-team ${cls(m.team1)}"><span style="flex:1">${teamLabel(m.team1)}</span><span class="bracket-score">${m.isFinished ? agg.t1 : '-'}</span></div>
                 <div class="bracket-team ${cls(m.team2)}"><span style="flex:1">${teamLabel(m.team2)}</span><span class="bracket-score">${m.isFinished ? agg.t2 : '-'}</span></div>
-                ${legs}${pens}${auto}`;
+                ${legs}${pens}${auto}${scorersMiniHtml(m)}`;
+            if (m.isFinished) { el.dataset.report = reportIndex(m); el.classList.add('clickable'); el.title = 'Протокол матча'; }
 
             if (!m.isFinished && (!hasHumans() || isUserMatch(m))) el.onclick = () => openMatch(m);
             roundDiv.appendChild(el);
@@ -193,9 +194,10 @@ function renderBracket() {
 // ----- Список матчей (группы и лига): прошлый и текущий тур -----
 function matchResultHtml(m) {
     const agg = m.aggregateScore;
-    return `<div class="match-result">
+    return `<div class="match-result clickable"${reportAttr(m)}>
         <b>${teamLabel(m.team1)}</b> ${agg.t1}:${agg.t2} <b>${teamLabel(m.team2)}</b>${m.isAutoSimulated ? ' 🤖' : ''}
         <br><small>${m.roundName}</small>
+        ${scorersMiniHtml(m)}
     </div>`;
 }
 
@@ -269,3 +271,18 @@ function goToNextStage() {
     if (champion) showResults(champion);
     else renderDashboard();
 }
+
+// ----- Выход в меню: турнир сохраняется, на стартовом экране — «Продолжить / Удалить / Начать новый» -----
+function goToMenu() {
+    stopHighlights();
+    saveGame();
+    renderResumeCard();
+    renderHall();
+    showScreen('setup');
+}
+$('btn-to-menu').onclick = goToMenu;
+document.querySelector('.topbar .brand')?.addEventListener('click', () => {
+    // Логотип — тоже в меню (кроме живого матча: там сначала нужно доиграть)
+    if (screens.match.classList.contains('active') && simStep) return;
+    goToMenu();
+});

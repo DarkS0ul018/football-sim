@@ -165,7 +165,7 @@ function renderEditorForm() {
             $('ed-crest-clear').style.display = '';
             refresh();
         } catch (err) {
-            alert('Не удалось загрузить картинку: ' + err.message);
+            notify('Не удалось загрузить картинку: ' + err.message);
         }
         e.target.value = '';
     };
@@ -177,7 +177,7 @@ function renderEditorForm() {
         if ($('btn-ed-save').disabled) return;
         const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
         if (!saveTeamOverride(d.name, { type: d.type, emoji: d.emoji, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined })) {
-            alert('Не удалось сохранить: хранилище браузера недоступно или переполнено');
+            notify('Не удалось сохранить: хранилище браузера недоступно или переполнено');
             return;
         }
         editor.selected = d.name;
@@ -187,14 +187,14 @@ function renderEditorForm() {
         renderEditorForm();
         validateSettings();
     };
-    $('btn-ed-reset')?.addEventListener('click', () => {
-        if (!confirm(`Вернуть стандартные данные для «${t.name}»?`)) return;
+    $('btn-ed-reset')?.addEventListener('click', async () => {
+        if (!(await askConfirm(`Вернуть стандартные данные для «${t.name}»?`, { ok: 'Вернуть' }))) return;
         removeTeamOverride(t.name);
         renderEditorList();
         renderEditorForm();
     });
-    $('btn-ed-delete')?.addEventListener('click', () => {
-        if (!confirm(`Удалить команду «${t.name}»?`)) return;
+    $('btn-ed-delete')?.addEventListener('click', async () => {
+        if (!(await askConfirm(`Удалить команду «${t.name}»?`, { ok: 'Удалить', danger: true }))) return;
         removeTeamOverride(t.name);
         editor.selected = null;
         renderEditorList();
@@ -271,7 +271,7 @@ function initEditorScreen() {
     };
     $('btn-editor-export').onclick = () => {
         const count = Object.keys(readCustomData().teams).length;
-        if (!count) { alert('Пока нет изменений для экспорта'); return; }
+        if (!count) { notify('Пока нет изменений для экспорта'); return; }
         downloadText('football-sim-teams.json', exportCustomData());
     };
     $('editor-import-file').onchange = e => {
@@ -281,19 +281,19 @@ function initEditorScreen() {
         reader.onload = () => {
             try {
                 const n = importCustomData(reader.result);
-                alert(`Импортировано команд: ${n}`);
+                notify(`Импортировано команд: ${n}`);
                 renderEditorList();
                 renderEditorForm();
                 validateSettings();
             } catch (err) {
-                alert('Не удалось импортировать: ' + err.message);
+                notify('Не удалось импортировать: ' + err.message);
             }
             e.target.value = '';
         };
         reader.readAsText(file);
     };
-    $('btn-editor-reset-all').onclick = () => {
-        if (!confirm('Сбросить все правки и удалить свои команды?')) return;
+    $('btn-editor-reset-all').onclick = async () => {
+        if (!(await askConfirm('Сбросить все правки и удалить свои команды?', { ok: 'Сбросить', danger: true }))) return;
         resetAllCustomData();
         editor.selected = null;
         editor.isNew = false;

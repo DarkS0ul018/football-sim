@@ -113,7 +113,7 @@ function onTacticsClick(key) {
     } else if (isL(a) !== isL(b)) {
         const slotIdx = val(isL(a) ? a : b);
         const reserve = byNum[val(isL(a) ? b : a)];
-        if (!isAvailable(reserve)) { alert(`${reserve.name} пропускает этот матч: ${absenceText(reserve)}`); renderTactics(); return; }
+        if (!isAvailable(reserve)) { notify(`${reserve.name} пропускает этот матч: ${absenceText(reserve)}`); renderTactics(); return; }
         squad.lineup[slotIdx] = reserve.number;
     }
     renderTactics();
@@ -133,7 +133,7 @@ function initTacticsScreen() {
     $('btn-tactics-back').onclick = () => { saveGame(); openDashboard(); };
     $('btn-tactics-play').onclick = () => {
         const squad = getSquad(tacticsTeam);
-        if (squad.lineup.filter(n => n !== null).length < 11) { alert('⚠️ В стартовом составе должно быть 11 игроков'); return; }
+        if (squad.lineup.filter(n => n !== null).length < 11) { notify('⚠️ В стартовом составе должно быть 11 игроков'); return; }
         saveGame();
         // Дерби «Вдвоём»: теперь тактику настраивает второй игрок
         const next = tacticsQueue.shift();

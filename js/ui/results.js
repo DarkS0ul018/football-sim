@@ -74,7 +74,7 @@ function renderTournamentPath() {
                 const agg = m.aggregateScore;
                 const info = m.isFinal ? '🏆 ФИНАЛ' : (m.legs === 2 ? `(${m.leg1.t1}:${m.leg1.t2}, ${m.leg2.t1}:${m.leg2.t2})` : '');
                 const pen = m.penalties.kicks.length ? `<div style="font-size:11px;margin-top:5px">Пенальти: ${m.team1.name} ${m.penalties.t1} - ${m.team2.name} ${m.penalties.t2}<div>${penDots(m)}</div></div>` : '';
-                return `${teamLabel(m.team1)} ${agg.t1}:${agg.t2} ${teamLabel(m.team2)} ${info}${pen}${m.isAutoSimulated ? ' 🤖' : ''}`;
+                return `<span class="clickable"${reportAttr(m)}>${teamLabel(m.team1)} ${agg.t1}:${agg.t2} ${teamLabel(m.team2)} ${info}${pen}${m.isAutoSimulated ? ' 🤖' : ''}</span>${scorersMiniHtml(m)}`;
             }).join('<br>')}
         </div>`).join('');
 }

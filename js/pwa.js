@@ -10,8 +10,12 @@
     const btn = document.getElementById('btn-install');
     let deferred = null;
 
-    if ('serviceWorker' in navigator && canInstall) {
+    // На localhost (разработка) — только по ?sw=1, иначе кэш отдаёт вчерашние файлы во время правок
+    const devHost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    if ('serviceWorker' in navigator && canInstall && (!devHost || /[?&]sw=1/.test(location.search))) {
         window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна — не страшно */ }));
+    } else if ('serviceWorker' in navigator && devHost) {
+        navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
     }
     document.documentElement.classList.toggle('is-standalone', standalone); // запущено как приложение
     if (standalone || !btn || !canInstall) return;

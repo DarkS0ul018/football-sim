@@ -84,13 +84,13 @@ function showManOfTheMatch(m, sim) {
     box.innerHTML = `
         <div class="motm-star">★</div>
         <div class="motm-body">
-            <div class="motm-label">Лучший игрок матча${m.legs === 2 ? ' (2-я игра)' : ''}</div>
+            <div class="motm-label">${sim.combined ? 'Лучший игрок двух матчей' : 'Лучший игрок матча'}</div>
             <div class="motm-name">${best.name}</div>
             <div class="motm-meta">${crestHtml(team, 'xs')} ${team.name} · ${best.position}${facts.length ? ' · ' + facts.join(', ') : ''}</div>
         </div>
         <div class="motm-rating ${ratingClass(best.rating)}">${best.rating.toFixed(1)}</div>`;
     box.style.display = 'flex';
-    addMatchEvent(m, '', 'comment', `⭐ Лучший игрок матча — ${best.name} (${best.rating.toFixed(1)})`, team, 'c-goal');
+    addMatchEvent(m, '', 'comment', `⭐ Лучший игрок ${sim.combined ? 'двух матчей' : 'матча'} — ${best.name} (${best.rating.toFixed(1)})`, team, 'c-goal');
 }
 
 function plural(n, one, few, many) {
@@ -120,4 +120,46 @@ function teamStreak(team) {
     if (noWin >= 4) return { good: false, text: `без побед в ${noWin} матчах` };
     if (unbeaten >= 5) return { good: true, text: `без поражений в ${unbeaten} матчах` };
     return null;
+}
+
+// ----- Пара из двух матчей: общие итоги -----
+// После 2-й игры статистика, xG, карта ударов, оценки и лучший игрок — за обе игры, а не только за последнюю.
+function combinedView(sims) {
+    sims = (sims || []).filter(Boolean);
+    if (sims.length < 2) return sims[0] || null;
+    const last = sims[sims.length - 1];
+    const m = last.match;
+    const sum = key => ({ team1: sims.reduce((a, s) => a + s.stats[key].team1, 0), team2: sims.reduce((a, s) => a + s.stats[key].team2, 0) });
+    const pos1 = Math.round(sims.reduce((a, s) => a + s.stats.possession.team1, 0) / sims.length);
+    const stats = {
+        possession: { team1: pos1, team2: 100 - pos1 },
+        shots: sum('shots'), shotsOnTarget: sum('shotsOnTarget'), corners: sum('corners'), fouls: sum('fouls'),
+        yellowCards: sum('yellowCards'), redCards: sum('redCards'), xg: sum('xg'),
+        substitutions: { team1: sims.flatMap(s => s.stats.substitutions.team1), team2: sims.flatMap(s => s.stats.substitutions.team2) }
+    };
+    // Оценка за пару — средняя по сыгранным играм
+    const ratings = () => {
+        const acc = new Map();
+        sims.forEach(s => s.playerRatings().forEach(r => {
+            const k = `${r.side}:${r.number}`;
+            const a = acc.get(k) || { ...r, total: 0, n: 0 };
+            a.total += r.rating; a.n++;
+            acc.set(k, a);
+        }));
+        return [...acc.values()].map(a => ({ side: a.side, number: a.number, name: a.name, position: a.position, rating: Math.round(a.total / a.n * 10) / 10, games: a.n }));
+    };
+    const agg = m.aggregateScore;
+    return {
+        combined: true, legs: sims.length, match: m, sides: last.sides, leg: last.leg, homeSide: last.homeSide,
+        minute: sims.reduce((a, s) => a + s.minute, 0),
+        score: { t1: agg.t1, t2: agg.t2 },
+        events: sims.flatMap(s => s.events.map(e => ({ ...e, leg: s.leg }))),
+        shotLog: sims.flatMap(s => s.shotLog.map(x => ({ ...x, leg: s.leg }))),
+        stats,
+        playerRatings: ratings,
+        manOfTheMatch() {
+            const winner = agg.t1 > agg.t2 ? 'team1' : (agg.t2 > agg.t1 ? 'team2' : (m.winner ? (m.winner === m.team1 ? 'team1' : 'team2') : null));
+            return ratings().sort((a, b) => b.rating - a.rating || b.games - a.games || (b.side === winner) - (a.side === winner))[0] || null;
+        }
+    };
 }

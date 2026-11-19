@@ -638,6 +638,22 @@ class MatchSimulation {
         }
     }
 
+    // Протокол игры в самом матче (сохраняется): голы с авторами и передачами, удаления, лучший игрок.
+    // s: 1 — team1, 2 — team2; в паре из двух матчей у каждой записи свой leg.
+    recordProtocol(motm) {
+        const m = this.match;
+        const leg = this.leg;
+        const side = s => (s === 'team1' ? 1 : 2);
+        m.goals = (m.goals || []).filter(g => g.leg !== leg);
+        m.reds = (m.reds || []).filter(r => r.leg !== leg);
+        m.motms = (m.motms || []).filter(x => x.leg !== leg);
+        this.events.forEach(e => {
+            if (e.type === 'goal') m.goals.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '', a: e.assister ? e.assister.name : null, pen: /пенальти/.test(e.text) });
+            if (e.type === 'card-red') m.reds.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '' });
+        });
+        if (motm) m.motms.push({ leg, s: side(motm.side), p: motm.name, r: motm.rating });
+    }
+
     // Статистика игроков: кубковые голы — в отдельную таблицу кубка
     addStat(teamId, number, field) {
         if (this.match.cup) addCupStat(teamId, number, field);
@@ -798,6 +814,7 @@ class MatchSimulation {
         // Оценки за матч — в форму игроков; результат — в мораль
         const ratings = this.playerRatings();
         const motm = this.manOfTheMatch();
+        this.recordProtocol(motm);
         const strengths = { team1: this.strength('team1'), team2: this.strength('team2') };
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];

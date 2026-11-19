@@ -21,6 +21,42 @@ function showScreen(name) {
     window.scrollTo(0, 0);
 }
 
+// ----- Окно подтверждения внутри игры -----
+// Системный confirm() во встроенных браузерах и некоторых режимах приложения сразу отвечает «Отмена»,
+// из-за этого «Начать новый турнир» и «Удалить» молча не срабатывали. Это окно работает везде.
+function askConfirm(text, { ok = 'Да', cancel = 'Отмена', danger = false } = {}) {
+    return new Promise(resolve => {
+        document.querySelector('.confirm-overlay')?.remove();
+        const el = document.createElement('div');
+        el.className = 'confirm-overlay';
+        el.innerHTML = `<div class="confirm-box" role="dialog" aria-modal="true">
+            <p></p>
+            <div class="confirm-actions">
+                <button type="button" class="btn-secondary" data-r="0">${cancel}</button>
+                <button type="button" class="${danger ? 'btn-danger' : 'btn-primary'}" data-r="1">${ok}</button>
+            </div>
+        </div>`;
+        el.querySelector('p').textContent = text;
+        const done = r => { el.remove(); document.removeEventListener('keydown', onKey); resolve(r); };
+        const onKey = e => { if (e.key === 'Escape') done(false); if (e.key === 'Enter') done(true); };
+        el.addEventListener('click', e => { if (e.target === el) done(false); const b = e.target.closest('button'); if (b) done(b.dataset.r === '1'); });
+        document.addEventListener('keydown', onKey);
+        document.body.appendChild(el);
+        el.querySelector('[data-r="1"]').focus();
+    });
+}
+
+// Короткое сообщение вместо alert()
+function notify(text) {
+    document.querySelector('.notify-toast')?.remove();
+    const el = document.createElement('div');
+    el.className = 'notify-toast';
+    el.textContent = text;
+    document.body.appendChild(el);
+    setTimeout(() => el.classList.add('hide'), 2600);
+    setTimeout(() => el.remove(), 3000);
+}
+
 function setText(id, text) {
     const el = $(id);
     if (el) el.innerText = text;
