@@ -7,6 +7,7 @@ function openDashboard() {
 }
 
 function renderDashboard() {
+    repairEmptyStage();
     // Кубок (карьера): сыгранный раунд — жеребьёвка следующего; раунды без игрока досчитываются сами
     if (state.cup) catchUpCup();
     newsBetweenRounds();   // лидер, рубежи бомбардиров, настроение
@@ -269,9 +270,12 @@ function renderNextRoundButton() {
 }
 
 function goToNextStage() {
+    // Повторное нажатие (или кнопка с экрана матча, когда этап уже сменился) не должно двигать турнир дальше:
+    // иначе из недоигранного раунда создавался пустой и турнир «зависал»
+    if (!isStageComplete()) { openDashboard(); return; }
     const champion = advanceStage();
     if (champion) showResults(champion);
-    else renderDashboard();
+    else openDashboard(); // с экрана матча — сразу в сетку нового этапа
 }
 
 // ----- Выход в меню: турнир сохраняется, на стартовом экране — «Продолжить / Удалить / Начать новый» -----

@@ -1,9 +1,9 @@
 // ===== SERVICE WORKER: игра работает без интернета =====
 // При установке скачивает всё, что подключает index.html (скрипты, стили), иконки и манифест.
-// Дальше: «сначала из кэша, а в фоне — свежая версия с сервера» — запуск мгновенный,
-// обновления подтягиваются сами и видны при следующем открытии.
+// Дальше: «сначала свежая версия с сервера, без сети — из кэша» — изменения видны сразу,
+// а без интернета игра всё равно запускается.
 
-const CACHE = 'football-sim-v1';
+const CACHE = 'football-sim-v2';
 const EXTRA = ['./', 'index.html', 'manifest.webmanifest',
     'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon-32.png'];
 
@@ -13,7 +13,7 @@ self.addEventListener('install', event => {
         // Список файлов берём прямо из index.html — не нужно поддерживать его вручную
         const html = await (await fetch('index.html', { cache: 'no-store' })).text();
         const refs = [...html.matchAll(/(?:src|href)="([^"]+\.(?:js|css))"/g)].map(m => m[1]).filter(u => !/^https?:/.test(u));
-        await cache.addAll([...new Set([...EXTRA, ...refs])]);
+        await cache.addAll([...new Set([...EXTRA, ...refs])].map(u => new Request(u, { cache: 'reload' })));
         self.skipWaiting();
     })());
 });
@@ -37,16 +37,18 @@ self.addEventListener('fetch', event => {
     event.respondWith((async () => {
         const cache = await caches.open(CACHE);
         const cached = await cache.match(req, { ignoreSearch: sameOrigin });
-        const network = fetch(req).then(res => {
+        // Шрифты не меняются — сразу из кэша
+        if (fonts && cached) return cached;
+        // Файлы игры: сначала свежая версия с сервера (мимо HTTP-кэша браузера),
+        // кэш — только если сети нет или она не отвечает 4 секунды
+        const network = fetch(req, sameOrigin ? { cache: 'no-cache' } : undefined).then(res => {
             if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone());
             return res;
         }).catch(() => null);
-        if (cached) {
-            if (sameOrigin) event.waitUntil(network); // обновляем кэш в фоне (шрифты не меняются)
-            return cached;
-        }
-        const res = await network;
+        const timeout = new Promise(r => setTimeout(() => r(null), cached ? 4000 : 60000));
+        const res = await Promise.race([network, timeout]);
         if (res) return res;
+        if (cached) { event.waitUntil(network); return cached; }
         // Совсем без сети и без кэша: для страниц — главная из кэша
         if (req.mode === 'navigate') return (await cache.match('index.html')) || Response.error();
         return Response.error();

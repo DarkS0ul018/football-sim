@@ -13,7 +13,17 @@
     // На localhost (разработка) — только по ?sw=1, иначе кэш отдаёт вчерашние файлы во время правок
     const devHost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     if ('serviceWorker' in navigator && canInstall && (!devHost || /[?&]sw=1/.test(location.search))) {
-        window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => { /* без офлайна — не страшно */ }));
+        window.addEventListener('load', () => {
+            const hadController = !!navigator.serviceWorker.controller;
+            // Новая версия офлайн-режима вступила в силу — один раз перезагружаем, чтобы сразу показать свежие данные
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                if (!hadController || sessionStorage.getItem('swReloaded')) return;
+                sessionStorage.setItem('swReloaded', '1');
+                location.reload();
+            });
+            navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+                .then(reg => reg.update()).catch(() => { /* без офлайна — не страшно */ });
+        });
     } else if ('serviceWorker' in navigator && devHost) {
         navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister())).catch(() => {});
     }

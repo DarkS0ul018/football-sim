@@ -304,6 +304,18 @@ function autoFinishTournament() {
     return null;
 }
 
+// Починка сохранений, «зависших» из-за двойного нажатия «Следующий раунд» (пустой раунд плей-офф):
+// возвращаемся к последнему настоящему раунду, дальше турнир идёт как обычно
+function repairEmptyStage() {
+    if (state.champion || state.settings.mode !== 'knockout' || state.matches.length) return;
+    const hist = state.tournamentHistory || [];
+    while (hist.length && !hist[hist.length - 1].matches.length) hist.pop();
+    const last = hist[hist.length - 1];
+    if (!last) return;
+    state.matches = last.matches;
+    state.currentRound = last.roundIndex;
+}
+
 function isStageComplete() {
     return state.matches.length > 0 && state.matches.every(m => m.isFinished);
 }

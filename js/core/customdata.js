@@ -68,9 +68,29 @@ function isNationName(name) {
 function readCustomData() {
     try {
         const data = JSON.parse(localStorage.getItem(CUSTOM_KEY));
-        if (data && typeof data.teams === 'object') return data;
+        if (data && typeof data.teams === 'object') return migrateCustomData(data);
     } catch (e) { /* ignore */ }
     return { teams: {} };
+}
+
+// Стандартная команда исчезла, а её правки переименовывали её в другую стандартную
+// (например «Украина» → «Россия», теперь Россия есть в игре сама): переносим правки на неё.
+function migrateCustomData(data) {
+    if (typeof DEFAULT_DATA === 'undefined') return data;
+    let changed = false;
+    Object.entries(data.teams).forEach(([key, o]) => {
+        if (!o || o.isNew || !o.rename || isDefaultTeam(key) || !isDefaultTeam(o.rename) || data.teams[o.rename]) return;
+        const moved = { ...o };
+        delete moved.rename;
+        data.teams[o.rename] = moved;
+        delete data.teams[key];
+        changed = true;
+    });
+    Object.entries(data.teams).forEach(([key, o]) => {          // правки команды, которой больше нет, — убираем
+        if (o && !o.isNew && !isDefaultTeam(key)) { delete data.teams[key]; changed = true; }
+    });
+    if (changed) writeCustomData(data);
+    return data;
 }
 
 function writeCustomData(data) {
