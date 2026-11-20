@@ -2,8 +2,14 @@
 // Плитки турниров (в один клик) и режимов. Подробные настройки — экран «Свой турнир» (setup).
 
 const HOME_CUPS = [
-    { id: 'ucl', icon: '★', title: 'Лига чемпионов', cls: 'tile-ucl', type: 'world', ucl: true,
+    { id: 'ucl', icon: '★', title: 'Лига чемпионов', cls: 'tile-ucl', type: 'world', ucl: true, euroCup: 'ucl',
       sub: 'Новый формат: 36 клубов в общей таблице, 8 соперников, стыки за 1/8 и плей-офф до финала' },
+    { id: 'uel', icon: '🟠', title: 'Лига Европы', cls: 'tile-uel', type: 'mixed', euroCup: 'uel',
+      sub: '36 клубов: сильные клубы Европы и 9 лучших клубов РПЛ · общий этап и плей-офф' },
+    { id: 'uecl', icon: '🟢', title: 'Лига конференций', cls: 'tile-uecl', type: 'mixed', euroCup: 'uecl',
+      sub: '36 клубов: вся РПЛ, лучшие клубы Первой лиги и Европы · общий этап и плей-офф' },
+    { id: 'ruscup', icon: '🏆', title: 'Кубок России', cls: 'tile-ruscup', type: 'rusall', rusCup: true,
+      sub: '16 клубов РПЛ и 16 клубов Первой лиги · один матч, хозяин — клуб из лиги ниже' },
     { id: 'worldcup', icon: '🌍', title: 'Чемпионат мира', cls: 'tile-wc', type: 'worldcup', nations: true },
     { id: 'euro', icon: '⭐', title: 'Чемпионат Европы', cls: 'tile-euro', type: 'euro', nations: true },
     { id: 'copa', icon: '🌎', title: 'Кубок Америки', cls: 'tile-copa', type: 'copa', nations: true },
@@ -29,7 +35,8 @@ function homeCupInfo(c) {
         return { sub: `${cup.count} ${cup.count === 24 || cup.count === 32 ? 'сборные' : 'сборных'} · группы и плей-офф`,
             teams: [...cup.names].sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) };
     }
-    if (c.ucl) return { sub: c.sub, teams: uclParticipants() };
+    if (c.euroCup) return { sub: c.sub, teams: euroCupParticipants(c.euroCup) };
+    if (c.rusCup) return { sub: c.sub, teams: getTeamsData('russia').names };
     const data = getTeamsData(c.type);
     return { sub: c.sub, teams: [...data.names].sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) };
 }
@@ -154,7 +161,8 @@ function applyHomePreset(cup, gameMode) {
 }
 
 function startHomePreset(cup, gameMode) {
-    if (cup.ucl) { startUcl(gameMode); return; }
+    if (cup.euroCup) { startEuroCup(cup.euroCup, gameMode); return; }
+    if (cup.rusCup) { startRussianCup(gameMode); return; }
     applyHomePreset(cup, gameMode);
     onStartClick();
 }
@@ -163,7 +171,7 @@ function openCupSheet(cup) {
     const modes = ['simulator', 'career', 'duo'];
     openHomeSheet(`${cup.icon} ${cup.title}`, [
         ...modes.map(m => ({ ...HOME_MODES[m], ...(cup.nations && m === 'career' ? { title: 'Играть за сборную', text: 'Выберите сборную: состав, тактика, решения по ходу матча' } : {}), run: () => startHomePreset(cup, m) })),
-        ...(cup.ucl ? [] : [{ icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
+        ...(cup.euroCup || cup.rusCup ? [] : [{ icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
           run: () => { applyHomePreset(cup, 'simulator'); showScreen('setup'); } }])
     ]);
 }
@@ -208,14 +216,31 @@ function initHome() {
     renderHome();
 }
 
-// Лига чемпионов: 36 сильнейших клубов Европы (не больше 5 от страны), формат задан — без экрана настроек
-function startUcl(gameMode) {
-    const settings = { count: UCL_TEAMS, mode: 'ucl', teamType: 'world', gameMode, simMode: 'realistic',
-        groupLegs: 1, playoffLegs: 2, playoffSize: 8, teamPick: 'random' };
+function teamEmojiOf(name) {
+    let i = worldTeams.names.indexOf(name);
+    if (i !== -1) return worldTeams.emojis[i];
+    i = russianTeams.names.indexOf(name);
+    return i !== -1 ? russianTeams.emojis[i] : '⚽';
+}
+
+function poolOf(names) {
+    return names.map(name => ({ name, emoji: teamEmojiOf(name), rating: teamRatings[name] ?? 75 }));
+}
+
+// Еврокубки в формате Лиги чемпионов: формат задан — без экрана настроек
+function startEuroCup(id, gameMode) {
+    const names = euroCupParticipants(id);
+    const settings = { count: UCL_TEAMS, mode: 'ucl', teamType: id === 'ucl' ? 'world' : 'mixed', gameMode, simMode: 'realistic',
+        groupLegs: 1, playoffLegs: 2, playoffSize: 8, teamPick: 'random', euroCup: id, title: EURO_CUPS[id].title };
     startNewSlot();
-    const pool = uclParticipants().map(name => {
-        const i = worldTeams.names.indexOf(name);
-        return { name, emoji: worldTeams.emojis[i] || '⚽', rating: teamRatings[name] ?? 75 };
-    });
-    proceedWithPool(settings, pool);
+    proceedWithPool(settings, poolOf(names));
+}
+
+// Кубок России: 16 клубов РПЛ + 16 сильнейших клубов Первой лиги, один матч, хозяин — клуб из лиги ниже
+function startRussianCup(gameMode) {
+    const fnl = [...getTeamsData('fnl').names].sort((a, b) => (teamRatings[b] ?? 60) - (teamRatings[a] ?? 60)).slice(0, 16);
+    const settings = { count: 32, mode: 'knockout', teamType: 'rusall', gameMode, simMode: 'realistic',
+        groupLegs: 1, playoffLegs: 1, playoffSize: 8, teamPick: 'random', lowerHosts: true, title: '🏆 Кубок России' };
+    startNewSlot();
+    proceedWithPool(settings, poolOf([...getTeamsData('russia').names, ...fnl]));
 }

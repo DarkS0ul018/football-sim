@@ -128,6 +128,7 @@ function getTeamsData(teamType) {
     if (teamType === 'mixed') return { names: [...rpl.names, ...euro.names], emojis: [...rpl.emojis, ...euro.emojis] };
     if (teamType === 'clubwc') return worldTeams;
     if (teamType === 'fnl') return filterTeams(russianTeams, n => FNL_CLUBS.has(n));
+    if (teamType === 'rusall') return russianTeams;  // РПЛ + Первая лига (Кубок России)
     return teamType === 'russia' ? rpl : euro;
 }
 

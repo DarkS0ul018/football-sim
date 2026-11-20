@@ -20,7 +20,7 @@ function renderDashboard() {
 
     setText('dashboard-title', getStageTitle());
     const natCup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[state.settings.teamType] : null;
-    setText('dashboard-kicker', state.settings.seriesTitle ? `🔁 ${state.settings.seriesTitle}` : state.settings.ucl ? '★ Лига чемпионов' : (natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир'));
+    setText('dashboard-kicker', state.settings.seriesTitle ? `🔁 ${state.settings.seriesTitle}` : state.settings.title ? state.settings.title : (natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир'));
     renderUserBadge();
 
     const isPlayoff = !isRoundRobinStage();

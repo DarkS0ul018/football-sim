@@ -247,7 +247,7 @@ function onTeamTypeChange() {
     if (cup) {
         // Участников могли поменять в редакторе: берём настоящий размер турнира или ближайший возможный
         const pool = cup.names.length;
-        let count = pool >= cup.count ? cup.count : [32, 24, 16, 12, 8].find(n => n <= pool);
+        let count = pool >= cup.count ? cup.count : [48, 32, 24, 16, 12, 8].find(n => n <= pool);
         let mode = cup.mode;
         if (!count) { count = pool >= 4 ? 4 : pool; mode = 'knockout'; }
         $('team-count').value = String(count);

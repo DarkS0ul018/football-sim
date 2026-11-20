@@ -185,6 +185,8 @@ function createKnockoutRound(teams, pairs = null, title = null) {
         pairs = [];
         for (let i = 0; i < shuffled.length; i += 2) pairs.push([shuffled[i], shuffled[i + 1]]);
     }
+    // Кубок: клуб из лиги ниже принимает у себя
+    if (state.settings.lowerHosts) pairs = pairs.map(([a, b]) => (FNL_CLUBS.has(b.name) && !FNL_CLUBS.has(a.name) ? [b, a] : [a, b]));
     const count = pairs.length * 2;
     const roundName = title || (state.settings.pairsTitle && state.settings.presetPairs && !state.tournamentHistory.length ? state.settings.pairsTitle : getRoundName(count));
     const roundIndex = getRoundIndex(count);

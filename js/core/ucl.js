@@ -18,7 +18,7 @@ const CLUB_COUNTRY = {
     'Аякс': 'NED', 'Фейеноорд': 'NED', 'ПСВ': 'NED',
     'Брюгге': 'BEL', 'Галатасарай': 'TUR', 'Фенербахче': 'TUR', 'Селтик': 'SCO'
 };
-const countryOf = name => CLUB_COUNTRY[name] || ('X:' + name); // своя команда — «отдельная страна»
+const countryOf = name => CLUB_COUNTRY[name] || (russianTeams.names.includes(name) ? 'RUS' : 'X:' + name); // своя команда — «отдельная страна»
 
 // Участники: сильнейшие европейские клубы, не больше 5 от страны (как по квотам), остаток — по рейтингу
 function uclParticipants() {
@@ -46,8 +46,11 @@ function uclShuffle(a) {
 function uclDraw(teams) {
     const sorted = [...teams].sort((a, b) => b.rating - a.rating);
     const pots = [0, 1, 2, 3].map(i => sorted.slice(i * 9, i * 9 + 9));
+    const per = {};
+    teams.forEach(t => { const c = countryOf(t.name); per[c] = (per[c] || 0) + 1; });
+    const maxPerCountry = Math.max(...Object.values(per));
     for (let attempt = 0; attempt < 400; attempt++) {
-        const strict = attempt < 300; // сначала — без матчей клубов одной страны
+        const strict = attempt < (maxPerCountry <= 6 ? 300 : 0); // сначала — без матчей клубов одной страны (если это возможно)
         const games = [];
         let ok = true;
         const clash = (a, b) => strict && countryOf(a.name) === countryOf(b.name);
@@ -195,4 +198,21 @@ function uclStartRoundOf16() {
 
 function isUcl() {
     return !!(state.settings && state.settings.ucl);
+}
+
+// ===== Три еврокубка в одном формате =====
+// Лига чемпионов — 36 сильнейших; Лига Европы — следующие по силе клубы Европы и лучшие клубы РПЛ;
+// Лига конференций — клубы попроще, вся РПЛ и лучшие клубы Первой лиги.
+const EURO_CUPS = {
+    ucl: { title: '★ Лига чемпионов', winner: 'Победитель Лиги чемпионов', theme: 'theme-ucl' },
+    uel: { title: '🟠 Лига Европы', winner: 'Победитель Лиги Европы', theme: 'theme-uel' },
+    uecl: { title: '🟢 Лига конференций', winner: 'Победитель Лиги конференций', theme: 'theme-uecl' }
+};
+
+function euroCupParticipants(id) {
+    if (id === 'ucl') return uclParticipants();
+    const byR = list => [...list].sort((a, b) => (teamRatings[b] ?? 70) - (teamRatings[a] ?? 70));
+    const euro = byR(getTeamsData('world').names), rpl = byR(getTeamsData('russia').names), fnl = byR(getTeamsData('fnl').names);
+    if (id === 'uel') return [...euro.slice(18), ...rpl.slice(0, 9)].slice(0, UCL_TEAMS);
+    return [...euro.slice(Math.max(0, euro.length - 12)), ...rpl, ...fnl].filter((n, i, a) => a.indexOf(n) === i).slice(0, UCL_TEAMS);
 }

@@ -1351,3 +1351,38 @@ body.theme-ucl .bracket-round-title { color: #e6ecff; letter-spacing: 0.06em; }
     color: #e6ecff; text-shadow: 0 0 30px rgba(140, 170, 255, 0.9); opacity: 0.9; pointer-events: none; }
 .home-tile.tile-ucl:hover .ht-go { background: #fff; color: #061038; }
 @media (max-width: 520px) { .home-tile.tile-ucl .ucl-stars { display: none; } }
+
+/* ===== Лига Европы: ночной оранжевый ===== */
+body.theme-uel {
+    --bg: #0d0803; --bg-2: #160d05; --surface: #1d1208; --surface-2: #27180b; --surface-3: #33200f;
+    --line: #4a2e14; --line-soft: rgba(255, 170, 90, 0.10); --text: #fff4ea; --text-2: #e3c6aa; --muted: #a9876a;
+    --accent: #ff8a1f; --accent-2: #ffb15c; --accent-ink: #1a0d02; --gold: #ffcf6b;
+    background: radial-gradient(900px 500px at 85% -10%, rgba(255, 138, 31, 0.22), transparent 60%),
+        radial-gradient(700px 500px at 0% 100%, rgba(255, 90, 31, 0.12), transparent 60%), linear-gradient(180deg, #140b04, #0b0602);
+    background-attachment: fixed;
+}
+body.theme-uel .topbar { background: rgba(13, 8, 3, 0.85); border-bottom-color: rgba(255, 138, 31, 0.25); }
+body.theme-uel .btn-primary { background: linear-gradient(180deg, #ffa046, #ff7a0a); border-color: #ff8a1f; color: #1a0d02; }
+body.theme-uel .kicker { background: #ff8a1f; color: #1a0d02; }
+body.theme-uel .card, body.theme-uel .table-container { background: linear-gradient(180deg, rgba(39, 24, 11, 0.92), rgba(29, 18, 8, 0.92)); border-color: rgba(255, 138, 31, 0.18); }
+body.theme-uel .champion-box-v2 { background: radial-gradient(600px 260px at 50% 0%, rgba(255, 138, 31, 0.35), transparent 70%), linear-gradient(180deg, #27180b, #0d0803); }
+
+/* ===== Лига конференций: изумрудная ===== */
+body.theme-uecl {
+    --bg: #02110b; --bg-2: #041a11; --surface: #072417; --surface-2: #0a301f; --surface-3: #0e3d28;
+    --line: #155a3b; --line-soft: rgba(80, 230, 150, 0.10); --text: #eafff4; --text-2: #b4e3c9; --muted: #74a98c;
+    --accent: #2ee68a; --accent-2: #8bf5bd; --accent-ink: #02160c; --gold: #d9f56b;
+    background: radial-gradient(900px 500px at 85% -10%, rgba(46, 230, 138, 0.20), transparent 60%),
+        radial-gradient(700px 500px at 0% 100%, rgba(0, 200, 160, 0.12), transparent 60%), linear-gradient(180deg, #03160e, #010a06);
+    background-attachment: fixed;
+}
+body.theme-uecl .topbar { background: rgba(2, 17, 11, 0.85); border-bottom-color: rgba(46, 230, 138, 0.25); }
+body.theme-uecl .btn-primary { background: linear-gradient(180deg, #5cf0a4, #19c977); border-color: #2ee68a; color: #02160c; }
+body.theme-uecl .kicker { background: #2ee68a; color: #02160c; }
+body.theme-uecl .card, body.theme-uecl .table-container { background: linear-gradient(180deg, rgba(10, 48, 31, 0.92), rgba(7, 36, 23, 0.92)); border-color: rgba(46, 230, 138, 0.18); }
+body.theme-uecl .champion-box-v2 { background: radial-gradient(600px 260px at 50% 0%, rgba(46, 230, 138, 0.32), transparent 70%), linear-gradient(180deg, #0a301f, #02110b); }
+
+/* Плитки */
+.tile-uel { --t1: #b3520a; --t2: #3a1803; }
+.tile-uecl { --t1: #0f8a55; --t2: #04301d; }
+.tile-ruscup { --t1: #1f4fa8; --t2: #8a1a2a; }

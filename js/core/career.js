@@ -187,7 +187,7 @@ function formatLabel(settings) {
     // Турнир сборных: «Чемпионат Европы, 24 сборные»
     const cup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[settings.teamType] : null;
     if (cup) return `${cup.title}, ${settings.count} сборных`;
-    if ((settings.originalMode || settings.mode) === 'ucl') return 'Лига чемпионов';
+    if ((settings.originalMode || settings.mode) === 'ucl') return (EURO_CUPS[settings.euroCup || 'ucl'] || EURO_CUPS.ucl).title.replace(/^[^А-Яа-я]+/, '');
     const mode = settings.originalMode || settings.mode; // после групп mode меняется на knockout
     if (mode === 'league') return `Лига, ${settings.count} команд`;
     if (mode === 'leaguePlayoff') return `Чемпионат + плей-офф, ${settings.count} команд`;

@@ -22,7 +22,9 @@ function showScreen(name) {
     if (screens[name]) screens[name].classList.add('active');
     // Лига чемпионов — своё «звёздное» оформление на экранах турнира
     const tournamentScreen = !['home', 'setup', 'editor', 'series', 'picker'].includes(name);
-    document.body.classList.toggle('theme-ucl', tournamentScreen && typeof state !== 'undefined' && !!(state.settings && state.settings.ucl));
+    const cupTheme = tournamentScreen && typeof state !== 'undefined' && state.settings && state.settings.ucl
+        ? (EURO_CUPS[state.settings.euroCup || 'ucl'] || EURO_CUPS.ucl).theme : null;
+    ['theme-ucl', 'theme-uel', 'theme-uecl'].forEach(c => document.body.classList.toggle(c, c === cupTheme));
     window.scrollTo(0, 0);
 }
 

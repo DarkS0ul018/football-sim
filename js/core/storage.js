@@ -204,7 +204,8 @@ function loadGame(id = currentSlotId) {
 // Краткое описание сохранения для кнопки «Продолжить»
 // Название турнира для карточки «Продолжить»
 function saveTournamentName(s) {
-    if (s.ucl) return 'Лига чемпионов';
+    if (s.title) return s.title.replace(/^[^А-Яа-яA-Za-z]+/, '');
+    if (s.ucl) return (EURO_CUPS[s.euroCup || 'ucl'] || EURO_CUPS.ucl).title.replace(/^[^А-Яа-я]+/, '');
     if (typeof NATION_CUPS !== 'undefined' && NATION_CUPS[s.teamType]) return NATION_CUPS[s.teamType].title;
     const n = s.count;
     const word = n % 10 === 1 && n % 100 !== 11 ? 'команда' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'команды' : 'команд');
