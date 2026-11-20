@@ -20,6 +20,9 @@ const screens = {
 function showScreen(name) {
     Object.values(screens).forEach(s => s && s.classList.remove('active'));
     if (screens[name]) screens[name].classList.add('active');
+    // Лига чемпионов — своё «звёздное» оформление на экранах турнира
+    const tournamentScreen = !['home', 'setup', 'editor', 'series', 'picker'].includes(name);
+    document.body.classList.toggle('theme-ucl', tournamentScreen && typeof state !== 'undefined' && !!(state.settings && state.settings.ucl));
     window.scrollTo(0, 0);
 }
 

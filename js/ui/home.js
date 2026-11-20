@@ -2,6 +2,8 @@
 // Плитки турниров (в один клик) и режимов. Подробные настройки — экран «Свой турнир» (setup).
 
 const HOME_CUPS = [
+    { id: 'ucl', icon: '★', title: 'Лига чемпионов', cls: 'tile-ucl', type: 'world', ucl: true,
+      sub: 'Новый формат: 36 клубов в общей таблице, 8 соперников, стыки за 1/8 и плей-офф до финала' },
     { id: 'worldcup', icon: '🌍', title: 'Чемпионат мира', cls: 'tile-wc', type: 'worldcup', nations: true },
     { id: 'euro', icon: '⭐', title: 'Чемпионат Европы', cls: 'tile-euro', type: 'euro', nations: true },
     { id: 'copa', icon: '🌎', title: 'Кубок Америки', cls: 'tile-copa', type: 'copa', nations: true },
@@ -27,6 +29,7 @@ function homeCupInfo(c) {
         return { sub: `${cup.count} ${cup.count === 24 || cup.count === 32 ? 'сборные' : 'сборных'} · группы и плей-офф`,
             teams: [...cup.names].sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) };
     }
+    if (c.ucl) return { sub: c.sub, teams: uclParticipants() };
     const data = getTeamsData(c.type);
     return { sub: c.sub, teams: [...data.names].sort((a, b) => (teamRatings[b] ?? 0) - (teamRatings[a] ?? 0)) };
 }
@@ -74,6 +77,7 @@ function renderHome() {
             <span class="ht-title">${c.title}</span>
             <span class="ht-sub">${info.sub}</span>
             <span class="ht-crests">${homeCrestRow(info.teams)}</span>
+            ${c.ucl ? '<span class="ucl-stars">✦★✦</span>' : ''}
             <span class="ht-go">→</span>
         </button>`;
     }).join('');
@@ -150,6 +154,7 @@ function applyHomePreset(cup, gameMode) {
 }
 
 function startHomePreset(cup, gameMode) {
+    if (cup.ucl) { startUcl(gameMode); return; }
     applyHomePreset(cup, gameMode);
     onStartClick();
 }
@@ -158,8 +163,8 @@ function openCupSheet(cup) {
     const modes = ['simulator', 'career', 'duo'];
     openHomeSheet(`${cup.icon} ${cup.title}`, [
         ...modes.map(m => ({ ...HOME_MODES[m], ...(cup.nations && m === 'career' ? { title: 'Играть за сборную', text: 'Выберите сборную: состав, тактика, решения по ходу матча' } : {}), run: () => startHomePreset(cup, m) })),
-        { icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
-          run: () => { applyHomePreset(cup, 'simulator'); showScreen('setup'); } }
+        ...(cup.ucl ? [] : [{ icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
+          run: () => { applyHomePreset(cup, 'simulator'); showScreen('setup'); } }])
     ]);
 }
 
@@ -201,4 +206,16 @@ function initHome() {
     $('btn-home-discard').onclick = async () => { if (await discardSave()) renderHome(); };
     $('btn-setup-home').onclick = goHome;
     renderHome();
+}
+
+// Лига чемпионов: 36 сильнейших клубов Европы (не больше 5 от страны), формат задан — без экрана настроек
+function startUcl(gameMode) {
+    const settings = { count: UCL_TEAMS, mode: 'ucl', teamType: 'world', gameMode, simMode: 'realistic',
+        groupLegs: 1, playoffLegs: 2, playoffSize: 8, teamPick: 'random' };
+    startNewSlot();
+    const pool = uclParticipants().map(name => {
+        const i = worldTeams.names.indexOf(name);
+        return { name, emoji: worldTeams.emojis[i] || '⚽', rating: teamRatings[name] ?? 75 };
+    });
+    proceedWithPool(settings, pool);
 }

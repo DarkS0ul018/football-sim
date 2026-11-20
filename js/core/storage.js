@@ -137,7 +137,9 @@ function saveGame() {
         playerStats,
         cup: serializeCup(),
         news: state.news || [],
-        newsMeta: state.newsMeta || null
+        newsMeta: state.newsMeta || null,
+        uclPhase: state.uclPhase || null,
+        uclRanking: state.uclRanking || null
     };
     // В свой слот: серия хранит рядом своё состояние
     if (!currentSlotId) currentSlotId = newSlotId();
@@ -192,6 +194,8 @@ function loadGame(id = currentSlotId) {
     state.cup = deserializeCup(data.cup, teamById);
     state.news = data.news || [];
     state.newsMeta = data.newsMeta || null;
+    state.uclPhase = data.uclPhase || null;
+    state.uclRanking = data.uclRanking || null;
     state.seriesProcessed = false;
     state.seasonRecorded = false;
     return true;
@@ -200,6 +204,7 @@ function loadGame(id = currentSlotId) {
 // Краткое описание сохранения для кнопки «Продолжить»
 // Название турнира для карточки «Продолжить»
 function saveTournamentName(s) {
+    if (s.ucl) return 'Лига чемпионов';
     if (typeof NATION_CUPS !== 'undefined' && NATION_CUPS[s.teamType]) return NATION_CUPS[s.teamType].title;
     const n = s.count;
     const word = n % 10 === 1 && n % 100 !== 11 ? 'команда' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'команды' : 'команд');
@@ -208,7 +213,7 @@ function saveTournamentName(s) {
 
 function describeSave(data) {
     const user = data.userTeam !== null ? data.teams.find(t => t.id === data.userTeam) : null;
-    const stage = data.settings.mode === 'league' ? (data.settings.originalMode === 'leaguePlayoff' ? 'Чемпионат' : 'Лига')
+    const stage = data.settings.mode === 'league' ? (data.settings.ucl ? 'Общий этап' : data.settings.originalMode === 'leaguePlayoff' ? 'Чемпионат' : 'Лига')
         : data.settings.mode === 'groups' ? 'Групповой этап'
         : (data.history[data.history.length - 1] || {}).round || '';
     const played = data.currentMatches.filter(i => data.matches[i].isFinished).length;

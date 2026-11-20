@@ -30,13 +30,13 @@ function isRoundRobinStage() {
 
 // Формат «Чемпионат + плей-офф»: сначала лига, потом лучшие играют на вылет
 function isLeagueWithPlayoff() {
-    return state.settings.originalMode === 'leaguePlayoff';
+    return state.settings.originalMode === 'leaguePlayoff' || state.settings.originalMode === 'ucl';
 }
 
 function getStageTitle() {
     if (state.settings.mode === 'league') {
         const md = getCurrentMatchday();
-        const name = isLeagueWithPlayoff() ? 'Чемпионат' : 'Лига';
+        const name = state.settings.ucl ? 'Общий этап' : (isLeagueWithPlayoff() ? 'Чемпионат' : 'Лига');
         return md ? `${name} · тур ${md} из ${getTotalMatchdays()}` : `${name} · завершён`;
     }
     if (state.settings.mode === 'groups') {
@@ -55,6 +55,8 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     state.hallRecorded = false;
     state.seriesProcessed = false;
     state.stageDone = false;
+    state.uclPhase = null;
+    state.uclRanking = null;
     state.teams = teamsPool.map((d, i) => new Team(i, d.name, d.emoji, d.rating));
     state.matches = [];
     state.groups = [];
@@ -85,7 +87,13 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     initPlayerStats();
     initSquads();
 
-    if (settings.mode === 'leaguePlayoff') {
+    if (settings.mode === 'ucl') {
+        // Лига чемпионов: общий этап на 36 клубов (js/core/ucl.js)
+        state.settings.mode = 'league';
+        state.settings.ucl = true;
+        createUclLeague();
+    }
+    else if (settings.mode === 'leaguePlayoff') {
         state.settings.mode = 'league';
         state.settings.seeded = true;
         createLeague();
@@ -166,7 +174,7 @@ function createLeague() {
 }
 
 // pairs: массив пар [Team, Team]; если не задан — команды перемешиваются
-function createKnockoutRound(teams, pairs = null) {
+function createKnockoutRound(teams, pairs = null, title = null) {
     if (!pairs && state.settings.seeded) {
         // Посеянная сетка: победители соседних пар встречаются друг с другом
         pairs = [];
@@ -178,7 +186,7 @@ function createKnockoutRound(teams, pairs = null) {
         for (let i = 0; i < shuffled.length; i += 2) pairs.push([shuffled[i], shuffled[i + 1]]);
     }
     const count = pairs.length * 2;
-    const roundName = state.settings.pairsTitle && state.settings.presetPairs && !state.tournamentHistory.length ? state.settings.pairsTitle : getRoundName(count);
+    const roundName = title || (state.settings.pairsTitle && state.settings.presetPairs && !state.tournamentHistory.length ? state.settings.pairsTitle : getRoundName(count));
     const roundIndex = getRoundIndex(count);
     const isFinal = count === 2 && !state.settings.stageOnly;
     const legs = isFinal ? 1 : state.settings.playoffLegs;
@@ -287,6 +295,9 @@ function advanceStage() {
         state.champion = w || state.teams[0];
         return state.champion;
     }
+    // Лига чемпионов: общий этап → стыковой раунд → 1/8 по местам в таблице
+    if (isUcl() && state.settings.mode === 'league') { uclStartPlayoffRound(); return null; }
+    if (isUcl() && state.uclPhase === 'playoff') { uclStartRoundOf16(); return null; }
     if (state.settings.mode === 'league' && isLeagueWithPlayoff()) {
         const pairs = createPlayoffPairsFromLeague();
         state.groupMatches = state.matches;

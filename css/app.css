@@ -1283,3 +1283,71 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .series-pick-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; cursor: pointer; text-align: left; }
 .series-pick-item:hover { border-color: var(--accent); }
 .series-pick-item span { flex: 1; }
+
+/* ===== Лига чемпионов: «звёздная ночь» (своё оформление, без официальной символики) ===== */
+body.theme-ucl {
+    --bg: #030926; --bg-2: #061038; --surface: #0a1748; --surface-2: #0f205e; --surface-3: #152a74;
+    --line: #23398a; --line-soft: rgba(170, 190, 255, 0.10);
+    --text: #eef2ff; --text-2: #b4c0ea; --muted: #7d8cc4;
+    --accent: #e6ecff; --accent-2: #b9c6ff; --accent-ink: #061038;
+    --gold: #e2c46b; --info: #57c8ff;
+    background:
+        radial-gradient(900px 500px at 15% -10%, rgba(87, 120, 255, 0.28), transparent 60%),
+        radial-gradient(900px 600px at 100% 0%, rgba(87, 200, 255, 0.16), transparent 60%),
+        linear-gradient(180deg, #050d33 0%, #030926 60%, #02061a 100%);
+    background-attachment: fixed;
+}
+body.theme-ucl::before {
+    content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.75;
+    background-image:
+        radial-gradient(1.5px 1.5px at 12% 18%, #fff 50%, transparent 52%),
+        radial-gradient(1px 1px at 27% 62%, #dfe6ff 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 41% 9%, #fff 50%, transparent 52%),
+        radial-gradient(1px 1px at 55% 44%, #cfd9ff 50%, transparent 52%),
+        radial-gradient(2px 2px at 68% 22%, #fff 50%, transparent 52%),
+        radial-gradient(1px 1px at 79% 71%, #e6ecff 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 91% 36%, #fff 50%, transparent 52%),
+        radial-gradient(1px 1px at 6% 83%, #dfe6ff 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 35% 91%, #fff 50%, transparent 52%),
+        radial-gradient(1px 1px at 86% 90%, #cfd9ff 50%, transparent 52%);
+    background-size: 640px 520px;
+    animation: uclTwinkle 6s ease-in-out infinite alternate;
+}
+@keyframes uclTwinkle { from { opacity: 0.45; } to { opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) { body.theme-ucl::before { animation: none; } }
+body.theme-ucl .app-container, body.theme-ucl .topbar { position: relative; z-index: 1; }
+body.theme-ucl .topbar { background: rgba(3, 9, 38, 0.82); border-bottom-color: rgba(170, 190, 255, 0.18); }
+body.theme-ucl .btn-primary { background: linear-gradient(180deg, #ffffff, #cfd9ff); border-color: #e6ecff; color: #061038; box-shadow: 0 6px 22px rgba(120, 150, 255, 0.35); }
+body.theme-ucl .btn-primary:hover { background: #ffffff; }
+body.theme-ucl .kicker { background: linear-gradient(90deg, #e6ecff, #9fb3ff); color: #061038; }
+body.theme-ucl .card, body.theme-ucl .table-container { background: linear-gradient(180deg, rgba(16, 32, 94, 0.88), rgba(10, 23, 72, 0.88)); border-color: rgba(170, 190, 255, 0.16); }
+body.theme-ucl h1, body.theme-ucl .champion-name { text-shadow: 0 0 24px rgba(160, 185, 255, 0.45); letter-spacing: 0.03em; }
+body.theme-ucl .champion-box-v2 { background: radial-gradient(600px 260px at 50% 0%, rgba(120, 150, 255, 0.35), transparent 70%), linear-gradient(180deg, #0f205e, #061038); border-color: rgba(200, 215, 255, 0.35); }
+body.theme-ucl .trophy-animation::after { content: ' ✦ ✦ ✦'; font-size: 0.4em; color: #e6ecff; vertical-align: middle; }
+body.theme-ucl .bracket-match { border-color: rgba(170, 190, 255, 0.22); }
+body.theme-ucl .bracket-round-title { color: #e6ecff; letter-spacing: 0.06em; }
+
+/* Таблица общего этапа */
+.qualify-dot.ucl-r16 { background: #4fd2ff; }
+.qualify-dot.ucl-po { background: #9aa8ff; }
+.qualify-dot.ucl-out { background: #ff6b81; opacity: 0.75; }
+.ucl-table tr.ucl-r16 td:first-child { box-shadow: inset 3px 0 0 #4fd2ff; }
+.ucl-table tr.ucl-po td:first-child { box-shadow: inset 3px 0 0 #9aa8ff; }
+.ucl-table tr.ucl-out td { opacity: 0.72; }
+.ucl-table tr.ucl-cut td { border-bottom: 2px dashed rgba(200, 215, 255, 0.35); }
+
+/* Плитка на главной */
+.home-tile.tile-ucl { grid-column: 1 / -1; min-height: 170px; color: #eef2ff;
+    background:
+        radial-gradient(1.5px 1.5px at 12% 22%, #fff 50%, transparent 52%), radial-gradient(1px 1px at 30% 70%, #dfe6ff 50%, transparent 52%),
+        radial-gradient(2px 2px at 48% 18%, #fff 50%, transparent 52%), radial-gradient(1px 1px at 63% 64%, #cfd9ff 50%, transparent 52%),
+        radial-gradient(1.5px 1.5px at 84% 30%, #fff 50%, transparent 52%), radial-gradient(1px 1px at 92% 78%, #e6ecff 50%, transparent 52%),
+        radial-gradient(700px 300px at 85% 40%, rgba(110, 140, 255, 0.45), transparent 70%),
+        linear-gradient(135deg, #0f205e 0%, #061038 55%, #030926 100%);
+    border-color: rgba(200, 215, 255, 0.35); }
+.home-tile.tile-ucl .ht-title { font-size: 1.7rem; letter-spacing: 0.05em; }
+.home-tile.tile-ucl .ht-icon { color: #fff; text-shadow: 0 0 18px rgba(170, 195, 255, 0.9); }
+.home-tile.tile-ucl .ucl-stars { position: absolute; right: 70px; top: 50%; transform: translateY(-50%); font-size: 64px; letter-spacing: -6px;
+    color: #e6ecff; text-shadow: 0 0 30px rgba(140, 170, 255, 0.9); opacity: 0.9; pointer-events: none; }
+.home-tile.tile-ucl:hover .ht-go { background: #fff; color: #061038; }
+@media (max-width: 520px) { .home-tile.tile-ucl .ucl-stars { display: none; } }

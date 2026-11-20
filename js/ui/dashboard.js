@@ -20,7 +20,7 @@ function renderDashboard() {
 
     setText('dashboard-title', getStageTitle());
     const natCup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[state.settings.teamType] : null;
-    setText('dashboard-kicker', state.settings.seriesTitle ? `🔁 ${state.settings.seriesTitle}` : (natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир'));
+    setText('dashboard-kicker', state.settings.seriesTitle ? `🔁 ${state.settings.seriesTitle}` : state.settings.ucl ? '★ Лига чемпионов' : (natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир'));
     renderUserBadge();
 
     const isPlayoff = !isRoundRobinStage();
@@ -86,7 +86,34 @@ function teamFormHtml(team) {
     }).join('');
 }
 
+// Лига чемпионов: одна таблица на 36 с тремя зонами
+function renderUclTable() {
+    const table = sortGroup([...state.teams]);
+    const zoneCls = { r16: 'ucl-r16', playoff: 'ucl-po', out: 'ucl-out' };
+    $('content-area').innerHTML = `
+        <div class="group-legend ucl-legend">
+            <span><i class="qualify-dot ucl-r16"></i> 1–8: сразу в 1/8 финала</span>
+            <span><i class="qualify-dot ucl-po"></i> 9–24: стыковой раунд</span>
+            <span><i class="qualify-dot ucl-out"></i> 25–36: выбывают</span>
+            <span class="group-legend-note">8 матчей против 8 разных соперников, по два из каждой корзины</span>
+        </div>
+        <div class="table-container league-table ucl-table">
+            <h4>⭐ Общий этап</h4>
+            <table>
+                <tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>РМ</th><th>О</th><th>Форма</th></tr>
+                ${table.map((t, i) => `
+                    <tr class="${zoneCls[uclZone(i + 1)]}${i === 7 || i === 23 ? ' ucl-cut' : ''}" style="${userRowStyle(t.id)}">
+                        <td>${i + 1}</td><td>${teamLabel(t)}</td>
+                        <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
+                        <td>${t.stats.gf}:${t.stats.ga}</td><td>${t.stats.gf - t.stats.ga > 0 ? '+' : ''}${t.stats.gf - t.stats.ga}</td><td><b>${t.stats.points}</b></td>
+                        <td class="form-cell">${teamFormHtml(t)}</td>
+                    </tr>`).join('')}
+            </table>
+        </div>`;
+}
+
 function renderLeagueTable() {
+    if (isUcl()) { renderUclTable(); return; }
     const table = sortGroup([...state.teams]);
     const withPlayoff = isLeagueWithPlayoff();
     const playoffSize = withPlayoff ? getLeaguePlayoffSize() : 0;
@@ -138,7 +165,7 @@ function renderGroupTables() {
 }
 
 // ----- Сетка плей-офф -----
-const ROUND_ICONS = { 0: '🏟️', 1: '🔥', 2: '⚔️', 3: '🏆' };
+const ROUND_ICONS = { '-1': '⚡', 0: '🏟️', 1: '🔥', 2: '⚔️', 3: '🏆' };
 
 function renderPenaltyKicks(m, side) {
     return m.penalties.kicks.filter(k => k.side === side)

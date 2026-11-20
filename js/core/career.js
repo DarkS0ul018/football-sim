@@ -172,6 +172,7 @@ function getUserResult(team = state.userTeam) {
     }
     if (state.champion && state.champion.id === team.id) return { text: '🏆 Чемпион', place: 1, trophy: true };
     if (isLeagueWithPlayoff() && !state.tournamentHistory.some(r => r.matches.some(m => m.involves(team)))) {
+        if (isUcl() && state.uclRanking) return { text: `Общий этап: ${state.uclRanking.indexOf(team.id) + 1}-е место из 36, без плей-офф`, place: null, trophy: false };
         const table = sortGroup([...state.teams]);
         return { text: `Чемпионат: ${table.findIndex(t => t.id === team.id) + 1} место, без плей-офф`, place: null, trophy: false };
     }
@@ -186,6 +187,7 @@ function formatLabel(settings) {
     // Турнир сборных: «Чемпионат Европы, 24 сборные»
     const cup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[settings.teamType] : null;
     if (cup) return `${cup.title}, ${settings.count} сборных`;
+    if ((settings.originalMode || settings.mode) === 'ucl') return 'Лига чемпионов';
     const mode = settings.originalMode || settings.mode; // после групп mode меняется на knockout
     if (mode === 'league') return `Лига, ${settings.count} команд`;
     if (mode === 'leaguePlayoff') return `Чемпионат + плей-офф, ${settings.count} команд`;

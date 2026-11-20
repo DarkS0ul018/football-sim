@@ -125,7 +125,7 @@ function startSeriesStage() {
 function renderSeriesResult() {
     const card = $('series-result-card');
     const head = document.querySelector('#screen-results .champion-box-v2 h2');
-    if (head) head.textContent = state.settings.stageOnly ? 'Этап завершён' : 'Чемпион турнира';
+    if (head) head.textContent = state.settings.stageOnly ? 'Этап завершён' : (state.settings.ucl ? 'Победитель Лиги чемпионов' : 'Чемпион турнира');
     document.querySelector('#screen-results .champion-box-v2').style.display = state.settings.stageOnly ? 'none' : '';
     if (!state.settings.seriesId) { card.style.display = 'none'; return; }
     let s = readSeries(state.settings.seriesId);
