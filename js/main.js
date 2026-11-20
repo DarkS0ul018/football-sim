@@ -7,10 +7,12 @@ applyCustomData(); // правки из редактора команд — до
 fetchPublishedData(() => {
     if (screens.editor && screens.editor.classList.contains("active")) { renderEditorList(); renderEditorForm(); }
     if (screens.setup && screens.setup.classList.contains("active") && typeof onTeamTypeChange === "function") onTeamTypeChange();
+    if (screens.home.classList.contains("active")) renderHome();
 });
 initStatTabs();
 initEditorScreen();
 initSetupScreens();
+initHome();
 initPickerScreen();
 initMatchScreen();
 initTacticsScreen();

@@ -437,8 +437,11 @@ async function doPublish() {
 }
 
 function initEditorScreen() {
-    $('btn-open-editor').onclick = openEditor;
-    $('btn-editor-back').onclick = () => { onTeamTypeChange(); showScreen('setup'); }; // участники сборных могли измениться
+    $('btn-open-editor').onclick = () => { editor.returnTo = 'setup'; openEditor(); };
+    $('btn-editor-back').onclick = () => { // участники сборных могли измениться
+        onTeamTypeChange();
+        if (editor.returnTo === 'home') goHome(); else showScreen('setup');
+    };
     document.querySelectorAll('#editor-type-tabs .style-btn').forEach(b => b.onclick = () => {
         editor.type = b.dataset.type;
         editor.selected = null;

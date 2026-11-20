@@ -284,7 +284,7 @@ function goToMenu() {
     saveGame();
     renderResumeCard();
     renderHall();
-    showScreen('setup');
+    goHome();
 }
 $('btn-to-menu').onclick = goToMenu;
 document.querySelector('.topbar .brand')?.addEventListener('click', () => {

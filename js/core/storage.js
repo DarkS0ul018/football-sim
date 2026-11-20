@@ -117,6 +117,14 @@ function loadGame() {
 }
 
 // Краткое описание сохранения для кнопки «Продолжить»
+// Название турнира для карточки «Продолжить»
+function saveTournamentName(s) {
+    if (typeof NATION_CUPS !== 'undefined' && NATION_CUPS[s.teamType]) return NATION_CUPS[s.teamType].title;
+    const n = s.count;
+    const word = n % 10 === 1 && n % 100 !== 11 ? 'команда' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'команды' : 'команд');
+    return `${{ world: 'Европейские клубы', russia: 'РПЛ', mixed: 'РПЛ + Европа' }[s.teamType] || 'Турнир'}, ${n} ${word}`;
+}
+
 function describeSave(data) {
     const user = data.userTeam !== null ? data.teams.find(t => t.id === data.userTeam) : null;
     const stage = data.settings.mode === 'league' ? (data.settings.originalMode === 'leaguePlayoff' ? 'Чемпионат' : 'Лига')
@@ -126,7 +134,7 @@ function describeSave(data) {
     return {
         title: data.settings.gameMode === 'duo' && (data.userTeams || []).length === 2
             ? `Вдвоём: ${data.userTeams.map(id => data.teams.find(t => t.id === id).name).join(' vs ')}`
-            : user ? `Карьера: ${user.emoji} ${user.name}` : `Симулятор: ${data.settings.count} команд`,
+            : user ? `Карьера: ${user.emoji} ${user.name}` : `${saveTournamentName(data.settings)} · смотрю турнир`,
         details: `${stage} · сыграно ${played} из ${data.currentMatches.length}`
     };
 }

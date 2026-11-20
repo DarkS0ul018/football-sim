@@ -3,6 +3,7 @@
 const $ = id => document.getElementById(id);
 
 const screens = {
+    home: $('screen-home'),
     setup: $('screen-setup'),
     teamSelect: $('screen-team-select'),
     picker: $('screen-picker'),

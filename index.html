@@ -35,10 +35,47 @@
     </header>
 
     <main class="app-container">
+        <!-- ЭКРАН 0: ГЛАВНОЕ МЕНЮ -->
+        <section id="screen-home" class="screen active">
+            <div class="home-hero">
+                <div class="home-pitch" aria-hidden="true">
+                    <span class="hp-line hp-mid"></span><span class="hp-circle"></span>
+                    <span class="hp-box hp-box-l"></span><span class="hp-box hp-box-r"></span>
+                    <span class="hp-ball">⚽</span><span class="hp-sweep"></span>
+                </div>
+                <div class="home-hero-text">
+                    <span class="kicker">Сезон 2026/27</span>
+                    <h1>Football Sim Pro</h1>
+                    <p class="subtitle" id="home-subtitle">Чемпионаты мира и Европы, еврокубки и РПЛ. Смотрите матчи вживую или ведите свою команду.</p>
+                    <div class="home-chips" id="home-chips"></div>
+                </div>
+                <div id="home-resume" class="home-resume" style="display:none;">
+                    <div class="hr-info">
+                        <span class="hr-label">Сохранённый турнир</span>
+                        <b id="home-resume-title"></b>
+                        <span id="home-resume-details" class="muted"></span>
+                    </div>
+                    <div class="hr-actions">
+                        <button id="btn-home-resume" class="btn-primary" type="button"><span class="btn-text">▶ Продолжить</span></button>
+                        <button id="btn-home-discard" class="btn-secondary" type="button" title="Удалить сохранённый турнир">🗑️</button>
+                    </div>
+                </div>
+            </div>
+
+            <h2 class="home-section-title">Турниры</h2>
+            <div id="home-cups" class="home-tiles home-tiles-cups"></div>
+
+            <h2 class="home-section-title">Режимы</h2>
+            <div id="home-modes" class="home-tiles home-tiles-modes"></div>
+
+            <div id="home-hall-slot"></div>
+        </section>
+
         <!-- ЭКРАН 1: НАСТРОЙКИ -->
-        <section id="screen-setup" class="screen active">
+        <section id="screen-setup" class="screen">
             <div class="screen-header">
-                <span class="kicker">Новый турнир</span>
+                <button id="btn-setup-home" class="btn-secondary btn-home-back" type="button">← Меню</button>
+                <span class="kicker">Свой турнир</span>
                 <h1>Соберите свой турнир</h1>
                 <p class="subtitle">Выберите формат, команды и режим — дальше можно играть каждый матч вживую.</p>
             </div>
@@ -745,6 +782,7 @@
     <script src="js/ui/sound.js"></script>
     <script src="js/ui/pitch.js"></script>
     <script src="js/ui/setup.js"></script>
+    <script src="js/ui/home.js"></script>
     <script src="js/ui/picker.js"></script>
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/cup.js"></script>
