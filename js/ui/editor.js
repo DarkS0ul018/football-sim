@@ -159,10 +159,14 @@ function renderEditorForm() {
         <div class="editor-squad">
             ${Object.keys(SQUAD_MINIMUM).map(line => `
                 <label>${LINE_NAMES[line][0].toUpperCase() + LINE_NAMES[line].slice(1)} <span class="muted">(сильнейшие сверху, мин. ${SQUAD_MINIMUM[line]})</span>
-                    <textarea id="ed-${line}" rows="7" spellcheck="false">${escapeHtml((t.squad[line] || []).join('\n'))}</textarea>
+                    <textarea id="ed-${line}" rows="7" spellcheck="false">${escapeHtml((t.squad[line] || []).map(n => {
+                        const r = editor.isNew ? null : playerRatingOverride(t.name, n);
+                        return r ? `${n} (${r})` : n;
+                    }).join('\n'))}</textarea>
                 </label>`).join('')}
         </div>
-        <div class="muted editor-hint">По одному игроку на строку. Первые в каждой линии выходят в старт: 1 вратарь, 4 защитника, 4 полузащитника, 2 нападающих.</div>
+        <div class="muted editor-hint">По одному игроку на строку. Первые в каждой линии выходят в старт: 1 вратарь, 4 защитника, 4 полузащитника, 2 нападающих.
+            Свой рейтинг игрока — в скобках: «Ламин Ямаль (94)». Без скобок рейтинг считается сам: от рейтинга команды и места в списке.</div>
 
         <div id="ed-check" class="editor-check"></div>
 
@@ -177,9 +181,14 @@ function renderEditorForm() {
     let flagDirty = false; // флаг трогали — сохраняем из полей, иначе оставляем как был
     const currentEmoji = () => state2.colors.join('');
     const readForm = () => {
-        const squad = {};
+        // «Имя (94)» — свой рейтинг игрока; совпадающий со списком звёзд не сохраняем
+        const squad = {}, playerRatings = {};
         Object.keys(SQUAD_MINIMUM).forEach(line => {
-            squad[line] = $(`ed-${line}`).value.split('\n').map(s => s.trim()).filter(Boolean);
+            squad[line] = $(`ed-${line}`).value.split('\n').map(s => s.trim()).filter(Boolean).map(s => {
+                const p = parsePlayerLine(s);
+                if (p.rating && p.rating !== STAR_RATINGS[p.name]) playerRatings[p.name] = p.rating;
+                return p.name;
+            });
         });
         return {
             name: cleanText($('ed-name').value, 30),
@@ -192,6 +201,7 @@ function renderEditorForm() {
             flag: national ? (flagDirty ? readFlagFields() : t.flag) : undefined,
             rating: Number($('ed-rating').value),
             squad,
+            playerRatings: Object.keys(playerRatings).length ? playerRatings : undefined,
             crest: { ...crest }
         };
     };
@@ -250,7 +260,7 @@ function renderEditorForm() {
         const d = refresh();
         if ($('btn-ed-save').disabled) return;
         const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
-        const payload = { type: d.type, rating: d.rating, squad: d.squad, crest: Object.keys(crestData).length ? crestData : undefined };
+        const payload = { type: d.type, rating: d.rating, squad: d.squad, playerRatings: d.playerRatings, crest: Object.keys(crestData).length ? crestData : undefined };
         if (d.type === 'national') Object.assign(payload, { kit: d.kit, code: d.code, flag: d.flag, cups: d.cups });
         else Object.assign(payload, { emoji: d.emoji, code: d.code, year: d.year });
         // Стандартная команда — правки под исходным названием, новое название — rename;

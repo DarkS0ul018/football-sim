@@ -51,7 +51,7 @@ const TEAM_TACTICS = {
     "Ахмат":             { formation: '4-2-3-1', style: 'counter',    line: 'mid' },
     "Крылья":            { formation: '4-3-3',   style: 'pressing',   line: 'mid' },
     "Оренбург":          { formation: '4-4-2',   style: 'counter',    line: 'low' },
-    "ПариНН":            { formation: '5-3-2',   style: 'defense',    line: 'low' },
+    "Нижний Новгород":            { formation: '5-3-2',   style: 'defense',    line: 'low' },
     "Факел":             { formation: '5-3-2',   style: 'defense',    line: 'low' },
     "Акрон":             { formation: '4-4-2',   style: 'counter',    line: 'mid' },
     "Балтика":           { formation: '3-5-2',   style: 'balance',    line: 'mid' }

@@ -13,6 +13,7 @@ const screens = {
     editor: $('screen-editor'),
     transfers: $('screen-transfers'),
     match: $('screen-match'),
+    series: $('screen-series'),
     results: $('screen-results')
 };
 

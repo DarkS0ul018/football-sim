@@ -5,6 +5,79 @@
 const SAVE_KEY = 'footballSimPro.save';
 const SAVE_VERSION = 3; // v3: составы (схема, свежесть, дисквалификации), туры, лига
 
+// ===== МОИ СОХРАНЕНИЯ: у каждого турнира и серии — свой слот =====
+// Индекс слотов (для списка на главной) и данные каждого слота хранятся отдельно.
+// Слот: { tournament: данные турнира | null, series: состояние серии | null }.
+const SLOTS_KEY = 'footballSimPro.slots';
+const SLOT_PREFIX = 'footballSimPro.slot.';
+const SLOTS_MAX = 12;
+let currentSlotId = null;
+
+function readSlotIndex() {
+    try { const l = JSON.parse(localStorage.getItem(SLOTS_KEY)); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+}
+
+function writeSlotIndex(list) {
+    try { localStorage.setItem(SLOTS_KEY, JSON.stringify(list)); } catch (e) { /* ignore */ }
+}
+
+function readSlot(id) {
+    if (!id) return null;
+    try { return JSON.parse(localStorage.getItem(SLOT_PREFIX + id)) || null; } catch (e) { return null; }
+}
+
+function newSlotId() {
+    return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Описание слота для списка: турнир, а между турнирами серии — сама серия
+function describeSlot(slot) {
+    if (slot.tournament && slot.tournament.version === SAVE_VERSION) {
+        const d = describeSave(slot.tournament);
+        if (slot.series && typeof describeSeries === 'function') return { title: describeSeries(slot.series).title, details: d.title + ' · ' + d.details };
+        return d;
+    }
+    if (slot.series && typeof describeSeries === 'function') return describeSeries(slot.series);
+    return { title: 'Сохранение', details: '' };
+}
+
+function writeSlot(id, slot) {
+    try { localStorage.setItem(SLOT_PREFIX + id, JSON.stringify(slot)); } catch (e) { return false; }
+    const info = describeSlot(slot);
+    let list = readSlotIndex().filter(s => s.id !== id);
+    list.unshift({ id, savedAt: Date.now(), title: info.title, details: info.details, series: !!slot.series });
+    // Слишком много — убираем самые старые одиночные турниры
+    while (list.length > SLOTS_MAX) {
+        const drop = [...list].reverse().find(s => !s.series) || list[list.length - 1];
+        list = list.filter(s => s !== drop);
+        try { localStorage.removeItem(SLOT_PREFIX + drop.id); } catch (e) { /* ignore */ }
+    }
+    writeSlotIndex(list);
+    return true;
+}
+
+function deleteSlot(id) {
+    try { localStorage.removeItem(SLOT_PREFIX + id); } catch (e) { /* ignore */ }
+    writeSlotIndex(readSlotIndex().filter(s => s.id !== id));
+    if (currentSlotId === id) currentSlotId = null;
+}
+
+// Новый одиночный турнир — в новый слот (прежние сохранения не трогаем)
+function startNewSlot() {
+    currentSlotId = null;
+}
+
+// Старое единственное сохранение → первый слот
+(function migrateOldSave() {
+    try {
+        const old = localStorage.getItem(SAVE_KEY);
+        if (!old) return;
+        const data = JSON.parse(old);
+        if (data && data.version === SAVE_VERSION) writeSlot(newSlotId(), { tournament: data, series: null });
+        localStorage.removeItem(SAVE_KEY);
+    } catch (e) { /* ignore */ }
+})();
+
 function serializeMatch(m) {
     return {
         id: m.id, t1: m.team1.id, t2: m.team2.id, legs: m.legs, stage: m.stage,
@@ -66,23 +139,30 @@ function saveGame() {
         news: state.news || [],
         newsMeta: state.newsMeta || null
     };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* хранилище недоступно — играем без сохранения */ }
+    // В свой слот: серия хранит рядом своё состояние
+    if (!currentSlotId) currentSlotId = newSlotId();
+    const slot = readSlot(currentSlotId) || { tournament: null, series: null };
+    slot.tournament = data;
+    writeSlot(currentSlotId, slot);
 }
 
-function readSave() {
-    try {
-        const data = JSON.parse(localStorage.getItem(SAVE_KEY));
-        return data && data.version === SAVE_VERSION ? data : null;
-    } catch (e) {
-        return null;
-    }
+// Турнир из слота (по умолчанию — текущего)
+function readSave(id = currentSlotId) {
+    const slot = readSlot(id);
+    const data = slot && slot.tournament;
+    return data && data.version === SAVE_VERSION ? data : null;
 }
 
-function clearSave() {
-    try { localStorage.removeItem(SAVE_KEY); } catch (e) { /* ignore */ }
+// Турнир закончен или брошен: слот одиночного турнира удаляется, у серии остаётся сама серия
+function clearSave(id = currentSlotId) {
+    if (!id) return;
+    const slot = readSlot(id);
+    if (slot && slot.series) { slot.tournament = null; writeSlot(id, slot); }
+    else deleteSlot(id);
 }
 
-function loadGame() {
+function loadGame(id = currentSlotId) {
+    if (id) currentSlotId = id;
     const data = readSave();
     if (!data) return false;
 
@@ -112,6 +192,7 @@ function loadGame() {
     state.cup = deserializeCup(data.cup, teamById);
     state.news = data.news || [];
     state.newsMeta = data.newsMeta || null;
+    state.seriesProcessed = false;
     state.seasonRecorded = false;
     return true;
 }
@@ -122,7 +203,7 @@ function saveTournamentName(s) {
     if (typeof NATION_CUPS !== 'undefined' && NATION_CUPS[s.teamType]) return NATION_CUPS[s.teamType].title;
     const n = s.count;
     const word = n % 10 === 1 && n % 100 !== 11 ? 'команда' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'команды' : 'команд');
-    return `${{ world: 'Европейские клубы', russia: 'РПЛ', mixed: 'РПЛ + Европа' }[s.teamType] || 'Турнир'}, ${n} ${word}`;
+    return `${{ world: 'Европейские клубы', russia: 'РПЛ', mixed: 'РПЛ + Европа', clubwc: 'Клубы мира', fnl: 'Первая лига' }[s.teamType] || 'Турнир'}, ${n} ${word}`;
 }
 
 function describeSave(data) {

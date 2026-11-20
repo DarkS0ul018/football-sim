@@ -35,8 +35,31 @@ $clubs = [ordered]@{
     'Ростов' = @('russia', 'Ростов_(футбольный_клуб)'); 'Рубин' = @('russia', 'Рубин_(футбольный_клуб)')
     'Сочи' = @('russia', 'Сочи_(футбольный_клуб)'); 'Ахмат' = @('russia', 'Ахмат_(футбольный_клуб)')
     'Крылья' = @('russia', 'Крылья_Советов_(футбольный_клуб,_Самара)'); 'Оренбург' = @('russia', 'Оренбург_(футбольный_клуб)')
-    'ПариНН' = @('russia', 'Пари_Нижний_Новгород_(футбольный_клуб)'); 'Факел' = @('russia', 'Факел_(футбольный_клуб,_Воронеж)')
+    'Нижний Новгород' = @('russia', 'Нижний_Новгород_(футбольный_клуб,_2015)'); 'Факел' = @('russia', 'Факел_(футбольный_клуб,_Воронеж)')
     'Акрон' = @('russia', 'Акрон_(футбольный_клуб)'); 'Балтика' = @('russia', 'Балтика_(футбольный_клуб)')
+    'Родина' = @('russia', 'Родина_(футбольный_клуб)'); 'Динамо Мх' = @('russia', 'Динамо_(футбольный_клуб,_Махачкала)')
+    # Европа — добавлены в ноябре 2026
+    'Байер' = @('world', 'Байер_04'); 'РБ Лейпциг' = @('world', 'РБ_Лейпциг')
+    'ПСВ' = @('world', 'ПСВ_(футбольный_клуб)'); 'Ньюкасл' = @('world', 'Ньюкасл_Юнайтед')
+    'Марсель' = @('world', 'Олимпик_Марсель'); 'Монако' = @('world', 'Монако_(футбольный_клуб)')
+    'Галатасарай' = @('world', 'Галатасарай_(футбольный_клуб)'); 'Фенербахче' = @('world', 'Фенербахче_(футбольный_клуб)')
+    'Вильярреал' = @('world', 'Вильярреал_(футбольный_клуб)'); 'Атлетик' = @('world', 'Атлетик_Бильбао')
+    'Селтик' = @('world', 'Селтик')
+    # Клубы других континентов (Клубный чемпионат мира)
+    'Интер Майами' = @('world', 'Интер_Майами'); 'Аль-Наср' = @('world', 'Аль-Наср_(футбольный_клуб,_Эр-Рияд)')
+    'Аль-Хиляль' = @('world', 'Аль-Хиляль_(футбольный_клуб,_Эр-Рияд)'); 'Фламенго' = @('world', 'Фламенго')
+    'Палмейрас' = @('world', 'Палмейрас'); 'Бока Хуниорс' = @('world', 'Бока_Хуниорс')
+    'Ривер Плейт' = @('world', 'Ривер_Плейт')
+    # Первая лига 2026/27 (вылет и стыки в серии РПЛ)
+    'Ротор' = @('russia', 'Ротор_(футбольный_клуб)')
+    'Урал' = @('russia', 'Урал_(футбольный_клуб)'); 'Арсенал Тула' = @('russia', 'Арсенал_(футбольный_клуб,_Тула)')
+    'Торпедо' = @('russia', 'Торпедо_(футбольный_клуб,_Москва)'); 'Спартак Кс' = @('russia', 'Спартак_(футбольный_клуб,_Кострома)')
+    'Енисей' = @('russia', 'Енисей_(футбольный_клуб)'); 'СКА-Хабаровск' = @('russia', 'СКА-Хабаровск')
+    'Уфа' = @('russia', 'Уфа_(футбольный_клуб)'); 'Текстильщик' = @('russia', 'Текстильщик_(футбольный_клуб,_Иваново)')
+    'Волга' = @('russia', 'Волга_(футбольный_клуб,_Ульяновск)'); 'Челябинск' = @('russia', 'Челябинск_(футбольный_клуб)')
+    'КАМАЗ' = @('russia', 'КАМАЗ_(футбольный_клуб)'); 'Велес' = @('russia', 'Велес_(футбольный_клуб)')
+    'Шинник' = @('russia', 'Шинник_(футбольный_клуб)'); 'Нефтехимик' = @('russia', 'Нефтехимик_(футбольный_клуб,_Нижнекамск)')
+    'Ленинградец' = @('russia', 'Ленинградец_(футбольный_клуб)')
 }
 
 $posMap = @{ 'Вр' = 'goalkeepers'; 'Защ' = 'defenders'; 'ПЗ' = 'midfielders'; 'Нап' = 'forwards' }
@@ -64,7 +87,7 @@ function Get-PlayerName($raw) {
     return ($raw -replace '\[|\]|\{|\}', '').Trim()
 }
 
-function Get-Squad($title) {
+function Get-Squad($title, $minDate = '2025-09-01') {
     $s = Get-Api @{ action = 'parse'; page = $title; prop = 'sections' }
     if (-not $s.parse) { throw "статья не найдена" }
     $sec = $s.parse.sections | Where-Object { $_.line -match '^(Текущий|Основной) состав$|^Состав$|^Состав команды$|^Игроки$' } | Select-Object -First 1
@@ -80,7 +103,7 @@ function Get-Squad($title) {
     }
     if ($players.Count -lt 14) { throw "найдено только $($players.Count) игроков" }
     # Данные старее наших (осень 2025) — не берём, чтобы не откатить состав назад
-    if ($updated -and $updated -lt '2025-09-01') { throw "состав в статье устарел (обновлён $updated)" }
+    if ($updated -and $updated -lt $minDate) { throw "состав в статье устарел (обновлён $updated)" }
     return @{ players = $players; updated = $updated }
 }
 
@@ -107,12 +130,14 @@ $births = [ordered]@{}
 $bprev = Join-Path $root 'js\data\birthyears.js'
 if (Test-Path $bprev) { foreach ($m in [regex]::Matches([IO.File]::ReadAllText($bprev, [Text.Encoding]::UTF8), '"([^"]+)":\s*(\d{4})')) { $births[$m.Groups[1].Value] = [int]$m.Groups[2].Value } }
 $report = @()
+# Звёзды (js\data\stars.js) всегда первые в своей линии — даже возрастные, как Месси
+$stars = @([regex]::Matches([IO.File]::ReadAllText((Join-Path $root 'js\data\stars.js'), [Text.Encoding]::UTF8), "^\s*'([^']+)':\s*\d+", 'Multiline') | ForEach-Object { $_.Groups[1].Value })
 foreach ($team in $clubs.Keys) {
     $type = $clubs[$team][0]; $title = $clubs[$team][1]
     $prev = $old.$type.$team
-    if ($Only.Count -and $Only -notcontains $team) { $result[$type][$team] = $prev; continue }
+    if ($Only.Count -and $Only -notcontains $team) { if ($prev) { $result[$type][$team] = $prev }; continue }
     try {
-        $sq = Get-Squad $title
+        $sq = if ($prev) { Get-Squad $title } else { Get-Squad $title '2025-01-01' }  # новому клубу годится и чуть более старый состав
         $teamOut = [ordered]@{}
         foreach ($line in 'goalkeepers', 'defenders', 'midfielders', 'forwards') {
             $list = @($sq.players | Where-Object { $_.line -eq $line })
@@ -120,7 +145,7 @@ foreach ($team in $clubs.Keys) {
             $scored = $list | ForEach-Object {
                 $oi = Get-OldIndex $oldLine $_.name
                 $age = $season - $_.year
-                $score = if ($oi -ge 0) { $oi } elseif ($age -ge 22 -and $age -le 31) { 1.5 } elseif ($age -ge 20 -and $age -le 33) { 4.5 } else { 9 + (21 - [Math]::Min($age, 21)) }
+                $score = if ($stars -contains $_.name) { -1 } elseif ($oi -ge 0) { $oi } elseif ($age -ge 22 -and $age -le 31) { 1.5 } elseif ($age -ge 20 -and $age -le 33) { 4.5 } else { 9 + (21 - [Math]::Min($age, 21)) }
                 [pscustomobject]@{ name = $_.name; score = $score; year = $_.year }
             }
             $sorted = @($scored | Sort-Object score, @{ Expression = { [Math]::Abs(27 - ($season - $_.year)) } } | Select-Object -First $maxLine[$line])
@@ -131,7 +156,7 @@ foreach ($team in $clubs.Keys) {
         $kept = @($sq.players | Where-Object { (Get-OldIndex @($prev.($_.line)) $_.name) -ge 0 }).Count
         $report += "OK   $team — $($sq.players.Count) игроков (на $($sq.updated)), из прежних: $kept"
     } catch {
-        $result[$type][$team] = $prev
+        if ($prev) { $result[$type][$team] = $prev }   # у нового клуба без состава — пропуск (в игре будут резервные имена)
         $report += "SKIP $team — $($_.Exception.Message) — оставлен прежний состав"
     }
     Start-Sleep -Milliseconds 300

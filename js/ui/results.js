@@ -160,7 +160,7 @@ function openNextNationTournament(teamName) {
 function startNationCareer(cup, teamName) {
     applyHomePreset(cup, 'career');
     const settings = readSettings();
-    clearSave();
+    startNewSlot();
     const pool = pickRandomTeams(settings.teamType, getTeamsData(settings.teamType).names.length);
     startTournament(settings, trimPool(pool, [teamName], settings.count), teamName);
 }
@@ -174,7 +174,7 @@ function renderCareerCard() {
     $('btn-next-season').style.display = '';
     $('btn-next-season').innerHTML = '<span class="btn-text">Следующий сезон →</span>';
     $('btn-next-season').onclick = openTransferWindow;
-    if (!isCareer() || !state.userTeam) { card.style.display = 'none'; return; }
+    if (!isCareer() || !state.userTeam || state.settings.seriesId) { card.style.display = 'none'; return; }
     if (isNationCareer()) { renderNationCareerCard(card); return; }
     recordCareerSeason();
     const result = getUserResult();
@@ -197,15 +197,16 @@ function renderCareerCard() {
 
 function showResults(champion) {
     state.champion = champion;
-    clearSave(); // турнир завершён — продолжать нечего
-    recordTournamentInHall(champion);
+    clearSave(); // турнир завершён — продолжать нечего (у серии в слоте остаётся сама серия)
+    if (!state.settings.stageOnly) recordTournamentInHall(champion); // отбор и стыки — не «турнир с чемпионом»
     playSound('whistle-end');
 
     setHtml('champion-name', crestHtml(champion, 'xl') + ' ' + champion.name);
     const isLeague = state.settings.mode === 'league';
-    $('tournament-path-card').style.display = isLeague ? 'none' : 'block';
+    $('tournament-path-card').style.display = isLeague || state.settings.stageOnly ? 'none' : 'block';
     renderTournamentPath();
     renderCareerCard();
+    renderSeriesResult();
 
     $('teams-stats').innerHTML = [...state.teams].sort((a, b) => b.stats.points - a.stats.points).map(t => `
         <tr style="${userRowStyle(t.id)}">

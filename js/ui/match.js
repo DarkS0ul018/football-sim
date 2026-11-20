@@ -500,7 +500,7 @@ function finishMatch(m, winner) {
     } else {
         // Этап доигран: дальше — жеребьёвка следующего этапа (её видно в сетке) или итоги турнира
         const toPlayoff = (state.settings.mode === 'league' && isLeagueWithPlayoff()) || state.settings.mode === 'groups';
-        const isLast = !toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1);
+        const isLast = !!state.settings.stageOnly || (!toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1));
         btn.innerHTML = isLast ? '<span class="btn-icon">🏆</span><span class="btn-text">Итоги турнира</span>'
             : `<span class="btn-icon">➡️</span><span class="btn-text">${toPlayoff ? 'К плей-офф' : 'Следующий раунд'}</span>`;
         btn.onclick = goToNextStage;

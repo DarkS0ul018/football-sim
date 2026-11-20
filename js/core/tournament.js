@@ -53,6 +53,8 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     state.settings = { ...settings, originalMode: settings.originalMode || settings.mode };
     state.seasonRecorded = false;
     state.hallRecorded = false;
+    state.seriesProcessed = false;
+    state.stageDone = false;
     state.teams = teamsPool.map((d, i) => new Team(i, d.name, d.emoji, d.rating));
     state.matches = [];
     state.groups = [];
@@ -73,7 +75,7 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     // Фиксируем составы участников на весь турнир
     // (в карьере — с учётом развития игроков и трансферов из прошлых сезонов)
     // Сборные: составы из редактора, без трансферов и развития клубной карьеры
-    if (settings.gameMode === 'career' && names[0] && !(typeof NATION_CUPS !== 'undefined' && NATION_CUPS[settings.teamType])) activateCareerPlayers(names[0]);
+    if (settings.gameMode === 'career' && names[0] && !settings.seriesId && !(typeof NATION_CUPS !== 'undefined' && NATION_CUPS[settings.teamType])) activateCareerPlayers(names[0]);
     else careerPlayers = null;
     state.rosters = null;
     const rosters = {};
@@ -90,6 +92,11 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     }
     else if (settings.mode === 'groups') createGroups();
     else if (settings.mode === 'league') createLeague();
+    else if (settings.presetPairs) {
+        // Серия: стыковые пары заданы заранее (первая команда принимает во втором матче)
+        const byName = n => state.teams.find(t => t.name === n);
+        createKnockoutRound(null, settings.presetPairs.map(([a, b]) => [byName(a), byName(b)]));
+    }
     else createKnockoutRound(state.teams);
 
     // Карьера в лиге: параллельно с чемпионатом разыгрывается кубок
@@ -118,10 +125,16 @@ function roundRobinRounds(teams, legs = 1) {
 }
 
 function createGroups() {
-    const groupCount = state.settings.count / 4;
-    state.groups = Array.from({ length: groupCount }, () => []);
-    const shuffled = [...state.teams].sort(() => 0.5 - Math.random());
-    shuffled.forEach((team, i) => state.groups[i % groupCount].push(team));
+    // Серия: группы заданы заранее (посев по корзинам, группы могут быть по 3–5 команд)
+    if (state.settings.presetGroups) {
+        const byName = n => state.teams.find(t => t.name === n);
+        state.groups = state.settings.presetGroups.map(g => g.map(byName).filter(Boolean));
+    } else {
+        const groupCount = state.settings.count / 4;
+        state.groups = Array.from({ length: groupCount }, () => []);
+        const shuffled = [...state.teams].sort(() => 0.5 - Math.random());
+        shuffled.forEach((team, i) => state.groups[i % groupCount].push(team));
+    }
 
     state.matches = [];
     let id = 0;
@@ -165,9 +178,9 @@ function createKnockoutRound(teams, pairs = null) {
         for (let i = 0; i < shuffled.length; i += 2) pairs.push([shuffled[i], shuffled[i + 1]]);
     }
     const count = pairs.length * 2;
-    const roundName = getRoundName(count);
+    const roundName = state.settings.pairsTitle && state.settings.presetPairs && !state.tournamentHistory.length ? state.settings.pairsTitle : getRoundName(count);
     const roundIndex = getRoundIndex(count);
-    const isFinal = count === 2;
+    const isFinal = count === 2 && !state.settings.stageOnly;
     const legs = isFinal ? 1 : state.settings.playoffLegs;
 
     // Как на ЧМ и ЧЕ: перед полуфиналами накопленные жёлтые сгорают (дисквалификации остаются)
@@ -267,6 +280,13 @@ function createPlayoffPairsFromLeague() {
 
 // Переходит к следующему этапу. Возвращает чемпиона, если турнир завершён.
 function advanceStage() {
+    // Этап серии (отбор, стыки): после него турнир заканчивается — дальше решает серия
+    if (state.settings.stageOnly) {
+        state.stageDone = true;
+        const w = state.settings.mode === 'knockout' ? (state.matches.find(m => m.winner) || {}).winner : sortGroup([...state.groups[0]])[0];
+        state.champion = w || state.teams[0];
+        return state.champion;
+    }
     if (state.settings.mode === 'league' && isLeagueWithPlayoff()) {
         const pairs = createPlayoffPairsFromLeague();
         state.groupMatches = state.matches;

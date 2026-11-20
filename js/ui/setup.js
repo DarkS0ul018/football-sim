@@ -49,34 +49,47 @@ function validateSettings() {
     return !error;
 }
 
-// ----- Продолжение сохранённого турнира -----
+// ----- Продолжение сохранённого турнира (последнее из «Моих сохранений») -----
+function latestSlot() {
+    return readSlotIndex()[0] || null;
+}
+
 function renderResumeCard() {
     const card = $('resume-card');
-    const data = readSave();
-    if (!data) { card.style.display = 'none'; return; }
-    const info = describeSave(data);
-    setText('resume-title', info.title);
-    setText('resume-details', info.details);
+    const s = latestSlot();
+    if (!s) { card.style.display = 'none'; return; }
+    setText('resume-title', s.title);
+    setText('resume-details', s.details);
     card.style.display = 'block';
 }
 
-function resumeTournament() {
-    if (!loadGame()) { renderResumeCard(); return; }
-    openDashboard();
+// Открыть слот: идущий турнир — к сетке, серия между турнирами — к её экрану
+function resumeTournament(id) {
+    const slotId = typeof id === 'string' ? id : (latestSlot() || {}).id;
+    if (!slotId) return;
+    if (loadGame(slotId)) { openDashboard(); return; }
+    const slot = readSlot(slotId);
+    if (slot && slot.series && typeof openSeries === 'function') { currentSlotId = slotId; openSeries(); return; }
+    deleteSlot(slotId);
+    renderResumeCard();
+    if (typeof renderHome === 'function') renderHome();
 }
 
-async function discardSave() {
-    if (!(await askConfirm('Удалить сохранённый турнир? Продолжить его будет нельзя.', { ok: 'Удалить', danger: true }))) return;
-    clearSave();
+async function discardSave(id) {
+    const slotId = typeof id === 'string' ? id : (latestSlot() || {}).id;
+    if (!slotId) return;
+    const s = readSlotIndex().find(x => x.id === slotId);
+    if (!(await askConfirm(`Удалить «${s ? s.title : 'сохранение'}»? Продолжить будет нельзя.`, { ok: 'Удалить', danger: true }))) return false;
+    deleteSlot(slotId);
     renderResumeCard();
+    return true;
 }
 
 // ----- Старт -----
 async function onStartClick() {
     if (!validateSettings()) return;
     const settings = readSettings();
-    if (readSave() && !(await askConfirm('Начать новый турнир? Сохранённый турнир будет удалён.', { ok: 'Начать новый', danger: true }))) return;
-    if (readSave()) { clearSave(); renderResumeCard(); }
+    startNewSlot(); // новый турнир — новое сохранение, прежние остаются в «Моих сохранениях»
     // Участники: случайно или на выбор
     if (settings.teamPick === 'manual') {
         openParticipantPicker(settings, pool => proceedWithPool(settings, pool));

@@ -57,6 +57,17 @@ function cleanCups(cups) {
 }
 
 // Цвет формы сборной: только #rrggbb
+// Рейтинги отдельных игроков из редактора: { имя: 40–99 }
+function cleanPlayerRatings(pr) {
+    if (!pr || typeof pr !== 'object') return undefined;
+    const out = {};
+    Object.entries(pr).slice(0, 80).forEach(([n, r]) => {
+        const name = cleanText(n), v = Math.round(Number(r));
+        if (name && v >= 40 && v <= 99) out[name] = v;
+    });
+    return Object.keys(out).length ? out : undefined;
+}
+
 function cleanHex(c, fallback) {
     return typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : fallback;
 }
@@ -180,6 +191,7 @@ let TEAM_ALIAS = {};
 function applyCustomData() {
     const custom = effectiveTeams();
     TEAM_ALIAS = {};
+    PLAYER_RATING_OVERRIDES = {};
     const shown = (key, o) => (o && o.rename) || key;
 
     // Справочники — к стандартным
@@ -212,6 +224,7 @@ function applyCustomData() {
             const year = o && o.year !== undefined ? o.year : meta[1];
             if (code || year) teamMeta[name] = [code, year];
             if (o && o.crest) customCrests[name] = o.crest;
+            if (o && o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
         });
         Object.entries(custom).forEach(([name, o]) => {
             if (!o.isNew || o.type !== type) return;
@@ -221,6 +234,7 @@ function applyCustomData() {
             teamRatings[name] = typeof o.rating === 'number' ? o.rating : 75;
             if (o.code || o.year) teamMeta[name] = [o.code || null, o.year ?? null];
             if (o.crest) customCrests[name] = o.crest;
+            if (o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
         });
     });
     mixedTeams.names = [...russianTeams.names, ...worldTeams.names];
@@ -239,6 +253,7 @@ function applyCustomData() {
                 if (o.flag) n.flag = o.flag;
                 if (o.code) n.code = o.code;
                 if (o.crest) customCrests[name] = o.crest;
+                if (o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
                 // Участие в турнирах сборных
                 if (Array.isArray(o.cups)) Object.entries(NATION_CUPS).forEach(([k, c]) => {
                     const has = c.names.includes(name), want = o.cups.includes(k);
@@ -296,7 +311,7 @@ function saveTeamOverride(key, data, oldKey = null) {
         : { code: cleanCode(data.code) || undefined, year: cleanYear(data.year) };
     const isNew = !isDefaultTeam(key);
     const rename = !isNew && data.rename ? cleanText(data.rename, 30) : '';
-    all.teams[key] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew,
+    all.teams[key] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew, playerRatings: cleanPlayerRatings(data.playerRatings),
         rename: rename && rename !== key ? rename : undefined, hidden: data.hidden ? true : undefined };
     const ok = writeCustomData(all);
     applyCustomData();
@@ -375,6 +390,8 @@ function importCustomData(json) {
         }
         if (isDefaultTeam(name) && o.rename) clean.rename = cleanText(o.rename, 30);
         if (isDefaultTeam(name) && o.hidden) clean.hidden = true;
+        const pr = cleanPlayerRatings(o.playerRatings);
+        if (pr) clean.playerRatings = pr;
         const crest = cleanCrest(o.crest);
         if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);

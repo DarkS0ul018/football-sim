@@ -7,7 +7,7 @@ const CUP_NAME = 'Кубок';
 
 function cupEnabled(settings) {
     const mode = settings.originalMode || settings.mode;
-    return settings.gameMode === 'career' && (mode === 'league' || mode === 'leaguePlayoff') && state.teams.length >= 6;
+    return settings.gameMode === 'career' && !settings.seriesId && (mode === 'league' || mode === 'leaguePlayoff') && state.teams.length >= 6;
 }
 
 function createCup() {

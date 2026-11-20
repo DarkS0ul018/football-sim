@@ -196,6 +196,7 @@ function formatLabel(settings) {
 // Записывает сезон в историю (один раз за турнир)
 function recordCareerSeason() {
     if (!isCareer() || !state.userTeam || state.seasonRecorded) return;
+    if (state.settings.seriesId) return;                       // серия ведёт свою историю
     if (isNationCareer()) { recordNationTournament(); return; } // сборная — своя история, клубная карьера не трогается
     const result = getUserResult();
     const career = readCareer();

@@ -76,6 +76,8 @@ function buildBaseRoster(teamName, teamRating) {
     const lineIndex = {};
     const rate = (p, isStarter) => {
         const idx = lineIndex[p.position] = (lineIndex[p.position] ?? -1) + 1;
+        const fixed = playerRatingOverride(teamName, p.name); // звезда или рейтинг из редактора
+        if (fixed) return fixed;
         const noise = (hashString(teamName + p.name) - 0.5) * 8; // ±4
         const base = isStarter ? teamRating + 3 - idx * 0.8 : teamRating - 5 - idx * 0.6;
         return Math.round(Math.max(50, Math.min(99, base + noise)));

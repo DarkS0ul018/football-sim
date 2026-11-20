@@ -158,7 +158,35 @@ const NATIONS = {
             midfielders: ['Саид Эзатолахи', 'Саман Годдос', 'Алиреза Джаханбахш', 'Мохаммад Мохеби', 'Мехди Гаеди', 'Омид Нурафкан'], forwards: ['Мехди Тареми', 'Сердар Азмун', 'Шахрияр Могханлу', 'Али Алипур'] } },
     "Австралия": { code: 'АВС', rating: 74, kit: ['#ffcd00', '#00843d'], flag: { t: 'plain', c: ['#012169'], star: '#ffffff' },
         squad: { goalkeepers: ['Мэтью Райан', 'Джо Гаучи'], defenders: ['Гарри Сутар', 'Кэмерон Берджесс', 'Азиз Бехич', 'Льюис Миллер', 'Джордан Бос', 'Алессандро Чиркати'],
-            midfielders: ['Джексон Ирвин', 'Райли Макгри', 'Айден О\'Нил', 'Коннор Меткалф', 'Нестори Ирранкунда', 'Крейг Гудвин'], forwards: ['Митчелл Дьюк', 'Кусини Йенги', 'Мохамед Тум', 'Адам Таггарт'] } }
+            midfielders: ['Джексон Ирвин', 'Райли Макгри', 'Айден О\'Нил', 'Коннор Меткалф', 'Нестори Ирранкунда', 'Крейг Гудвин'], forwards: ['Митчелл Дьюк', 'Кусини Йенги', 'Мохамед Тум', 'Адам Таггарт'] } },
+    // ----- Добавлены в ноябре 2026 (для отборочных турниров) -----
+    "Швеция": { code: 'ШВЕ', rating: 78, kit: ['#fecc02', '#006aa7'], flag: { t: 'nordic', c: ['#006aa7', '#fecc02'] }, squad: null },
+    "Греция": { code: 'ГРЕ', rating: 75, kit: ['#0d5eaf', '#ffffff'], flag: { t: 'h', c: ['#0d5eaf', '#ffffff', '#0d5eaf'] }, squad: null },
+    "Уэльс": { code: 'УЭЛ', rating: 74, kit: ['#c8102e', '#ffffff'], flag: { t: 'h', c: ['#ffffff', '#00b140'] }, squad: null },
+    "Ирландия": { code: 'ИРЛ', rating: 73, kit: ['#169b62', '#ffffff'], flag: { t: 'v', c: ['#169b62', '#ffffff', '#ff883e'] }, squad: null },
+    "Босния и Герцеговина": { code: 'БИГ', rating: 71, kit: ['#002395', '#fecb00'], flag: { t: 'plain', c: ['#002395'], star: '#fecb00' }, squad: null },
+    "Северная Ирландия": { code: 'СИР', rating: 70, kit: ['#00a651', '#ffffff'], flag: { t: 'cross', c: ['#ffffff', '#cf142b'] }, squad: null },
+    "Финляндия": { code: 'ФИН', rating: 70, kit: ['#ffffff', '#002f6c'], flag: { t: 'nordic', c: ['#ffffff', '#002f6c'] }, squad: null },
+    "Израиль": { code: 'ИЗР', rating: 70, kit: ['#ffffff', '#0038b8'], flag: { t: 'h', c: ['#ffffff', '#0038b8', '#ffffff'] }, squad: null },
+    "Исландия": { code: 'ИСЛ', rating: 69, kit: ['#02529c', '#ffffff'], flag: { t: 'nordic', c: ['#02529c', '#dc1e35'] }, squad: null },
+    "Северная Македония": { code: 'МКД', rating: 68, kit: ['#d20000', '#ffe600'], flag: { t: 'circle', c: ['#d20000', '#ffe600'] }, squad: null },
+    "Черногория": { code: 'ЧРН', rating: 67, kit: ['#c40308', '#d3ae3b'], flag: { t: 'plain', c: ['#c40308'], star: '#d3ae3b' }, squad: null },
+    "Болгария": { code: 'БОЛ', rating: 67, kit: ['#ffffff', '#00966e'], flag: { t: 'h', c: ['#ffffff', '#00966e', '#d62612'] }, squad: null },
+    "Армения": { code: 'АРМ', rating: 66, kit: ['#d90012', '#0033a0'], flag: { t: 'h', c: ['#d90012', '#0033a0', '#f2a800'] }, squad: null },
+    "Казахстан": { code: 'КАЗ', rating: 65, kit: ['#00afca', '#fec50c'], flag: { t: 'plain', c: ['#00afca'], star: '#fec50c' }, squad: null },
+    "Алжир": { code: 'АЛЖ', rating: 77, kit: ['#ffffff', '#006233'], flag: { t: 'v', c: ['#006233', '#ffffff'] }, squad: null },
+    "Камерун": { code: 'КМР', rating: 75, kit: ['#007a5e', '#ce1126'], flag: { t: 'v', c: ['#007a5e', '#ce1126', '#fcd116'] }, squad: null },
+    "Тунис": { code: 'ТУН', rating: 74, kit: ['#e70013', '#ffffff'], flag: { t: 'circle', c: ['#e70013', '#ffffff'] }, squad: null },
+    "Гана": { code: 'ГАН', rating: 74, kit: ['#ffffff', '#111111'], flag: { t: 'h', c: ['#ce1126', '#fcd116', '#006b3f'] }, squad: null },
+    "Мали": { code: 'МАЛ', rating: 74, kit: ['#14b53a', '#fcd116'], flag: { t: 'v', c: ['#14b53a', '#fcd116', '#ce1126'] }, squad: null },
+    "ЮАР": { code: 'ЮАР', rating: 72, kit: ['#ffb612', '#007749'], flag: { t: 'h', c: ['#e03c31', '#ffffff', '#001489'] }, squad: null },
+    "Саудовская Аравия": { code: 'САУ', rating: 72, kit: ['#ffffff', '#006c35'], flag: { t: 'plain', c: ['#006c35'] }, squad: null },
+    "Узбекистан": { code: 'УЗБ', rating: 72, kit: ['#ffffff', '#1eb53a'], flag: { t: 'h', c: ['#0099b5', '#ffffff', '#1eb53a'] }, squad: null },
+    "Катар": { code: 'КАТ', rating: 71, kit: ['#8a1538', '#ffffff'], flag: { t: 'v', c: ['#ffffff', '#8a1538'] }, squad: null },
+    "Ирак": { code: 'ИРК', rating: 70, kit: ['#ffffff', '#007a3d'], flag: { t: 'h', c: ['#ce1126', '#ffffff', '#000000'] }, squad: null },
+    "Иордания": { code: 'ИОР', rating: 70, kit: ['#ffffff', '#ce1126'], flag: { t: 'h', c: ['#000000', '#ffffff', '#007a3d'] }, squad: null },
+    "Гондурас": { code: 'ГОН', rating: 68, kit: ['#ffffff', '#0073cf'], flag: { t: 'h', c: ['#0073cf', '#ffffff', '#0073cf'] }, squad: null },
+    "Новая Зеландия": { code: 'НЗЛ', rating: 67, kit: ['#ffffff', '#111111'], flag: { t: 'plain', c: ['#00247d'], star: '#cc142b' }, squad: null }
 };
 
 // Состав турниров сборных

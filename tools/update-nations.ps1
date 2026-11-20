@@ -28,6 +28,17 @@ $nations = [ordered]@{
     'Япония' = 'Сборная_Японии_по_футболу'; 'Сенегал' = 'Сборная_Сенегала_по_футболу'; "Кот-д'Ивуар" = ('Сборная_Кот-д' + [char]0x2019 + 'Ивуара_по_футболу')
     'Нигерия' = 'Сборная_Нигерии_по_футболу'; 'Египет' = 'Сборная_Египта_по_футболу'; 'Южная Корея' = 'Сборная_Республики_Корея_по_футболу'
     'Иран' = 'Сборная_Ирана_по_футболу'; 'Австралия' = 'Сборная_Австралии_по_футболу'
+    'Швеция' = 'Сборная_Швеции_по_футболу'; 'Греция' = 'Сборная_Греции_по_футболу'; 'Уэльс' = 'Сборная_Уэльса_по_футболу'
+    'Ирландия' = 'Сборная_Ирландии_по_футболу'; 'Босния и Герцеговина' = 'Сборная_Боснии_и_Герцеговины_по_футболу'
+    'Северная Ирландия' = 'Сборная_Северной_Ирландии_по_футболу'; 'Финляндия' = 'Сборная_Финляндии_по_футболу'
+    'Израиль' = 'Сборная_Израиля_по_футболу'; 'Исландия' = 'Сборная_Исландии_по_футболу'
+    'Северная Македония' = 'Сборная_Северной_Македонии_по_футболу'; 'Черногория' = 'Сборная_Черногории_по_футболу'
+    'Болгария' = 'Сборная_Болгарии_по_футболу'; 'Армения' = 'Сборная_Армении_по_футболу'; 'Казахстан' = 'Сборная_Казахстана_по_футболу'
+    'Алжир' = 'Сборная_Алжира_по_футболу'; 'Камерун' = 'Сборная_Камеруна_по_футболу'; 'Тунис' = 'Сборная_Туниса_по_футболу'
+    'Гана' = 'Сборная_Ганы_по_футболу'; 'Мали' = 'Сборная_Мали_по_футболу'; 'ЮАР' = 'Сборная_ЮАР_по_футболу'
+    'Саудовская Аравия' = 'Сборная_Саудовской_Аравии_по_футболу'; 'Узбекистан' = 'Сборная_Узбекистана_по_футболу'
+    'Катар' = 'Сборная_Катара_по_футболу'; 'Ирак' = 'Сборная_Ирака_по_футболу'; 'Иордания' = 'Сборная_Иордании_по_футболу'
+    'Гондурас' = 'Сборная_Гондураса_по_футболу'; 'Новая Зеландия' = 'Сборная_Новой_Зеландии_по_футболу'
 }
 
 $posMap = @{ 'вр' = 'goalkeepers'; 'зщ' = 'defenders'; 'за' = 'defenders'; 'пз' = 'midfielders'; 'нп' = 'forwards'; 'на' = 'forwards' }
@@ -112,6 +123,21 @@ $result = [ordered]@{}
 $births = [ordered]@{}
 $bpath = Join-Path $root 'js\data\birthyears.js'
 $report = @()
+# При выборочном обновлении (-Only) остальные составы берём из текущего nation-squads.js
+if ($Only.Count) {
+    $nsPath = Join-Path $root 'js\data\nation-squads.js'
+    $nsSrc = [IO.File]::ReadAllText($nsPath, [Text.Encoding]::UTF8)
+    $a = $nsSrc.IndexOf('{', $nsSrc.IndexOf('const NATION_SQUADS')); $b = $nsSrc.IndexOf('};', $a)
+    $nsJson = ($nsSrc.Substring($a, $b - $a + 1)) -replace '(?m)^(\s+)(goalkeepers|defenders|midfielders|forwards):', '$1"$2":'
+    $nsOld = $nsJson | ConvertFrom-Json
+    foreach ($p in $nsOld.PSObject.Properties) {
+        if ($Only -contains $p.Name) { continue }
+        $o = [ordered]@{}; foreach ($line in 'goalkeepers', 'defenders', 'midfielders', 'forwards') { $o[$line] = @($p.Value.$line) }
+        $result[$p.Name] = $o
+    }
+}
+# Звёзды (js\data\stars.js) — первые в своей линии
+$stars = @([regex]::Matches([IO.File]::ReadAllText((Join-Path $root 'js\data\stars.js'), [Text.Encoding]::UTF8), "^\s*'([^']+)':\s*\d+", 'Multiline') | ForEach-Object { $_.Groups[1].Value })
 foreach ($nation in $nations.Keys) {
     if ($Only.Count -and $Only -notcontains $nation) { continue }
     $old = Get-OldSquad $nation
@@ -124,7 +150,7 @@ foreach ($nation in $nations.Keys) {
             $sorted = @($list | ForEach-Object {
                 $oi = Get-OldIndex $oldLine $_.name
                 # прежние — на своих местах; новые — между ними по опыту (чем больше матчей, тем выше)
-                $score = if ($oi -ge 0) { $oi } else { 6 - [Math]::Min(5.5, $_.caps / 12) }
+                $score = if ($stars -contains $_.name) { -1 } elseif ($oi -ge 0) { $oi } else { 6 - [Math]::Min(5.5, $_.caps / 12) }
                 [pscustomobject]@{ name = $_.name; score = $score; year = $_.year; caps = $_.caps }
             } | Sort-Object score, @{ Expression = { -$_.caps } } | Select-Object -First $maxLine[$line])
             $out[$line] = @($sorted | ForEach-Object { $_.name })

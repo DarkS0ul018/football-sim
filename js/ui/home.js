@@ -5,8 +5,10 @@ const HOME_CUPS = [
     { id: 'worldcup', icon: '🌍', title: 'Чемпионат мира', cls: 'tile-wc', type: 'worldcup', nations: true },
     { id: 'euro', icon: '⭐', title: 'Чемпионат Европы', cls: 'tile-euro', type: 'euro', nations: true },
     { id: 'copa', icon: '🌎', title: 'Кубок Америки', cls: 'tile-copa', type: 'copa', nations: true },
-    { id: 'clubs', icon: '🏆', title: 'Еврокубок', cls: 'tile-clubs', type: 'world', sub: '32 клуба · группы и плей-офф в два матча',
+    { id: 'clubs', icon: '🏆', title: 'Еврокубок', cls: 'tile-clubs', type: 'world', sub: '32 европейских клуба · группы и плей-офф в два матча',
       settings: { mode: 'groups', count: 32, groupLegs: 2, playoffLegs: 2 } },
+    { id: 'clubwc', icon: '🌐', title: 'Клубный чемпионат мира', cls: 'tile-cwc', type: 'clubwc', sub: '32 клуба со всех континентов · Месси, Роналду и Европа',
+      settings: { mode: 'groups', count: 32, groupLegs: 1, playoffLegs: 1 } },
     { id: 'rpl', icon: '🏟️', title: 'Российская Премьер-лига', cls: 'tile-rpl', type: 'russia', sub: '16 клубов · два круга',
       settings: { mode: 'league', count: 16, groupLegs: 2, playoffLegs: 1 } },
     { id: 'mixed', icon: '⚔️', title: 'Россия против Европы', cls: 'tile-mixed', type: 'mixed', sub: '16 клубов РПЛ и Европы · группы и плей-офф',
@@ -44,14 +46,25 @@ function renderHome() {
     const players = ['world', 'russia'].reduce((a, t) => a + Object.values(SQUADS[t] || {}).reduce((s, sq) => s + Object.values(sq).flat().length, 0), 0);
     $('home-chips').innerHTML = [`${clubs} клубов`, `${nations} сборных`, `${players}+ игроков`].map(t => `<span>${t}</span>`).join('');
 
-    // Продолжить
-    const save = readSave();
-    $('home-resume').style.display = save ? '' : 'none';
-    if (save) {
-        const info = describeSave(save);
-        setText('home-resume-title', info.title);
-        setText('home-resume-details', info.details);
+    // Продолжить — последнее сохранение; все остальные — в «Моих сохранениях» ниже
+    const slots = readSlotIndex();
+    const last = slots[0];
+    $('home-resume').style.display = last ? '' : 'none';
+    if (last) {
+        setText('home-resume-title', last.title);
+        setText('home-resume-details', last.details);
     }
+    const when = t => {
+        const d = new Date(t);
+        return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) + ' ' + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+    };
+    $('home-saves').innerHTML = slots.length > 1 ? `<h2 class="home-section-title">Мои сохранения</h2>
+        <div class="home-saves">${slots.map(s => `<div class="hs-save" data-slot="${s.id}">
+            <span class="hss-icon">${s.series ? '🔁' : '🏆'}</span>
+            <span class="hss-text"><b>${escapeHtml(s.title)}</b><small class="muted">${escapeHtml(s.details || '')} · ${when(s.savedAt)}</small></span>
+            <button type="button" class="btn-primary hss-go" data-act="go">▶</button>
+            <button type="button" class="btn-secondary hss-del" data-act="del" title="Удалить">🗑️</button>
+        </div>`).join('')}</div>` : '';
 
     // Турниры
     $('home-cups').innerHTML = HOME_CUPS.map(c => {
@@ -64,6 +77,14 @@ function renderHome() {
             <span class="ht-go">→</span>
         </button>`;
     }).join('');
+
+    // Серии
+    $('home-series').innerHTML = Object.entries(SERIES_TYPES).map(([id, t]) => `<button type="button" class="home-tile tile-series-${id}" data-series="${id}">
+        <span class="ht-icon">${t.icon}</span>
+        <span class="ht-title">${t.title}</span>
+        <span class="ht-sub">${{ rpl: 'Сезон за сезоном: 15–16 места вылетают, 13–14 играют стыки с Первой лигой', euro: 'Лучшие остаются, остальные проходят отборочные стыки', nations: 'Отбор по континентам → стыки → ЧЕ и ЧМ по очереди' }[id]}</span>
+        <span class="ht-go">→</span>
+    </button>`).join('');
 
     // Режимы
     const modes = [
@@ -158,6 +179,10 @@ function initHome() {
         const t = e.target.closest('[data-cup]');
         if (t) openCupSheet(HOME_CUPS.find(c => c.id === t.dataset.cup));
     });
+    $('home-series').addEventListener('click', e => {
+        const t = e.target.closest('[data-series]');
+        if (t) openSeriesStart(t.dataset.series);
+    });
     $('home-modes').addEventListener('click', e => {
         const t = e.target.closest('[data-mode]');
         if (!t) return;
@@ -166,8 +191,14 @@ function initHome() {
         else if (m === 'custom') showScreen('setup');
         else if (m === 'editor') { editor.returnTo = 'home'; openEditor(); }
     });
-    $('btn-home-resume').onclick = resumeTournament;
-    $('btn-home-discard').onclick = async () => { await discardSave(); renderHome(); };
+    $('btn-home-resume').onclick = () => resumeTournament();
+    $('home-saves').addEventListener('click', async e => {
+        const b = e.target.closest('[data-act]'), row = e.target.closest('[data-slot]');
+        if (!b || !row) return;
+        if (b.dataset.act === 'go') resumeTournament(row.dataset.slot);
+        else if (await discardSave(row.dataset.slot)) renderHome();
+    });
+    $('btn-home-discard').onclick = async () => { if (await discardSave()) renderHome(); };
     $('btn-setup-home').onclick = goHome;
     renderHome();
 }

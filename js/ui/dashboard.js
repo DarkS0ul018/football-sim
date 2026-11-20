@@ -20,7 +20,7 @@ function renderDashboard() {
 
     setText('dashboard-title', getStageTitle());
     const natCup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[state.settings.teamType] : null;
-    setText('dashboard-kicker', natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир');
+    setText('dashboard-kicker', state.settings.seriesTitle ? `🔁 ${state.settings.seriesTitle}` : (natCup ? `${natCup.icon} ${natCup.title}` : 'Турнир'));
     renderUserBadge();
 
     const isPlayoff = !isRoundRobinStage();
@@ -264,7 +264,7 @@ function renderNextRoundButton() {
     if (!isStageComplete() || (state.cup && userCupMatch())) { btn.style.display = 'none'; return; }
     btn.style.display = 'block';
     const toPlayoff = (state.settings.mode === 'league' && isLeagueWithPlayoff()) || state.settings.mode === 'groups';
-    const isLast = !toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1);
+    const isLast = !!state.settings.stageOnly || (!toPlayoff && (state.settings.mode === 'league' || state.matches.length === 1));
     btn.innerHTML = isLast ? '<span>🏆 Результаты</span>' : (toPlayoff ? '<span>К плей-офф →</span>' : '<span>Следующий раунд →</span>');
     btn.onclick = goToNextStage;
 }

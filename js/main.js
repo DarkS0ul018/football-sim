@@ -13,6 +13,7 @@ initStatTabs();
 initEditorScreen();
 initSetupScreens();
 initHome();
+initSeriesScreen();
 initPickerScreen();
 initMatchScreen();
 initTacticsScreen();

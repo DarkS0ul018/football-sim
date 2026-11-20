@@ -62,11 +62,17 @@
                 </div>
             </div>
 
+            <div id="home-saves"></div>
+
+            <h2 class="home-section-title">Серии — турниры, которые продолжаются</h2>
+            <div id="home-series" class="home-tiles home-tiles-series"></div>
+
             <h2 class="home-section-title">Турниры</h2>
             <div id="home-cups" class="home-tiles home-tiles-cups"></div>
 
             <h2 class="home-section-title">Режимы</h2>
             <div id="home-modes" class="home-tiles home-tiles-modes"></div>
+
 
             <div id="home-hall-slot"></div>
         </section>
@@ -121,6 +127,8 @@
                                 <option value="world">🌍 Европейские клубы</option>
                                 <option value="russia">🇷🇺 Российская Премьер-лига</option>
                                 <option value="mixed">🌍 + 🇷🇺 Все вместе</option>
+                                <option value="clubwc">🌐 Клубы мира (все континенты)</option>
+                                <option value="fnl">🇷🇺 Первая лига</option>
                                 <optgroup label="Сборные">
                                     <option value="euro">⭐ Чемпионат Европы — 24 сборные</option>
                                     <option value="worldcup">🌍 Чемпионат мира — 32 сборные</option>
@@ -684,6 +692,30 @@
             </div>
         </section>
 
+        <!-- ЭКРАН: СЕРИЯ (турниры, которые продолжаются) -->
+        <section id="screen-series" class="screen">
+            <div class="screen-header">
+                <button id="btn-series-home" class="btn-secondary btn-home-back" type="button">← Меню</button>
+                <span class="kicker" id="series-kicker">Серия</span>
+                <h1 id="series-title">Серия</h1>
+                <p class="subtitle" id="series-subtitle"></p>
+            </div>
+            <div class="card series-next">
+                <div>
+                    <div class="hr-label">Следующий этап</div>
+                    <b id="series-next-label"></b>
+                    <div class="muted" id="series-next-hint"></div>
+                </div>
+                <button id="btn-series-play" class="btn-primary" type="button"><span class="btn-text">▶ Играть</span></button>
+            </div>
+            <div id="series-last" class="card series-last" style="display:none;"></div>
+            <div id="series-tables" class="series-tables"></div>
+            <div class="card">
+                <h3>История серии</h3>
+                <div id="series-history" class="series-history"></div>
+            </div>
+        </section>
+
         <!-- ЭКРАН: РЕЗУЛЬТАТЫ -->
         <section id="screen-results" class="screen">
             <div class="champion-box-v2">
@@ -691,6 +723,7 @@
                 <h2>Чемпион турнира</h2>
                 <h1 id="champion-name" class="champion-name"></h1>
             </div>
+            <div id="series-result-card" class="card series-result" style="display:none;"></div>
 
             <div id="career-card" class="card career-card" style="display:none;">
                 <h3>Ваша карьера</h3>
@@ -759,6 +792,7 @@
     <script src="js/data/squads.js"></script>
     <script src="js/data/nations.js"></script>
     <script src="js/data/nation-squads.js"></script>
+    <script src="js/data/stars.js"></script>
     <script src="js/data/ages.js"></script>
     <script src="js/data/birthyears.js"></script>
     <script src="js/data/tactics.js"></script>
@@ -772,6 +806,7 @@
     <script src="js/core/customdata.js"></script>
     <script src="js/core/publish.js"></script>
     <script src="js/core/tournament.js"></script>
+    <script src="js/core/series.js"></script>
     <script src="js/core/cup.js"></script>
     <script src="js/core/news.js"></script>
     <script src="js/core/storage.js"></script>
@@ -783,6 +818,7 @@
     <script src="js/ui/pitch.js"></script>
     <script src="js/ui/setup.js"></script>
     <script src="js/ui/home.js"></script>
+    <script src="js/ui/series.js"></script>
     <script src="js/ui/picker.js"></script>
     <script src="js/ui/dashboard.js"></script>
     <script src="js/ui/cup.js"></script>
