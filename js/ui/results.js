@@ -122,13 +122,60 @@ function renderDuoCard() {
     card.style.display = 'block';
 }
 
+// ----- Карьера за сборную: история всех турниров сборных и следующий турнир -----
+function renderNationCareerCard(card) {
+    recordCareerSeason();
+    const team = state.userTeam;
+    const result = getUserResult();
+    const d = readNationCareer();
+    const mine = d.tournaments.filter(t => t.team === team.name);
+    const titles = mine.filter(t => t.trophy).length;
+    card.querySelector('h3').textContent = 'Карьера сборной';
+    card.querySelector('thead tr').innerHTML = '<th>№</th><th>Турнир</th><th>Результат</th><th>В-Н-П</th><th>Мячи</th><th>Бомбардир</th>';
+    $('career-result').innerHTML = `
+        <div class="career-team">${teamLabel(team)}</div>
+        <div class="career-outcome ${result.trophy ? 'trophy' : ''}">${result.trophy ? `🏆 ${NATION_CUPS[state.settings.teamType].title} — ваш!` : result.text}</div>
+        <div class="muted">Турниров за «${escapeHtml(team.name)}»: ${mine.length} · титулов: ${titles} ${'🏆'.repeat(Math.min(titles, 10))}</div>`;
+    $('career-history').innerHTML = [...d.tournaments].reverse().slice(0, 20).map(t => `
+        <tr class="${t.trophy ? 'qualify-third' : ''}">
+            <td>${t.n}</td><td>${t.icon} ${t.cup}<br><small class="muted">${escapeHtml(t.team)} · ${t.date}</small></td>
+            <td><b>${t.result}</b></td><td>${t.record}</td><td>${t.goals}</td><td>${t.topScorer}</td>
+        </tr>`).join('');
+    const btn = $('btn-next-season');
+    btn.innerHTML = `<span class="btn-text">▶ Следующий турнир за «${escapeHtml(team.name)}»</span>`;
+    btn.onclick = () => openNextNationTournament(team.name);
+    card.style.display = 'block';
+}
+
+// Выбор следующего турнира: только те, где играет эта сборная
+function openNextNationTournament(teamName) {
+    const cups = HOME_CUPS.filter(c => c.nations && NATION_CUPS[c.type].names.includes(teamName));
+    if (!cups.length) { notify('Эта сборная больше не участвует в турнирах — добавьте её в редакторе'); return; }
+    openHomeSheet(`Следующий турнир · ${teamName}`, [
+        ...cups.map(c => ({ icon: c.icon, title: c.title, text: homeCupInfo(c).sub, run: () => startNationCareer(c, teamName) })),
+        { icon: '🔁', title: 'Сменить сборную', text: 'Выбрать другую команду', minor: true, run: () => openModeSheet('career') }
+    ]);
+}
+
+function startNationCareer(cup, teamName) {
+    applyHomePreset(cup, 'career');
+    const settings = readSettings();
+    clearSave();
+    const pool = pickRandomTeams(settings.teamType, getTeamsData(settings.teamType).names.length);
+    startTournament(settings, trimPool(pool, [teamName], settings.count), teamName);
+}
+
 function renderCareerCard() {
     const card = $('career-card');
     if (isDuo()) { renderDuoCard(); return; }
     card.querySelector('h3').textContent = 'Ваша карьера';
     card.querySelector('table').style.display = '';
+    card.querySelector('thead tr').innerHTML = '<th>Сезон</th><th>Формат</th><th>Результат</th><th>В-Н-П</th><th>Мячи</th><th>Бомбардир</th>';
     $('btn-next-season').style.display = '';
+    $('btn-next-season').innerHTML = '<span class="btn-text">Следующий сезон →</span>';
+    $('btn-next-season').onclick = openTransferWindow;
     if (!isCareer() || !state.userTeam) { card.style.display = 'none'; return; }
+    if (isNationCareer()) { renderNationCareerCard(card); return; }
     recordCareerSeason();
     const result = getUserResult();
     const career = readCareer();

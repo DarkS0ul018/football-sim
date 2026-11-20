@@ -196,6 +196,7 @@ function formatLabel(settings) {
 // Записывает сезон в историю (один раз за турнир)
 function recordCareerSeason() {
     if (!isCareer() || !state.userTeam || state.seasonRecorded) return;
+    if (isNationCareer()) { recordNationTournament(); return; } // сборная — своя история, клубная карьера не трогается
     const result = getUserResult();
     const career = readCareer();
     const team = state.userTeam;
@@ -263,4 +264,45 @@ function startNextSeason() {
     }));
     createTournament(settings, pool, userName);
     saveGame();
+}
+
+// ===== КАРЬЕРА ЗА СБОРНУЮ =====
+// Отдельная история турниров (ЧМ, ЧЕ, Кубок Америки) — клубная карьера с трансферами не затрагивается.
+const NATION_CAREER_KEY = 'footballSimPro.nationCareer';
+
+function isNationCareer() {
+    return isCareer() && typeof NATION_CUPS !== 'undefined' && !!NATION_CUPS[state.settings.teamType];
+}
+
+function readNationCareer() {
+    try {
+        const d = JSON.parse(localStorage.getItem(NATION_CAREER_KEY));
+        if (d && Array.isArray(d.tournaments)) return d;
+    } catch (e) { /* ignore */ }
+    return { tournaments: [] };
+}
+
+function writeNationCareer(d) {
+    try { localStorage.setItem(NATION_CAREER_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ }
+}
+
+function recordNationTournament() {
+    const team = state.userTeam;
+    const cup = NATION_CUPS[state.settings.teamType];
+    const result = getUserResult();
+    const top = Object.values(playerStats).filter(p => p.teamId === team.id).sort((a, b) => b.goals - a.goals)[0];
+    const d = readNationCareer();
+    d.tournaments.push({
+        n: d.tournaments.length + 1,
+        cup: cup.title, cupKey: state.settings.teamType, icon: cup.icon,
+        team: team.name,
+        result: result.text, trophy: result.trophy,
+        champion: state.champion ? state.champion.name : '',
+        record: `${team.stats.won}-${team.stats.drawn}-${team.stats.lost}`,
+        goals: `${team.stats.gf}:${team.stats.ga}`,
+        topScorer: top && top.goals ? `${top.name} (${top.goals})` : '—',
+        date: new Date().toLocaleDateString('ru-RU')
+    });
+    writeNationCareer(d);
+    state.seasonRecorded = true;
 }

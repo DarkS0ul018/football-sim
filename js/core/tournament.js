@@ -72,7 +72,8 @@ function createTournament(settings, teamsPool, userTeamName = null) {
 
     // Фиксируем составы участников на весь турнир
     // (в карьере — с учётом развития игроков и трансферов из прошлых сезонов)
-    if (settings.gameMode === 'career' && names[0]) activateCareerPlayers(names[0]);
+    // Сборные: составы из редактора, без трансферов и развития клубной карьеры
+    if (settings.gameMode === 'career' && names[0] && !(typeof NATION_CUPS !== 'undefined' && NATION_CUPS[settings.teamType])) activateCareerPlayers(names[0]);
     else careerPlayers = null;
     state.rosters = null;
     const rosters = {};

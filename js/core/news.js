@@ -217,7 +217,7 @@ function newsSeasonStart() {
             text: opp ? `${qn(state.userTeam)} сыграет с ${qn(opp)} (${r.name}).` : `${qn(state.userTeam)} начнёт кубок со следующего раунда.` });
     }
     // Летние трансферы (карьера): что сделано в межсезонье
-    if (isCareer() && state.userTeam) {
+    if (isCareer() && state.userTeam && !isNationCareer()) {
         const career = readCareer();
         const season = (career.seasons || []).length + 1;
         (career.transfers || []).filter(t => t.season === season).slice(-6).forEach(t => {

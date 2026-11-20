@@ -81,7 +81,9 @@ async function onStartClick() {
     if (settings.teamPick === 'manual') {
         openParticipantPicker(settings, pool => proceedWithPool(settings, pool));
     } else {
-        proceedWithPool(settings, pickRandomTeams(settings.teamType, settings.count));
+        // Сборные, в карьере и вдвоём: выбрать можно любую сборную турнира, лишние соперники отсеются после выбора
+        const nationPick = isNationCupType(settings.teamType) && settings.gameMode !== 'simulator';
+        proceedWithPool(settings, pickRandomTeams(settings.teamType, nationPick ? getTeamsData(settings.teamType).names.length : settings.count));
     }
 }
 
@@ -101,7 +103,7 @@ function startTournament(settings, teamsPool, userTeamName) {
 // ----- Выбор команды в карьере -----
 // «Вдвоём»: команды выбирают по очереди — firstPick — команда Игрока 1 (на втором шаге)
 function showTeamSelect(settings, pool, firstPick = null) {
-    careerTeamsPool = pool || pickRandomTeams(settings.teamType, settings.count);
+    careerTeamsPool = [...(pool || pickRandomTeams(settings.teamType, settings.count))].sort((a, b) => b.rating - a.rating);
     pickedTeamName = null;
     const duo = settings.gameMode === 'duo';
     const step = duo ? (firstPick ? 2 : 1) : 0;
@@ -136,7 +138,8 @@ function showTeamSelect(settings, pool, firstPick = null) {
     btn.onclick = () => {
         if (!pickedTeamName) { notify('⚠️ Выберите команду'); return; }
         if (step === 1) { showTeamSelect(settings, careerTeamsPool, pickedTeamName); return; }
-        startTournament(settings, careerTeamsPool, step === 2 ? [firstPick, pickedTeamName] : pickedTeamName);
+        const picks = step === 2 ? [firstPick, pickedTeamName] : [pickedTeamName];
+        startTournament(settings, trimPool(careerTeamsPool, picks, settings.count), step === 2 ? picks : pickedTeamName);
     };
     list.appendChild(btn);
     showScreen('teamSelect');
@@ -243,9 +246,8 @@ function onTeamTypeChange() {
               (fmt.thirds ? ` (2 лучших из группы + ${fmt.thirds} лучших третьих)` : ' (по 2 лучших из группы)')
             : `${cup.icon} ${cup.title}: ${count} сборных, сразу плей-офф`) + '.' + extra + ' Формат можно поменять.';
         hint.style.display = 'block';
-        career.disabled = true;
-        career.textContent = 'Карьера — только для клубов';
-        if ($('game-mode').value === 'career') $('game-mode').value = 'simulator';
+        career.disabled = false;
+        career.textContent = 'Карьера — за одну сборную';
     } else {
         hint.style.display = 'none';
         career.disabled = false;
@@ -255,3 +257,16 @@ function onTeamTypeChange() {
 }
 $('team-type').addEventListener('change', onTeamTypeChange);
 onTeamTypeChange();
+
+// Турнир сборных (ЧМ, ЧЕ, Кубок Америки)?
+function isNationCupType(type) {
+    return typeof NATION_CUPS !== 'undefined' && !!NATION_CUPS[type];
+}
+
+// Участников больше, чем мест: выбранные команды остаются, остальные — случайные
+function trimPool(pool, keepNames, count) {
+    if (pool.length <= count) return pool;
+    const keep = pool.filter(t => keepNames.includes(t.name));
+    const others = pool.filter(t => !keepNames.includes(t.name)).sort(() => Math.random() - 0.5);
+    return [...keep, ...others.slice(0, count - keep.length)];
+}

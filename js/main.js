@@ -20,7 +20,7 @@ initSound();
 initTransfersScreen();
 
 // Следующий сезон начинается с трансферного окна
-$('btn-next-season').addEventListener('click', openTransferWindow);
+$('btn-next-season').onclick = openTransferWindow; // для сборной результаты ставят «Следующий турнир»
 
 $('btn-restart').addEventListener('click', () => {
     clearSave();

@@ -67,7 +67,7 @@ function renderHome() {
 
     // Режимы
     const modes = [
-        { id: 'career', icon: '👔', title: 'Карьера', sub: 'Ведите клуб сезон за сезоном: трансферы, кубок, рост игроков' },
+        { id: 'career', icon: '👔', title: 'Карьера', sub: 'Клуб сезон за сезоном или сборная на ЧМ и ЧЕ' },
         { id: 'duo', icon: '👥', title: 'Вдвоём', sub: 'Каждый за свою команду на одном устройстве' },
         { id: 'custom', icon: '⚙️', title: 'Свой турнир', sub: 'Любой формат, число команд, свои участники' },
         { id: 'editor', icon: '✏️', title: 'Редактор', sub: 'Составы, рейтинги, эмблемы, свои команды и сборные' }
@@ -134,16 +134,16 @@ function startHomePreset(cup, gameMode) {
 }
 
 function openCupSheet(cup) {
-    const modes = cup.nations ? ['simulator', 'duo'] : ['simulator', 'career', 'duo'];
+    const modes = ['simulator', 'career', 'duo'];
     openHomeSheet(`${cup.icon} ${cup.title}`, [
-        ...modes.map(m => ({ ...HOME_MODES[m], run: () => startHomePreset(cup, m) })),
+        ...modes.map(m => ({ ...HOME_MODES[m], ...(cup.nations && m === 'career' ? { title: 'Играть за сборную', text: 'Выберите сборную: состав, тактика, решения по ходу матча' } : {}), run: () => startHomePreset(cup, m) })),
         { icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
           run: () => { applyHomePreset(cup, 'simulator'); showScreen('setup'); } }
     ]);
 }
 
 function openModeSheet(gameMode) {
-    const list = HOME_CUPS.filter(c => gameMode !== 'career' || !c.nations);
+    const list = HOME_CUPS;
     openHomeSheet(gameMode === 'career' ? '👔 Где начнём карьеру?' : '👥 Во что играем вдвоём?',
         list.map(c => ({ icon: c.icon, title: c.title, text: homeCupInfo(c).sub, run: () => startHomePreset(c, gameMode) })));
 }
