@@ -155,6 +155,7 @@ function combinedView(sims) {
         score: { t1: agg.t1, t2: agg.t2 },
         events: sims.flatMap(s => s.events.map(e => ({ ...e, leg: s.leg }))),
         shotLog: sims.flatMap(s => s.shotLog.map(x => ({ ...x, leg: s.leg }))),
+        touches: mergeTouches(sims), passes: mergePasses(sims),
         stats,
         playerRatings: ratings,
         manOfTheMatch() {
@@ -162,4 +163,107 @@ function combinedView(sims) {
             return ratings().sort((a, b) => b.rating - a.rating || b.games - a.games || (b.side === winner) - (a.side === winner))[0] || null;
         }
     };
+}
+
+// ===== СЕТЬ ПЕРЕДАЧ И ТЕПЛОВАЯ КАРТА =====
+// Данные пишет движок (touches, passes); поле развёрнуто так, что выбранная команда атакует вправо.
+const passView = { mode: 'net', side: 'team1', player: '', sim: null };
+
+function mergeTouches(sims) {
+    const out = { team1: {}, team2: {} };
+    sims.forEach(s => ['team1', 'team2'].forEach(side => Object.entries((s.touches || {})[side] || {}).forEach(([n, pts]) => {
+        out[side][n] = (out[side][n] || []).concat(pts);
+    })));
+    return out;
+}
+
+function mergePasses(sims) {
+    const out = { team1: {}, team2: {} };
+    sims.forEach(s => ['team1', 'team2'].forEach(side => Object.entries((s.passes || {})[side] || {}).forEach(([k, c]) => {
+        out[side][k] = (out[side][k] || 0) + c;
+    })));
+    return out;
+}
+
+function sidePlayers(sim, side) {
+    const s = sim.sides[side];
+    return [...s.onPitch, ...(s.subbedOff || []), ...(s.sentOff || [])];
+}
+
+function renderPassMap(sim) {
+    const box = $('passmap-box');
+    if (!box || !sim || !sim.touches) { if (box) box.style.display = 'none'; return; }
+    passView.sim = sim;
+    box.style.display = '';
+    const side = passView.side;
+    $('pm-team1').textContent = sim.sides.team1.team.name;
+    $('pm-team2').textContent = sim.sides.team2.team.name;
+    document.querySelectorAll('.pm-team').forEach(b => b.classList.toggle('active', b.dataset.side === side));
+    document.querySelectorAll('.pm-tab').forEach(b => b.classList.toggle('active', b.dataset.pm === passView.mode));
+    const players = sidePlayers(sim, side);
+    const nameOf = num => (players.find(p => p.number === Number(num)) || {}).name || `#${num}`;
+    const touches = sim.touches[side] || {};
+    const sel = $('pm-player');
+    sel.style.display = passView.mode === 'heat' ? '' : 'none';
+    const withTouches = Object.keys(touches).filter(n => touches[n].length).sort((a, b) => touches[b].length - touches[a].length);
+    sel.innerHTML = `<option value="">Вся команда</option>` + withTouches.map(n => `<option value="${n}" ${String(n) === passView.player ? 'selected' : ''}>${nameOf(n)} — ${touches[n].length} касаний</option>`).join('');
+    const scale = ([x, y]) => [x * 1.05, y * 0.68];
+    const cls = side === 'team1' ? 'pm-t1' : 'pm-t2';
+    let body = '';
+
+    if (passView.mode === 'net') {
+        // Средняя позиция игрока и линии частых передач
+        const avg = {};
+        Object.entries(touches).forEach(([n, pts]) => {
+            if (pts.length < 2) return;
+            const sx = pts.reduce((a, p) => a + p[0], 0) / pts.length, sy = pts.reduce((a, p) => a + p[1], 0) / pts.length;
+            avg[n] = { xy: scale([sx, sy]), count: pts.length };
+        });
+        const pairs = {};
+        Object.entries(sim.passes[side] || {}).forEach(([k, c]) => {
+            const [a, b] = k.split('>');
+            const key = [a, b].sort().join('-');
+            pairs[key] = (pairs[key] || 0) + c;
+        });
+        const max = Math.max(1, ...Object.values(pairs));
+        Object.entries(pairs).forEach(([k, c]) => {
+            const [a, b] = k.split('-');
+            if (!avg[a] || !avg[b] || c < 2) return;
+            body += `<line class="pm-link ${cls}" x1="${avg[a].xy[0].toFixed(1)}" y1="${avg[a].xy[1].toFixed(1)}" x2="${avg[b].xy[0].toFixed(1)}" y2="${avg[b].xy[1].toFixed(1)}" stroke-width="${(0.3 + 1.6 * c / max).toFixed(2)}" opacity="${(0.25 + 0.6 * c / max).toFixed(2)}"><title>${nameOf(a)} ↔ ${nameOf(b)}: ${c}</title></line>`;
+        });
+        Object.entries(avg).forEach(([n, a]) => {
+            const r = Math.min(4.2, 1.6 + Math.sqrt(a.count) * 0.32);
+            body += `<g class="pm-node ${cls}"><circle cx="${a.xy[0].toFixed(1)}" cy="${a.xy[1].toFixed(1)}" r="${r.toFixed(1)}"><title>${nameOf(n)}: ${a.count} касаний</title></circle>
+                <text x="${a.xy[0].toFixed(1)}" y="${(a.xy[1] + 0.9).toFixed(1)}">${n}</text>
+                <text class="pm-name" x="${a.xy[0].toFixed(1)}" y="${(a.xy[1] + r + 2.6).toFixed(1)}">${shortName(nameOf(n))}</text></g>`;
+        });
+        const total = Object.values(sim.passes[side] || {}).reduce((a, c) => a + c, 0);
+        setText('pm-note', `Кружок — средняя позиция игрока (размер — касания), линия — передачи между ними. Всего передач в розыгрышах: ${total}.`);
+    } else {
+        // Тепловая карта: сетка 21×14 с мягким размытием
+        const W = 21, H = 14, grid = Array.from({ length: H }, () => new Array(W).fill(0));
+        const pts = passView.player ? (touches[passView.player] || []) : Object.values(touches).flat();
+        pts.forEach(([x, y]) => {
+            const cx = Math.min(W - 1, Math.floor(x / 100 * W)), cy = Math.min(H - 1, Math.floor(y / 100 * H));
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+                const gx = cx + dx, gy = cy + dy;
+                if (gx >= 0 && gx < W && gy >= 0 && gy < H) grid[gy][gx] += dx || dy ? 0.35 : 1;
+            }
+        });
+        const max = Math.max(0.01, ...grid.flat());
+        grid.forEach((row, gy) => row.forEach((v, gx) => {
+            if (!v) return;
+            const k = v / max;
+            const color = k > 0.66 ? '255, 70, 40' : (k > 0.33 ? '255, 170, 40' : '255, 235, 90');
+            body += `<rect x="${(gx * 105 / W).toFixed(2)}" y="${(gy * 68 / H).toFixed(2)}" width="${(105 / W + 0.05).toFixed(2)}" height="${(68 / H + 0.05).toFixed(2)}" fill="rgba(${color}, ${(0.15 + k * 0.6).toFixed(2)})"/>`;
+        }));
+        setText('pm-note', `${passView.player ? nameOf(passView.player) : 'Вся команда'}: где чаще всего был мяч (${pts.length} касаний). Команда атакует вправо →`);
+    }
+    $('pass-map').innerHTML = SHOTMAP_PITCH + body + `<text class="pm-arrow" x="98" y="66">→</text>`;
+}
+
+function initPassMap() {
+    document.querySelectorAll('.pm-tab').forEach(b => b.onclick = () => { passView.mode = b.dataset.pm; renderPassMap(passView.sim); });
+    document.querySelectorAll('.pm-team').forEach(b => b.onclick = () => { passView.side = b.dataset.side; passView.player = ''; renderPassMap(passView.sim); });
+    $('pm-player').onchange = e => { passView.player = e.target.value; renderPassMap(passView.sim); };
 }

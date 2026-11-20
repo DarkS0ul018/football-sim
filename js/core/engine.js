@@ -200,12 +200,17 @@ class MatchSimulation {
             substitutions: { team1: [], team2: [] },
             xg: { team1: 0, team2: 0 }
         };
+        this.touches = { team1: {}, team2: {} }; // касания мяча: номер → [[x, y]…] (команда атакует вправо)
+        this.passes = { team1: {}, team2: {} };  // передачи: «от>кому» → количество
         this.shotLog = []; // все удары: { side, minute, r, y, xg, result, player, name, keeper, header }
         this.sides = {
             team1: this.createSide(match.team1, 'team1'),
             team2: this.createSide(match.team2, 'team2')
         };
         this.prematchPlan();
+        this.weather = matchWeather(match, leg);
+        const w = WEATHER[this.weather];
+        this.log('weather', null, `${w.icon} Погода: ${w.label}`);
     }
 
     // Команда под управлением компьютера? (в карьере команда игрока — нет)
@@ -423,7 +428,7 @@ class MatchSimulation {
     tire() {
         ['team1', 'team2'].forEach(side => {
             const k = 0.22 * STYLES[this.sides[side].style].fatigue;
-            this.sides[side].onPitch.forEach(p => { p.fitness = Math.max(20, (p.fitness ?? 100) - k * (0.8 + Math.random() * 0.4)); });
+            this.sides[side].onPitch.forEach(p => { p.fitness = Math.max(20, (p.fitness ?? 100) - k * WEATHER[this.weather].tired * (0.8 + Math.random() * 0.4)); });
         });
     }
 
@@ -471,6 +476,22 @@ class MatchSimulation {
         return this.newEvents;
     }
 
+    // Касания и передачи для сети передач и тепловой карты: точки от базовой позиции игрока к воротам соперника
+    recordTouches(side, nums) {
+        const s = this.sides[side], n = nums.length;
+        const T = this.touches[side], P = this.passes[side];
+        nums.forEach((num, i) => {
+            const p = s.onPitch.find(x => x.number === num);
+            if (!p) return;
+            const bx = side === 'team2' ? 100 - p.baseX : p.baseX;
+            const prog = n > 1 ? i / (n - 1) : 0.5;
+            const x = clamp(bx + 4 + prog * 16 + (Math.random() - 0.5) * 14, 2, 98);
+            const y = clamp(p.baseY + (Math.random() - 0.5) * 18, 3, 97);
+            (T[num] || (T[num] = [])).push([Math.round(x), Math.round(y)]);
+            if (T[num].length > 160) T[num].shift();
+            if (i < n - 1) { const k = num + '>' + nums[i + 1]; P[k] = (P[k] || 0) + 1; }
+        });
+    }
     // ----- Описание розыгрыша (для показа на поле) -----
     // play = { side, kind: keep|attack|counter|corner|foul, chain: [номера игроков по порядку], end: {...} | null }
     startPlay(side, kind, chain) {
@@ -480,6 +501,7 @@ class MatchSimulation {
             side, kind, end: null,
             chain: nums.filter((n, i) => nums.lastIndexOf(n) === i)
         };
+        this.recordTouches(side, this.play.chain);
         return this.play;
     }
 
@@ -554,7 +576,7 @@ class MatchSimulation {
         // Мастерство бьющего и вратаря, тактика — как раньше; xG смещает шанс относительно среднего момента
         const pOnTarget = clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
         const pConvert = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + this.finishBonus(side), 0.12, 0.5);
-        const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN, 0.005, 0.85);
+        const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN * WEATHER[this.weather].goals, 0.005, 0.85);
         const pSave = Math.min(1 - pGoal, pOnTarget * (1 - pConvert) * clamp(0.6 + xg / XG_MEAN * 0.4, 0.6, 1.6));
         const u = Math.random();
         const result = u < pGoal ? 'goal' : (u < pGoal + pSave ? 'save' : 'off');
@@ -1038,4 +1060,29 @@ function autoSimulateMatch(m) {
 
 function autoSimulateAllRemainingMatches(filter = () => true) {
     state.matches.forEach(m => { if (!m.isFinished && filter(m)) autoSimulateMatch(m); });
+}
+
+// ===== ПОГОДА =====
+// Выбирается для каждого матча (в паре — для каждой игры) и сохраняется в нём.
+// goals — множитель шанса забить, fouls — множитель фолов, tired — насколько быстрее устают.
+const WEATHER = {
+    clear:  { icon: '☀️', label: 'ясно, поле в идеальном состоянии', w: 34, goals: 1.0, fouls: 1.0, tired: 1.0 },
+    cloudy: { icon: '⛅', label: 'облачно', w: 26, goals: 1.0, fouls: 1.0, tired: 1.0 },
+    rain:   { icon: '🌧️', label: 'дождь, поле скользкое — больше ошибок', w: 16, goals: 0.93, fouls: 1.15, tired: 1.05 },
+    storm:  { icon: '⛈️', label: 'ливень, вода на газоне — мяч вязнет', w: 5, goals: 0.82, fouls: 1.2, tired: 1.1 },
+    snow:   { icon: '❄️', label: 'снег, оранжевый мяч — голов меньше', w: 5, goals: 0.8, fouls: 1.05, tired: 1.1 },
+    wind:   { icon: '💨', label: 'сильный ветер — дальние удары непредсказуемы', w: 8, goals: 0.95, fouls: 1.0, tired: 1.0 },
+    heat:   { icon: '🥵', label: 'жара — игроки быстрее устают', w: 6, goals: 1.03, fouls: 0.95, tired: 1.25 }
+};
+
+function rollWeather() {
+    const list = Object.entries(WEATHER);
+    let r = Math.random() * list.reduce((a, [, w]) => a + w.w, 0);
+    return (list.find(([, w]) => (r -= w.w) <= 0) || list[0])[0];
+}
+
+function matchWeather(match, leg) {
+    match.weather = match.weather || {};
+    if (!match.weather[leg]) match.weather[leg] = rollWeather();
+    return match.weather[leg];
 }

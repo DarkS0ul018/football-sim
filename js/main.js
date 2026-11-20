@@ -14,6 +14,7 @@ initEditorScreen();
 initSetupScreens();
 initHome();
 initSeriesScreen();
+initPassMap();
 initPickerScreen();
 initMatchScreen();
 initTacticsScreen();

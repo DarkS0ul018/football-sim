@@ -184,15 +184,20 @@ function getUserResult(team = state.userTeam) {
 }
 
 function formatLabel(settings) {
+    const n = settings.count;
+    const word = (n % 10 === 1 && n % 100 !== 11) ? 'команда' : (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20) ? 'команды' : 'команд');
+    const nat = (n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 10 || n % 100 >= 20)) ? 'сборные' : 'сборных';
+    if (settings.seriesTitle) return settings.seriesTitle;
+    if (settings.title) return settings.title.replace(/^[^А-Яа-яA-Za-z]+/, '');
     // Турнир сборных: «Чемпионат Европы, 24 сборные»
     const cup = typeof NATION_CUPS !== 'undefined' ? NATION_CUPS[settings.teamType] : null;
-    if (cup) return `${cup.title}, ${settings.count} сборных`;
+    if (cup) return `${cup.title}, ${n} ${nat}`;
     if ((settings.originalMode || settings.mode) === 'ucl') return (EURO_CUPS[settings.euroCup || 'ucl'] || EURO_CUPS.ucl).title.replace(/^[^А-Яа-я]+/, '');
+    if (settings.teamType === 'clubwc') return `Клубный чемпионат мира, ${n} ${word}`;
+    const who = { russia: 'РПЛ', fnl: 'Первая лига', mixed: 'РПЛ + Европа' }[settings.teamType];
     const mode = settings.originalMode || settings.mode; // после групп mode меняется на knockout
-    if (mode === 'league') return `Лига, ${settings.count} команд`;
-    if (mode === 'leaguePlayoff') return `Чемпионат + плей-офф, ${settings.count} команд`;
-    if (mode === 'groups') return `Группы + плей-офф, ${settings.count} команд`;
-    return `Плей-офф, ${settings.count} команд`;
+    const fmt = mode === 'league' ? 'Лига' : mode === 'leaguePlayoff' ? 'Чемпионат + плей-офф' : mode === 'groups' ? 'Группы + плей-офф' : 'Плей-офф';
+    return `${who ? who + ': ' : ''}${fmt}, ${n} ${word}`;
 }
 
 // Записывает сезон в историю (один раз за турнир)

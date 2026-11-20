@@ -186,36 +186,53 @@ function renderHall() {
     card.style.display = 'block';
     setText('hall-count', `· турниров: ${hall.tournaments.length}`);
     const crest = (t) => t ? `${crestHtml(t)} ${t.name}` : '—';
-    const titles = Object.entries(hall.titles).sort((a, b) => b[1] - a[1]).slice(0, 8);
+    const titles = Object.entries(hall.titles).sort((a, b) => b[1] - a[1]).slice(0, 10);
     const r = hall.records;
-    $('hall-content').innerHTML = `
-        <div class="hall-grid">
-            <div>
-                <h4>🏆 Больше всего титулов</h4>
-                ${titles.map(([name, n], i) => `<div class="hall-row"><span>${i + 1}. ${crest({ name, emoji: (hall.emojis || {})[name] || '' })}</span><b>${n}</b></div>`).join('')}
-            </div>
-            <div>
-                <h4>📈 Рекорды</h4>
-                ${r.biggestWin ? `<div class="hall-row"><span>Крупнейшая победа</span><b>${r.biggestWin.text}</b></div>` : ''}
-                ${r.mostGoals ? `<div class="hall-row"><span>Самый результативный матч</span><b>${r.mostGoals.text}</b></div>` : ''}
-                ${r.topScorer ? `<div class="hall-row"><span>Бомбардир турнира</span><b>${r.topScorer.text}</b></div>` : ''}
-            </div>
-        </div>
-        <h4>📜 Последние турниры</h4>
-        <div class="hall-list">
-            ${hall.tournaments.slice(0, 10).map(t => `
+    const tab = hallTab;
+    const row = (left, right) => `<div class="hall-row"><span>${left}</span><b>${right}</b></div>`;
+    const people = (by, label) => {
+        const list = allTimeLeaders(hall, by);
+        return list.length ? list.map((p, i) => row(`${i + 1}. ${escapeHtml(p.name)} <small class="muted">${escapeHtml(p.team)} · ${p.matches} матч.</small>`,
+            by === 'total' ? `${p.goals + p.assists}` : `${p[by]}`)).join('') : `<div class="muted">Пока нет данных — сыграйте турнир.</div>`;
+    };
+    const top5 = (list, unit) => (list || []).length ? list.map((x, i) => row(`${i + 1}. ${escapeHtml(x.text)} <small class="muted">${escapeHtml(x.where || '')}</small>`, `${x.value} ${unit}`)).join('')
+        : '<div class="muted">Пока нет</div>';
+    const tabs = { titles: '🏆 Титулы', scorers: '⚽ Бомбардиры', assists: '👟 Ассистенты', matches: '📈 Рекорды', recent: '📜 Турниры' };
+    const body = {
+        titles: `<h4>Больше всего титулов</h4>${titles.map(([name, n], i) => row(`${i + 1}. ${crest({ name, emoji: (hall.emojis || {})[name] || '' })}`, n)).join('')}
+            ${Object.keys(hall.byCompetition || {}).length ? `<h4>По турнирам</h4>${Object.entries(hall.byCompetition).map(([comp, teams]) => {
+                const best = Object.entries(teams).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([n, c]) => `${escapeHtml(n)} ${c}`).join(', ');
+                return row(escapeHtml(comp), best);
+            }).join('')}` : ''}`,
+        scorers: `<h4>Бомбардиры всех турниров</h4>${people('goals')}`,
+        assists: `<h4>Ассистенты всех турниров</h4>${people('assists')}<h4>Гол + пас</h4>${people('total')}`,
+        matches: `<h4>Крупнейшие победы</h4>${top5(hall.bigWins, 'мяча')}
+            <h4>Самые результативные матчи</h4>${top5(hall.highScoring, 'гол.')}
+            <h4>Больше всего голов за турнир</h4>${top5(hall.bestSeasons, 'гол.')}
+            ${!hall.bigWins && r.biggestWin ? `<h4>Ранее</h4>${row('Крупнейшая победа', r.biggestWin.text)}${r.mostGoals ? row('Самый результативный матч', r.mostGoals.text) : ''}${r.topScorer ? row('Бомбардир турнира', r.topScorer.text) : ''}` : ''}`,
+        recent: `<div class="hall-list">${hall.tournaments.slice(0, 15).map(t => `
                 <div class="hall-row">
                     <span class="muted">${t.date} · ${t.format}</span>
                     <span>🥇 ${crest(t.champion)}${t.runnerUp ? ` <span class="muted">· 🥈 ${t.runnerUp.name}</span>` : ''}</span>
-                </div>`).join('')}
-        </div>
+                </div>`).join('')}</div>`
+    };
+    $('hall-content').innerHTML = `
+        <div class="stats-tabs hall-tabs">${Object.entries(tabs).map(([k, l]) => `<button type="button" class="stats-tab ${k === tab ? 'active' : ''}" data-hall="${k}">${l}</button>`).join('')}</div>
+        <div class="hall-body">${body[tab]}</div>
         <button id="btn-clear-hall" class="btn-secondary hall-clear">🗑️ Очистить зал славы</button>`;
+    $('hall-content').querySelectorAll('[data-hall]').forEach(b => b.onclick = () => renderHallTab(b.dataset.hall));
     $('btn-clear-hall').onclick = async () => {
         if (!(await askConfirm('Очистить зал славы и историю карьеры?', { ok: 'Очистить', danger: true }))) return;
         clearHall();
         clearCareer();
         renderHall();
     };
+}
+
+let hallTab = 'titles';
+function renderHallTab(tab) {
+    hallTab = tab;
+    renderHall();
 }
 
 function initSetupScreens() {

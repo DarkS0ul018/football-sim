@@ -163,7 +163,7 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
+    'half': '⏱️', 'weather': '🌤️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
 };
 
 function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
@@ -277,12 +277,16 @@ function legLabel(m, leg) {
 function prepareLeg(m, leg) {
     currentSim = new MatchSimulation(m, leg);
     highlights.sims.push(currentSim);
-    setText('match-stage-info', legLabel(m, leg));
+    setText('match-stage-info', `${legLabel(m, leg)} · ${WEATHER[currentSim.weather].icon}`);
+    $('football-field').dataset.weather = currentSim.weather; // дождь, снег, ветер — поверх поля
     renderField(currentSim);
     renderLineups(currentSim);
     renderSubstitutions(currentSim);
     updateStatsDisplay(currentSim);
     resetShotMap();
+    if ($('passmap-box')) $('passmap-box').style.display = 'none'; // сеть передач — после финального свистка
+    const wx = WEATHER[currentSim.weather];
+    addMatchEvent(m, '', 'weather', `${wx.icon} Погода${m.legs === 2 ? ` (${leg}-й матч)` : ''}: ${wx.label}`, null);
     setText('stats-title', 'Статистика');
     return currentSim;
 }
@@ -307,7 +311,7 @@ function openMatchScreen(match) {
     setMatchInProgress(false);
 
     setVisible(['btn-sim-match', 'btn-instant-match'], true);
-    setVisible(['btn-next-match', 'btn-close-match'], false);
+    setVisible(['btn-next-match', 'btn-close-match', 'btn-share-match'], false);
     showScreen('match');
 }
 
@@ -437,6 +441,8 @@ function concludeMatch(m, sim, live = false) {
 }
 
 // ----- Завершение матча -----
+let lastFinishedMatch = null;
+
 function finishMatch(m, winner) {
     stopMatchTimers();
     completeMatch(m, winner);
@@ -456,6 +462,7 @@ function finishMatch(m, winner) {
         renderSubstitutions(view);
         renderLineups(view);
         renderShotMap(view);
+        renderPassMap(view);
         showManOfTheMatch(m, view);
         setText('stats-title', view.combined ? 'Статистика · сумма двух матчей' : 'Статистика');
     }
@@ -467,7 +474,8 @@ function finishMatch(m, winner) {
 
     setText('match-status', 'FINISHED');
     setMatchInProgress(false);
-    setVisible(['btn-close-match'], true);
+    setVisible(['btn-close-match', 'btn-share-match'], true);
+    lastFinishedMatch = m;
 
     // В карьере остальные матчи этого тура (в плей-офф — раунда) досчитываются автоматически
     if (isCareer() && m.cup) {
@@ -511,6 +519,8 @@ function initMatchScreen() {
     $('btn-sim-match').onclick = () => beginMatch(startSimulation);
     $('btn-instant-match').onclick = () => beginMatch(instantResult);
     $('btn-close-match').onclick = openDashboard; // «К сетке»
+    $('btn-share-match').onclick = () => shareMatch(lastFinishedMatch);
+    $('btn-share-tournament').onclick = shareTournament;
     document.querySelector('#screen-match .btn-back').onclick = openDashboard;
     $('btn-manage-match').onclick = openManagePanel;
     $('btn-manage-sub').onclick = doManualSub;

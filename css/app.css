@@ -1386,3 +1386,46 @@ body.theme-uecl .champion-box-v2 { background: radial-gradient(600px 260px at 50
 .tile-uel { --t1: #b3520a; --t2: #3a1803; }
 .tile-uecl { --t1: #0f8a55; --t2: #04301d; }
 .tile-ruscup { --t1: #1f4fa8; --t2: #8a1a2a; }
+.share-btn { margin-top: 14px; }
+.hall-tabs { margin: 10px 0 6px; }
+.hall-body h4 { margin: 14px 0 6px; }
+.hall-row small { margin-left: 6px; }
+
+/* ===== Погода на поле ===== */
+.football-field[data-weather]::after { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 6; border-radius: inherit; }
+.football-field[data-weather="rain"]::after, .football-field[data-weather="storm"]::after {
+    background-image: repeating-linear-gradient(105deg, rgba(200, 220, 255, 0.0) 0 9px, rgba(200, 220, 255, 0.28) 9px 10px, rgba(200, 220, 255, 0) 10px 22px);
+    background-size: 220px 220px; animation: wxRain 0.45s linear infinite; }
+.football-field[data-weather="storm"]::after { background-color: rgba(10, 20, 40, 0.28); animation-duration: 0.3s; }
+.football-field[data-weather="storm"] { animation: wxFlash 9s infinite; }
+.football-field[data-weather="snow"]::after {
+    background-image: radial-gradient(2.5px 2.5px at 10% 20%, #fff 50%, transparent 52%), radial-gradient(2px 2px at 30% 60%, #fff 50%, transparent 52%),
+        radial-gradient(3px 3px at 55% 30%, #fff 50%, transparent 52%), radial-gradient(2px 2px at 75% 75%, #fff 50%, transparent 52%),
+        radial-gradient(2.5px 2.5px at 90% 15%, #fff 50%, transparent 52%), radial-gradient(2px 2px at 45% 90%, #fff 50%, transparent 52%);
+    background-size: 180px 180px; background-color: rgba(230, 240, 255, 0.12); animation: wxSnow 4s linear infinite; }
+.football-field[data-weather="wind"]::after {
+    background-image: repeating-linear-gradient(0deg, transparent 0 40px, rgba(255, 255, 255, 0.10) 40px 41px, transparent 41px 90px);
+    background-size: 300px 90px; animation: wxWind 1.2s linear infinite; }
+.football-field[data-weather="heat"]::after { background: radial-gradient(circle at 80% 0%, rgba(255, 190, 80, 0.22), transparent 60%); }
+.football-field[data-weather="cloudy"]::after { background: linear-gradient(180deg, rgba(20, 30, 50, 0.18), transparent 70%); }
+@keyframes wxRain { from { background-position: 0 0; } to { background-position: -60px 220px; } }
+@keyframes wxSnow { from { background-position: 0 0; } to { background-position: 40px 180px; } }
+@keyframes wxWind { from { background-position: 0 0; } to { background-position: 300px 0; } }
+@keyframes wxFlash { 0%, 96%, 100% { filter: none; } 97% { filter: brightness(1.8); } 98% { filter: none; } 99% { filter: brightness(1.5); } }
+@media (prefers-reduced-motion: reduce) { .football-field[data-weather]::after, .football-field[data-weather="storm"] { animation: none; } }
+
+/* Сеть передач и тепловая карта */
+.passmap { margin-top: 14px; }
+.pm-tabs, .pm-controls { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.pm-tab, .pm-team { padding: 4px 9px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font: inherit; font-size: 12px; cursor: pointer; }
+.pm-tab.active, .pm-team.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.pm-player { margin: 8px 0 4px; padding: 5px 8px; border-radius: 6px; background: var(--surface-2); color: var(--text); border: 1px solid var(--line); font: inherit; font-size: 13px; }
+#pass-map { width: 100%; display: block; }
+.pm-link { stroke: var(--accent); stroke-linecap: round; }
+.pm-link.pm-t2 { stroke: var(--info); }
+.pm-node circle { fill: var(--accent); stroke: #0b1220; stroke-width: 0.4; }
+.pm-node.pm-t2 circle { fill: var(--info); }
+.pm-node text { font-size: 2.3px; font-weight: 700; text-anchor: middle; fill: #0b1220; font-family: var(--font-body); }
+.pm-node text.pm-name { fill: #fff; font-weight: 500; font-size: 2px; paint-order: stroke; stroke: rgba(0,0,0,0.6); stroke-width: 0.5px; }
+.pm-arrow { font-size: 4px; fill: rgba(255,255,255,0.6); }
+.pm-note { font-size: 12px; margin-top: 6px; }

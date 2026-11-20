@@ -496,6 +496,7 @@
                         <button id="btn-manage-match" class="btn-secondary" style="display:none;"><span class="btn-text">⏸ Пауза и управление</span></button>
                         <button id="btn-next-match" class="btn-primary" style="display:none;"><span class="btn-text">Следующий матч →</span></button>
                         <button id="btn-close-match" class="btn-secondary" style="display:none;"><span class="btn-icon">📊</span><span class="btn-text">К сетке</span></button>
+                        <button id="btn-share-match" class="btn-secondary" style="display:none;"><span class="btn-icon">📤</span><span class="btn-text">Поделиться</span></button>
                     </div>
 
                     <div class="match-events-container">
@@ -555,6 +556,7 @@
                             </div>
                             <svg id="shot-map" viewBox="-2 -2 109 72" role="img" aria-label="Карта ударов"></svg>
                         </div>
+<div class="shotmap passmap" id="passmap-box" style="display:none">                            <div class="shotmap-head">                                <span class="pm-tabs"><button type="button" class="pm-tab active" data-pm="net">Сеть передач</button><button type="button" class="pm-tab" data-pm="heat">Тепловая карта</button></span>                                <span class="pm-controls"><button type="button" class="pm-team" data-side="team1" id="pm-team1"></button><button type="button" class="pm-team" data-side="team2" id="pm-team2"></button></span>                            </div>                            <select id="pm-player" class="pm-player" style="display:none"></select>                            <svg id="pass-map" viewBox="-2 -2 109 72" role="img" aria-label="Сеть передач"></svg>                            <div class="muted pm-note" id="pm-note"></div>                        </div>
                         <div class="motm" id="motm" style="display:none"></div>
                     </div>
 
@@ -723,6 +725,7 @@
                 <div class="trophy-animation">🏆</div>
                 <h2>Чемпион турнира</h2>
                 <h1 id="champion-name" class="champion-name"></h1>
+                <button id="btn-share-tournament" class="btn-secondary share-btn" type="button">📤 Поделиться результатом</button>
             </div>
             <div id="series-result-card" class="card series-result" style="display:none;"></div>
 
@@ -835,6 +838,7 @@
     <script src="js/ui/highlights.js"></script>
     <script src="js/ui/protocol.js"></script>
     <script src="js/ui/results.js"></script>
+    <script src="js/ui/share.js"></script>
     <script src="js/ui/motion.js"></script>
     <script src="js/main.js"></script>
     <script src="js/pwa.js"></script>

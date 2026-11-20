@@ -7,7 +7,9 @@ const sound = {
     master: null,
     noise: null,
     crowd: null,          // { src, gain, filter }
-    enabled: (() => { try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch (e) { return true; } })()
+    mode: (() => { try { const v = localStorage.getItem(SOUND_KEY); return ['on', 'nocrowd', 'off'].includes(v) ? v : 'on'; } catch (e) { return 'on'; } })(),
+    get enabled() { return this.mode !== 'off'; },
+    set enabled(v) { /* задаётся через setSoundMode */ }
 };
 
 function audio() {
@@ -66,7 +68,7 @@ function playSound(name) {
     switch (name) {
         case 'whistle-short': whistle(ctx, t, 0.18); break;
         case 'whistle-long': whistle(ctx, t, 0.7); break;
-        case 'whistle-end': whistle(ctx, t, 0.3); whistle(ctx, t + 0.45, 0.3); whistle(ctx, t + 0.9, 0.9); break;
+        case 'whistle-end': whistle(ctx, t, 0.3); whistle(ctx, t + 0.45, 0.3); whistle(ctx, t + 0.9, 0.9); setTimeout(() => applause(3.5), 1500); break;
         case 'kick': {
             const osc = ctx.createOscillator();
             const g = ctx.createGain();
@@ -81,6 +83,7 @@ function playSound(name) {
         case 'goal': {
             crowdBurst(ctx, t, 900, 2.2, 0.45);                    // рёв трибун
             crowdBurst(ctx, t + 0.05, 1800, 1.6, 0.18);
+            if (sound.mode === 'on') { airHorn(t + 0.4); setTimeout(crowdChant, 2200); }
             break;
         }
         case 'pen-goal': crowdBurst(ctx, t, 900, 1.0, 0.3); break;
@@ -101,57 +104,129 @@ function crowdBurst(ctx, t, freq, duration, peak) {
     src.stop(t + duration + 0.3);
 }
 
-// Фоновый гул трибун на время живого матча
+// Фоновый гул трибун на время живого матча: низкий гул стадиона + «волны» голосов + речёвки с хлопками
 function startCrowd() {
     const ctx = audio();
-    if (!ctx || sound.crowd) return;
-    const src = noiseSource(ctx, true);
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 550;
-    filter.Q.value = 0.6;
+    if (!ctx || sound.crowd || sound.mode === 'nocrowd') return;
     const gain = ctx.createGain();
     gain.gain.value = 0.0001;
-    gain.gain.exponentialRampToValueAtTime(0.05, ctx.currentTime + 1);
-    src.connect(filter).connect(gain).connect(sound.master);
-    src.start();
-    sound.crowd = { src, gain, filter };
+    gain.gain.exponentialRampToValueAtTime(0.05, ctx.currentTime + 1.2);
+    gain.connect(sound.master);
+    // Низкий гул
+    const low = noiseSource(ctx, true);
+    const lowF = ctx.createBiquadFilter(); lowF.type = 'lowpass'; lowF.frequency.value = 260;
+    const lowG = ctx.createGain(); lowG.gain.value = 1.4;
+    low.connect(lowF).connect(lowG).connect(gain);
+    // Голоса: полоса 550 Гц, медленно «дышит»
+    const src = noiseSource(ctx, true);
+    const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = 550; filter.Q.value = 0.6;
+    const wave = ctx.createGain(); wave.gain.value = 0.8;
+    const lfo = ctx.createOscillator(), lfoG = ctx.createGain();
+    lfo.frequency.value = 0.13; lfoG.gain.value = 0.25;
+    lfo.connect(lfoG).connect(wave.gain);
+    src.connect(filter).connect(wave).connect(gain);
+    low.start(); src.start(); lfo.start();
+    sound.crowd = { src, gain, filter, extra: [low, lfo] };
+    // Речёвки трибун время от времени
+    sound.chantTimer = setInterval(() => { if (Math.random() < 0.45) crowdChant(); }, 14000);
 }
 
 function stopCrowd() {
+    clearInterval(sound.chantTimer);
     if (!sound.crowd || !sound.ctx) return;
-    const { src, gain } = sound.crowd;
+    const { src, gain, extra } = sound.crowd;
     const t = sound.ctx.currentTime;
     gain.gain.cancelScheduledValues(t);
     gain.gain.setValueAtTime(Math.max(gain.gain.value, 0.0001), t);
     gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6);
-    src.stop(t + 0.7);
+    [src, ...(extra || [])].forEach(n => { try { n.stop(t + 0.7); } catch (e) { /* ignore */ } });
     sound.crowd = null;
+}
+
+// Хлопок: короткий щелчок высокочастотного шума
+function clap(ctx, t, peak = 0.12) {
+    const s = noiseSource(ctx);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 1500 + Math.random() * 600; f.Q.value = 1.2;
+    const g = ctx.createGain();
+    s.connect(f).connect(g).connect(sound.master);
+    envelope(g, t, 0.003, 0.01, 0.09, peak);
+    s.start(t, Math.random()); s.stop(t + 0.15);
+}
+
+// «Хлоп-хлоп — хлоп-хлоп-хлоп» и протяжное «о-о-о» трибун
+function crowdChant() {
+    const ctx = audio();
+    if (!ctx || !sound.crowd) return;
+    const t = ctx.currentTime + 0.05;
+    [0, 0.35, 0.9, 1.25, 1.6].forEach(dt => { for (let k = 0; k < 3; k++) clap(ctx, t + dt + k * 0.015, 0.07); });
+    [0, 2.1].forEach(dt => {
+        const g = ctx.createGain();
+        const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 700;
+        [196, 247, 294].forEach(fr => {
+            const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr * (1 + (Math.random() - 0.5) * 0.01);
+            o.connect(f); o.start(t + dt); o.stop(t + dt + 1.3);
+        });
+        f.connect(g).connect(sound.master);
+        envelope(g, t + dt, 0.25, 0.6, 0.4, 0.02);
+    });
+}
+
+// Аплодисменты: много хлопков вразнобой
+function applause(seconds = 3) {
+    const ctx = audio();
+    if (!ctx || sound.mode === 'nocrowd') return;
+    const t = ctx.currentTime;
+    for (let i = 0; i < seconds * 45; i++) clap(ctx, t + Math.random() * seconds, 0.05 + Math.random() * 0.05);
+}
+
+// Дудка болельщиков после гола
+function airHorn(t) {
+    const ctx = sound.ctx;
+    const g = ctx.createGain();
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 1800;
+    [233, 294, 349].forEach(fr => {
+        const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fr;
+        o.connect(f); o.start(t); o.stop(t + 1.1);
+    });
+    f.connect(g).connect(sound.master);
+    envelope(g, t, 0.03, 0.7, 0.3, 0.045);
 }
 
 // Трибуны оживляются, когда мяч у ворот
 function crowdIntensity(sim) {
     if (!sound.crowd) return;
     const nearGoal = Math.abs(pitch.ball.x - 50) / 50; // 0 в центре, 1 у ворот
-    const target = 0.04 + nearGoal * nearGoal * 0.08;
+    const target = 0.04 + nearGoal * nearGoal * 0.09;
     sound.crowd.gain.gain.setTargetAtTime(target, sound.ctx.currentTime, 0.3);
 }
 
-function setSoundEnabled(on) {
-    sound.enabled = on;
-    try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch (e) { /* ignore */ }
-    if (!on) stopCrowd();
+// Режимы звука: всё / без трибун / выключен
+const SOUND_MODES = ['on', 'nocrowd', 'off'];
+function setSoundMode(mode) {
+    sound.mode = mode;
+    sound.enabled = mode !== 'off';
+    try { localStorage.setItem(SOUND_KEY, mode); } catch (e) { /* ignore */ }
+    if (mode !== 'on') stopCrowd();
+    else if (typeof simStep !== 'undefined' && simStep) startCrowd(); // включили посреди живого матча
     updateSoundButton();
+}
+
+function setSoundEnabled(on) {
+    setSoundMode(on ? 'on' : 'off');
 }
 
 function updateSoundButton() {
     const btn = $('btn-sound');
     if (!btn) return;
-    btn.innerText = sound.enabled ? '🔊' : '🔇';
-    btn.title = sound.enabled ? 'Выключить звук' : 'Включить звук';
+    btn.innerText = { on: '🔊', nocrowd: '🔉', off: '🔇' }[sound.mode];
+    btn.title = { on: 'Звук стадиона включён (нажмите — без трибун)', nocrowd: 'Без трибун: только свисток и удары (нажмите — выключить)', off: 'Звук выключен (нажмите — включить)' }[sound.mode];
 }
 
 function initSound() {
     updateSoundButton();
-    $('btn-sound').addEventListener('click', () => setSoundEnabled(!sound.enabled));
+    $('btn-sound').addEventListener('click', () => {
+        const next = SOUND_MODES[(SOUND_MODES.indexOf(sound.mode) + 1) % SOUND_MODES.length];
+        setSoundMode(next);
+        notify({ on: '🔊 Звук стадиона', nocrowd: '🔉 Без трибун', off: '🔇 Звук выключен' }[next]);
+    });
 }
