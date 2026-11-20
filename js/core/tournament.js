@@ -169,6 +169,11 @@ function createKnockoutRound(teams, pairs = null) {
     const isFinal = count === 2;
     const legs = isFinal ? 1 : state.settings.playoffLegs;
 
+    // Как на ЧМ и ЧЕ: перед полуфиналами накопленные жёлтые сгорают (дисквалификации остаются)
+    if (count === 4 && state.squads) {
+        Object.values(state.squads).forEach(sq => Object.values(sq.players || {}).forEach(p => { p.yellowAcc = 0; }));
+    }
+
     state.currentRound = roundIndex;
     state.matches = pairs.map((pair, i) => {
         const match = new Match(i, pair[0], pair[1], legs, 'playoff', roundName, roundIndex);

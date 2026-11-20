@@ -11,7 +11,7 @@ function playerRowHtml(p, opts = {}) {
     const outOfPos = slot && slot !== p.natPos;
     const badges = [];
     if (isInjured(p)) badges.push(`<span class="badge badge-injury" title="Травма: ${absenceText(p)}">🚑 ${p.injury.matches}</span>`);
-    if (p.suspended) badges.push('<span class="badge badge-red" title="Пропускает матч">🚫 дискв.</span>');
+    if (p.suspended) badges.push(`<span class="badge badge-red" title="${absenceText(p)}">🚫 ${p.suspended > 1 ? p.suspended : 'дискв.'}</span>`);
     else if (p.yellowAcc && !isInjured(p)) badges.push('<span class="badge badge-yellow" title="Ещё одна жёлтая — пропуск матча">🟨</span>');
     if (outOfPos) badges.push(`<span class="badge" title="Играет не на своей позиции">${p.natPos}→${slot}</span>`);
     const f = Math.round(p.fitness);

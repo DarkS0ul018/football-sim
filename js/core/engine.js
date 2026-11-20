@@ -655,6 +655,30 @@ class MatchSimulation {
         if (motm) m.motms.push({ leg, s: side(motm.side), p: motm.name, r: motm.rating });
     }
 
+    // Матч в карточку каждого сыгравшего: соперник, счёт, оценка, голы, передачи, карточки
+    recordPlayerLogs(ratings, motm) {
+        const m = this.match;
+        const stage = (m.roundName || '') + (m.legs === 2 ? ` · ${this.leg}-й матч` : '');
+        const count = (side, key) => {
+            const c = new Map();
+            this.events.forEach(e => { if (e.type === 'goal' && e.side === side && e[key]) c.set(e[key].number, (c.get(e[key].number) || 0) + 1); });
+            return c;
+        };
+        ['team1', 'team2'].forEach(side => {
+            const s = this.sides[side], opp = this.sides[otherSide(side)];
+            const goals = count(side, 'player'), assists = count(side, 'assister');
+            const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[otherSide(side)]];
+            const reds = new Set(s.sentOff.map(p => p.number));
+            ratings.filter(r => r.side === side).forEach(r => recordPlayerMatch(s.team.id, r.number, {
+                st: stage, opp: opp.team.name, oppId: opp.team.id, home: side === 'team1', sc: `${my}:${their}`,
+                res: my > their ? 'W' : (my < their ? 'L' : 'D'), rt: r.rating,
+                g: goals.get(r.number) || 0, a: assists.get(r.number) || 0,
+                y: s.yellowed.has(r.number) ? 1 : 0, r: reds.has(r.number),
+                motm: !!(motm && motm.side === side && motm.number === r.number), cup: !!m.cup
+            }));
+        });
+    }
+
     // Статистика игроков: кубковые голы — в отдельную таблицу кубка
     addStat(teamId, number, field) {
         if (this.match.cup) addCupStat(teamId, number, field);
@@ -714,6 +738,7 @@ class MatchSimulation {
         const s = this.sides[side];
         s.onPitch = s.onPitch.filter(p => p !== player);
         s.sentOff.push(player);
+        player.banLen = /Вторая жёлтая/.test(text) ? 1 : rollRedBan(); // прямая красная — 1–3 матча
         this.stats.redCards[side]++;
         this.addStat(s.team.id, player.number, 'redCards');
         this.log('card-red', side, `${text} — ${player.name}`, { player, lineupChanged: true });
@@ -816,6 +841,7 @@ class MatchSimulation {
         const ratings = this.playerRatings();
         const motm = this.manOfTheMatch();
         this.recordProtocol(motm);
+        this.recordPlayerLogs(ratings, motm);
         const strengths = { team1: this.strength('team1'), team2: this.strength('team2') };
         ['team1', 'team2'].forEach(side => {
             const s = this.sides[side];
@@ -825,10 +851,10 @@ class MatchSimulation {
             const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[otherSide(side)]];
             const goals = new Map();
             this.events.forEach(e => { if (e.type === 'goal' && e.side === side && e.player) goals.set(e.player.number, (goals.get(e.player.number) || 0) + 1); });
-            applyPostMatch(s.team, {
+            s.newBans = applyPostMatch(s.team, {
                 served: s.served,
                 endFitness: new Map(all.map(p => [p.number, p.fitness])),
-                redCards: new Set(s.sentOff.map(p => p.number)),
+                redCards: new Map(s.sentOff.map(p => [p.number, p.banLen || 1])),
                 yellowCards: s.yellowed,
                 ratings: new Map(ratings.filter(r => r.side === side).map(r => [r.number, r.rating])),
                 result: my > their ? 'W' : (my < their ? 'L' : 'D'),

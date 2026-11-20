@@ -8,6 +8,7 @@ const NEWS_TAGS = {
     result: { icon: '📰', label: 'Матчи' },
     player: { icon: '⭐', label: 'Игроки' },
     injury: { icon: '🚑', label: 'Травмы' },
+    ban: { icon: '🟥', label: 'Дисквалификации' },
     table: { icon: '📊', label: 'Таблица' },
     cup: { icon: '🏆', label: 'Кубок' },
     club: { icon: '🏟️', label: 'Клубы' },
@@ -113,9 +114,12 @@ function newsFromSim(sim) {
             pushNews({ tag: 'injury', match: m, teams: [s.team], weight: inj.matches >= 8 ? 7 : 5,
                 title: `Травма: ${p.name}`, text: `${inj.type[0].toUpperCase() + inj.type.slice(1)}, пропустит ${matchesWord(inj.matches)}. Удар по ${qn(s.team)}.` });
         });
-        if (isHuman(s.team)) s.sentOff.forEach(p => {
-            pushNews({ tag: 'club', match: m, teams: [s.team], weight: 3,
-                title: `Удаление: ${p.name}`, text: `${qn(s.team)} доигрывала в меньшинстве (${A.name} ${score} ${B.name}). Следующий матч он пропустит.` });
+        // Дисквалификации: у своих — все, у остальных — только долгие (за грубость)
+        (s.newBans || []).forEach(b => {
+            if (!isHuman(s.team) && b.len < 2) return;
+            const why = b.reason === 'перебор жёлтых' ? 'Набрал две жёлтые карточки' : (b.len > 1 ? 'Удалён за грубость' : 'Удалён');
+            pushNews({ tag: 'ban', match: m, teams: [s.team], weight: b.len > 1 ? 5 : 3,
+                title: `Дисквалификация: ${b.name}`, text: `${why} — пропустит ${matchesWord(b.len)} за ${qn(s.team)}.` });
         });
     });
 }

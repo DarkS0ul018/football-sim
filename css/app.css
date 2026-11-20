@@ -1114,3 +1114,33 @@ tr.qualify-third td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
 .btn-publish { min-height: 38px; padding: 7px 14px; font-size: 0.85rem; }
 .publish-count { display: inline-block; min-width: 20px; margin-left: 6px; padding: 1px 6px; border-radius: 10px; background: rgba(0, 0, 0, 0.25); font-size: 0.8rem; }
 #btn-editor-key.key-set { border-color: var(--accent, #c8f04a); }
+
+/* ----- Карточка игрока ----- */
+.player-row { cursor: pointer; }
+.st-motm { font-size: 0.8em; color: var(--gold, #f5c84b); margin-left: 4px; font-weight: 600; }
+.player-card { position: relative; max-width: 560px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.pc-close { position: absolute; top: 10px; right: 10px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: transparent; color: inherit; cursor: pointer; font-size: 15px; }
+.pc-head { display: flex; gap: 14px; align-items: center; margin: 0 36px 16px 0; }
+.pc-name { font-family: 'Oswald', sans-serif; font-size: 1.35rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.02em; }
+.pc-status { margin-top: 6px; font-size: 0.88rem; color: var(--gold, #f5c84b); }
+.pc-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+.pc-tile { padding: 10px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line-soft, rgba(255,255,255,0.06)); text-align: center; }
+.pc-tile b { display: block; font-family: 'Oswald', sans-serif; font-size: 1.4rem; line-height: 1.2; }
+.pc-tile span { font-size: 0.75rem; color: var(--text-2); }
+.player-card h4 { margin: 0 0 8px; }
+.pc-log { max-height: 300px; overflow-y: auto; }
+.pc-log .stats-table { display: table; font-size: 13px; }
+.pc-log td { padding: 7px 8px; }
+.pc-stage { color: var(--text-2); font-size: 12px; white-space: normal; }
+.pc-res { display: inline-block; min-width: 36px; padding: 2px 6px; border-radius: 6px; text-align: center; font-weight: 700; }
+.pc-W { background: rgba(80, 200, 120, 0.18); color: #6fe39a; }
+.pc-D { background: rgba(255, 255, 255, 0.08); }
+.pc-L { background: rgba(240, 80, 80, 0.18); color: #ff8080; }
+.pc-rt { display: inline-block; min-width: 34px; padding: 2px 6px; border-radius: 6px; text-align: center; font-weight: 700; }
+.rt-top { background: #2fa8ff; color: #04121f; }
+.rt-good { background: #4cc36f; color: #04160b; }
+.rt-mid { background: #e9b949; color: #1c1404; }
+.rt-low { background: #e5604f; color: #1f0603; }
+.pc-tile.rt-top, .pc-tile.rt-good, .pc-tile.rt-mid, .pc-tile.rt-low { border: none; }
+.pc-tile.rt-top span, .pc-tile.rt-good span, .pc-tile.rt-mid span, .pc-tile.rt-low span { color: inherit; opacity: 0.8; }
+@media (max-width: 480px) { .pc-tiles { grid-template-columns: repeat(2, 1fr); } }

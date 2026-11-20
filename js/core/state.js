@@ -190,7 +190,8 @@ function initPlayerStats() {
             const id = `${team.id}-${player.number}`;
             playerStats[id] = {
                 id, number: player.number, name: player.name, position: player.position, rating: player.rating,
-                teamId: team.id, goals: 0, assists: 0, matches: 0, yellowCards: 0, redCards: 0
+                teamId: team.id, goals: 0, assists: 0, matches: 0, yellowCards: 0, redCards: 0,
+                ratingSum: 0, rated: 0, motm: 0, log: []
             };
         });
     });
@@ -203,4 +204,20 @@ function getTeamById(id) {
 function addPlayerStat(teamId, playerNumber, field) {
     const p = playerStats[`${teamId}-${playerNumber}`];
     if (p) p[field]++;
+}
+
+// Матч игрока для его карточки: соперник, счёт, оценка, голы, передачи, карточки.
+// Средняя оценка и «лучший игрок матча» считаются только по матчам турнира (кубок — отдельно).
+function recordPlayerMatch(teamId, playerNumber, entry) {
+    const p = playerStats[`${teamId}-${playerNumber}`];
+    if (!p) return;
+    (p.log || (p.log = [])).push(entry);
+    if (entry.cup) return;
+    p.ratingSum = (p.ratingSum || 0) + entry.rt;
+    p.rated = (p.rated || 0) + 1;
+    if (entry.motm) p.motm = (p.motm || 0) + 1;
+}
+
+function avgRating(p) {
+    return p.rated ? p.ratingSum / p.rated : null;
 }

@@ -130,10 +130,20 @@ function updateConfetti() {
 }
 
 // ===== ТАБЛИЦА БОМБАРДИРОВ (общая для дашборда и результатов) =====
+// Для средней оценки — только игроки, сыгравшие хотя бы половину матчей лидера по числу игр
+function ratingQualifies(p) {
+    const most = Math.max(1, ...Object.values(playerStats).map(x => x.rated || 0));
+    return (p.rated || 0) >= Math.max(1, Math.ceil(most / 2));
+}
+
 const STAT_TYPES = {
     goals:   { header: 'Голы',     value: p => p.goals,             cell: p => p.goals },
     assists: { header: 'Передачи',  value: p => p.assists,           cell: p => p.assists },
-    total:   { header: 'Гол + пас', value: p => p.goals + p.assists, cell: p => `${p.goals} + ${p.assists}` }
+    total:   { header: 'Гол + пас', value: p => p.goals + p.assists, cell: p => `${p.goals} + ${p.assists}` },
+    rating:  { header: 'Оценка',    value: p => (ratingQualifies(p) ? avgRating(p) || 0 : 0),
+               cell: p => `${avgRating(p).toFixed(2)}${p.motm ? ` <span class="st-motm" title="Лучший игрок матча">⭐${p.motm}</span>` : ''}` },
+    cards:   { header: 'Карточки',  value: p => (p.yellowCards || 0) + (p.redCards || 0) * 3,
+               cell: p => [p.yellowCards ? `🟨${p.yellowCards}` : '', p.redCards ? `🟥${p.redCards}` : ''].filter(Boolean).join(' ') }
 };
 
 // Возвращает true, если в таблице есть строки
@@ -145,16 +155,17 @@ function renderScorersTable(tbodyId, headerId, statType = 'goals') {
 
     const players = Object.values(playerStats)
         .filter(p => type.value(p) > 0)
-        .sort((a, b) => type.value(b) - type.value(a))
+        .sort((a, b) => type.value(b) - type.value(a) || (b.goals + b.assists) - (a.goals + a.assists))
         .slice(0, 30);
 
     if (!players.length) {
         list.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;">Нет данных</td></tr>';
-        return false;
+        // таблица скрывается целиком, только если в турнире ещё нет ни одного гола
+        return statType !== 'goals' && Object.values(playerStats).some(p => p.goals > 0);
     }
     list.innerHTML = players.map((p, i) => {
         const team = getTeamById(p.teamId);
-        return `<tr style="${userRowStyle(p.teamId)}">
+        return `<tr class="player-row" data-player="${p.id}" style="${userRowStyle(p.teamId)}" title="Карточка игрока">
             <td>${i + 1}. ${p.name} #${p.number}</td>
             <td>${team ? teamLabel(team) : ''}</td>
             <td><b>${type.cell(p)}</b></td>
@@ -163,6 +174,69 @@ function renderScorersTable(tbodyId, headerId, statType = 'goals') {
     }).join('');
     return true;
 }
+
+// ===== КАРТОЧКА ИГРОКА: статистика за турнир и все его матчи =====
+const POS_LABEL = { GK: 'Вратарь', DEF: 'Защитник', MID: 'Полузащитник', FWD: 'Нападающий' };
+
+function pcRatingClass(r) {
+    return r >= 8 ? 'rt-top' : (r >= 7 ? 'rt-good' : (r >= 6 ? 'rt-mid' : 'rt-low'));
+}
+
+function openPlayerCard(statId) {
+    const p = playerStats[statId];
+    if (!p) return;
+    const team = getTeamById(p.teamId);
+    const squadP = team && state.squads && state.squads[team.id] ? (state.squads[team.id].players || {})[p.number] : null;
+    const age = team ? knownAge(team.name, p.name) : null;
+    const avg = avgRating(p);
+    const log = p.log || [];
+    const status = [];
+    if (squadP && isInjured(squadP)) status.push(`🚑 ${absenceText(squadP)}`);
+    else if (squadP && squadP.suspended) status.push(`🚫 ${absenceText(squadP)}`);
+    else if (squadP && squadP.yellowAcc) status.push('🟨 ещё одна жёлтая — пропуск матча');
+
+    const tile = (val, label, cls = '') => `<div class="pc-tile ${cls}"><b>${val}</b><span>${label}</span></div>`;
+    const rows = log.slice().reverse().map(e => `<tr>
+        <td class="pc-stage">${e.cup ? '🏆 ' : ''}${escapeHtml(e.st)}</td>
+        <td>${e.home ? '' : '<span class="muted">в гостях · </span>'}${escapeHtml(e.opp)}</td>
+        <td><span class="pc-res pc-${e.res}">${e.sc}</span></td>
+        <td>${'⚽'.repeat(Math.min(e.g, 5))}${'👟'.repeat(Math.min(e.a, 5))}${e.y ? '🟨' : ''}${e.r ? '🟥' : ''}${e.motm ? '⭐' : ''}</td>
+        <td><span class="pc-rt ${pcRatingClass(e.rt)}">${e.rt.toFixed(1)}</span></td>
+    </tr>`).join('');
+
+    document.querySelector('.player-card-overlay')?.remove();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay player-card-overlay';
+    el.innerHTML = `<div class="confirm-box player-card" role="dialog" aria-modal="true">
+        <button type="button" class="pc-close" title="Закрыть">✕</button>
+        <div class="pc-head">
+            ${team ? crestHtml(team, 'lg') : ''}
+            <div>
+                <div class="pc-name">${escapeHtml(p.name)} <span class="muted">#${p.number}</span></div>
+                <div class="muted">${POS_LABEL[p.position] || p.position}${age ? ` · ${age} лет` : ''}${team ? ` · ${escapeHtml(team.name)}` : ''} · рейтинг ${p.rating}</div>
+                ${status.length ? `<div class="pc-status">${status.join(' · ')}</div>` : ''}
+            </div>
+        </div>
+        <div class="pc-tiles">
+            ${tile(p.matches, 'матчей')}
+            ${tile(p.goals, 'голов')}
+            ${tile(p.assists, 'передач')}
+            ${tile(avg ? avg.toFixed(2) : '—', 'ср. оценка', avg ? pcRatingClass(avg) : '')}
+            ${tile(p.motm || 0, 'лучший в матче')}
+            ${tile(`${p.yellowCards || 0}/${p.redCards || 0}`, 'жёлт./красн.')}
+        </div>
+        ${log.length ? `<h4>Матчи</h4><div class="pc-log"><table class="stats-table"><tbody>${rows}</tbody></table></div>`
+            : '<p class="muted">Ещё не выходил на поле в этом турнире.</p>'}
+    </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el || e.target.closest('.pc-close')) el.remove(); });
+}
+
+// Клик по строке любой таблицы игроков открывает карточку
+document.addEventListener('click', e => {
+    const row = e.target.closest('tr.player-row[data-player]');
+    if (row) openPlayerCard(row.dataset.player);
+});
 
 function getActiveStatTab(container) {
     return container.querySelector('.stats-tab.active')?.dataset.tab || 'goals';

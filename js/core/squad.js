@@ -180,6 +180,12 @@ function rollInjury() {
     return { type: t.type, matches: t.min + Math.floor(Math.random() * (t.max - t.min + 1)) };
 }
 
+// Прямая красная: обычно 1 матч, за грубость — 2–3
+function rollRedBan() {
+    const r = Math.random();
+    return r < 0.65 ? 1 : (r < 0.9 ? 2 : 3);
+}
+
 function isInjured(p) {
     return !!(p.injury && p.injury.matches > 0);
 }
@@ -193,7 +199,7 @@ function matchesWord(n) {
 // Почему игрок пропускает матч (для подсказок и ленты)
 function absenceText(p) {
     if (isInjured(p)) return `${p.injury.type}, ещё ${matchesWord(p.injury.matches)}`;
-    if (p.suspended) return 'дисквалификация';
+    if (p.suspended) return `дисквалификация${p.banReason ? ' (' + p.banReason + ')' : ''}, ещё ${matchesWord(p.suspended)}`;
     return '';
 }
 
@@ -258,9 +264,11 @@ function lineupStrength(team) {
 // После игры: свежесть, восстановление, дисквалификации
 function applyPostMatch(team, report) {
     const squad = getSquad(team);
+    const bans = [];  // новые дисквалификации — для новостей
+    const nameOf = Object.fromEntries(getSquadPlayers(team).map(x => [x.number, x.name]));
     Object.entries(squad.players).forEach(([num, p]) => {
         num = Number(num);
-        if (report.served.has(num)) p.suspended = Math.max(0, p.suspended - 1);
+        if (report.served.has(num)) { p.suspended = Math.max(0, p.suspended - 1); if (!p.suspended) delete p.banReason; }
         // Сыгравшие восстанавливаются не полностью — при игре без ротации свежесть понемногу падает
         if (report.endFitness.has(num)) p.fitness = Math.min(100, report.endFitness.get(num) + 17);
         else p.fitness = Math.min(100, p.fitness + 30);
@@ -273,12 +281,21 @@ function applyPostMatch(team, report) {
             if (p.injury.matches <= 0) { delete p.injury; p.fitness = Math.min(p.fitness, 80); } // вернулся, но ещё не в тонусе
         }
         updateFormAndMorale(p, num, report); // до новой дисквалификации: отбывший её не «обижается» на скамейку
-        if (report.redCards.has(num)) { p.suspended += 1; }
+        if (report.redCards.has(num)) {
+            const len = (report.redCards.get && report.redCards.get(num)) || 1;
+            p.suspended += len;
+            p.banReason = len > 1 ? 'прямая красная' : 'красная карточка';
+            bans.push({ num, name: nameOf[num], len, reason: p.banReason });
+        }
         else if (report.yellowCards.has(num)) {
             p.yellowAcc++;
-            if (p.yellowAcc >= YELLOWS_FOR_BAN) { p.suspended += 1; p.yellowAcc = 0; }
+            if (p.yellowAcc >= YELLOWS_FOR_BAN) {
+                p.suspended += 1; p.yellowAcc = 0; p.banReason = 'перебор жёлтых';
+                bans.push({ num, name: nameOf[num], len: 1, reason: p.banReason });
+            }
         }
     });
+    return bans;
 }
 
 // Свежесть для показа: 🟢 / 🟡 / 🔴

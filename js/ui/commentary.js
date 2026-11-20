@@ -71,6 +71,11 @@ function commentKickoff(m, sim) {
             const names = lost.map(a => a.name).join(' и ');
             cmSay(m, 0, `У ${q(s.team)} ${lost.length > 1 ? 'не сыграют травмированные' : 'не сыграет травмированный'} ${names}.`, { type: 'injury', delay: 750 + i * 150, team: s.team });
         }
+        // Дисквалифицированные лидеры
+        const banned = (s.absent || []).filter(a => !a.injured && a.rating >= avg - 2).slice(0, 2);
+        if (banned.length) {
+            cmSay(m, 0, `${q(s.team)} без ${banned.length > 1 ? 'дисквалифицированных' : 'дисквалифицированного'} ${banned.map(a => a.name).join(' и ')}.`, { type: 'card-red', delay: 850 + i * 150, team: s.team });
+        }
     });
 }
 
