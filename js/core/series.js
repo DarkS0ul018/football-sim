@@ -1,7 +1,7 @@
 // ===== СЕРИИ: турниры, которые продолжаются =====
 // РПЛ: вылет и стыки — сезон за сезоном: 15–16 места вылетают в Первую лигу, 1–2 места оттуда поднимаются,
 //   13–14 места играют стыки с 4-м и 3-м местом Первой лиги.
-// Еврокубок по сезонам — 24 лучших остаются, 8 мест разыгрываются в отборочных стыках.
+// Лига чемпионов по сезонам — 28 лучших остаются, 8 мест разыгрываются в отборочных стыках (там и тройка РПЛ).
 // Сборные: отбор → стыки → ЧЕ или ЧМ (по очереди); вне Европы в год ЧЕ — Кубок Америки.
 // Этап, где играет ваша команда (или главный, если вы смотрите), идёт обычным турниром с живыми матчами;
 // остальное (другая лига, отбор на других континентах) считается быстро «за кадром».
@@ -9,7 +9,7 @@
 
 const SERIES_TYPES = {
     rpl: { title: 'РПЛ: вылет и стыки', icon: '🏟️' },
-    euro: { title: 'Еврокубок по сезонам', icon: '🏆' },
+    euro: { title: 'Лига чемпионов по сезонам', icon: '★' },
     nations: { title: 'Сборные: отбор и турниры', icon: '🌍' }
 };
 
@@ -135,8 +135,10 @@ function createSeries(type, gameMode, userTeam = null) {
         s.phase = 'league';
     } else if (type === 'euro') {
         const pool = byRating(getTeamsData('world').names);
-        s.direct = pool.slice(0, 24);
-        s.qual = pool.slice(24, 40);
+        const top = uclParticipants();
+        s.direct = top.slice(0, 28);
+        const rpl = rplEuroSpots();
+        s.qual = [...top.slice(28), ...rpl, ...pool.filter(n => !top.includes(n))].filter((n, i, a) => a.indexOf(n) === i).slice(0, 16);
         s.phase = 'qual';
     } else {
         s.cycle = 'euro';
@@ -203,12 +205,14 @@ function seriesStage(s) {
     if (s.type === 'euro') {
         if (s.phase === 'qual') {
             const pairs = seededPairs(s.qual);
-            return make(pairs.flat(), { mode: 'knockout', teamType: 'world', presetPairs: pairs, pairsTitle: 'Отборочные стыки',
-                stageOnly: true, playoffLegs: 2, groupLegs: 1 }, `Еврокубок · отбор · сезон ${s.season}`);
+            return make(pairs.flat(), { mode: 'knockout', teamType: 'mixed', presetPairs: pairs, pairsTitle: 'Отборочные стыки',
+                stageOnly: true, playoffLegs: 2, groupLegs: 1 }, `Лига чемпионов · отбор · сезон ${s.season}`);
         }
-        const names = s.main;
-        return make(names, { mode: 'groups', teamType: 'world', presetGroups: seedGroups(names, 8), groupLegs: 2, playoffLegs: 2 },
-            `Еврокубок · сезон ${s.season}`);
+        // Основной турнир — в формате Лиги чемпионов (36 клубов, общий этап). Старые серии добираются до 36.
+        const names = [...s.main];
+        byRating(getTeamsData('world').names).forEach(n => { if (names.length < UCL_TEAMS && !names.includes(n)) names.push(n); });
+        return make(names.slice(0, UCL_TEAMS), { mode: 'ucl', teamType: 'mixed', euroCup: 'ucl', title: EURO_CUPS.ucl.title,
+            groupLegs: 1, playoffLegs: 2, playoffSize: 8 }, `Лига чемпионов · сезон ${s.season}`);
     }
 
     // Сборные
@@ -289,7 +293,8 @@ function seriesFinishStage(s) {
                 relegated: rpl.slice(n - 2), promoted: fnl.slice(0, 2),
                 pairs: [[fnl[3], rpl[n - 4]], [fnl[2], rpl[n - 3]]].filter(p => p[0] && p[1])
             };
-            add('🏆', `Чемпион РПЛ — ${rpl[0]}. В Еврокубок: ${rpl.slice(0, 3).join(', ')}.`);
+            s.lastRplTable = rpl; // тройка — в отбор серии «Лига чемпионов по сезонам»
+            add('🏆', `Чемпион РПЛ — ${rpl[0]}. Путёвки в отбор Лиги чемпионов: ${rpl.slice(0, 3).join(', ')}.`);
             add('⬇️', `Вылетают в Первую лигу: ${s.pending.relegated.join(' и ')}.`);
             add('⬆️', `Выходят в РПЛ: ${s.pending.promoted.join(' и ')} (1–2 места Первой лиги).`);
             add('⚔️', `Стыковые матчи: ${s.pending.pairs.map((p, i) => `${p[1]} (${n - 3 + i}-е место РПЛ) — ${p[0]} (${4 - i}-е место Первой лиги)`).join('; ')}.`);
@@ -329,24 +334,27 @@ function seriesFinishStage(s) {
         if (s.phase === 'qual') {
             const ties = stateTieResults();
             s.main = [...s.direct, ...ties.map(t => t.winner)];
-            ties.forEach(t => add(t.winner ? '✅' : '❌', `${t.text} — в турнир проходит ${t.winner}`));
+            ties.forEach(t => add(t.winner ? '✅' : '❌', `${t.text} — в Лигу чемпионов проходит ${t.winner}`));
             s.last = { title: `Сезон ${s.season}: отборочные стыки`, lines };
             s.phase = 'main';
             return s.last;
         }
-        const rank = stateCupRanking();
-        add('🏆', `Победитель Еврокубка — ${rank[0]}, в финале — ${rank[1]}.`);
+        const rank = uclFinalRanking();
+        add('🏆', `Победитель Лиги чемпионов — ${rank[0]}, в финале — ${rank[1]}.`);
         add('🥉', `Полуфиналисты: ${rank.slice(2, 4).join(', ')}.`);
-        const keep = rank.slice(0, 24);
-        const outsiders = byRating(getTeamsData('world').names.filter(n => !s.main.includes(n)));
-        // В отбор: 25–32 места этого сезона + 8 сильнейших из не игравших (немного случайности среди претендентов)
-        const challengers = shuffle(outsiders.slice(0, 12)).slice(0, 8);
-        s.direct = keep;
-        s.qual = [...rank.slice(24, 32), ...challengers];
-        add('⬇️', `В отбор следующего сезона: ${rank.slice(24, 32).join(', ')}.`);
-        add('🆕', `Претенденты из других клубов: ${challengers.join(', ')}.`);
+        const played = state.teams.map(t => t.name);
+        const rplSpots = rplEuroSpots().filter(n => !rank.slice(0, 28).includes(n));
+        const outsiders = byRating(getTeamsData('world').names.filter(n => !played.includes(n) && !rplSpots.includes(n)));
+        // В отбор: 29–36 места + лучшие клубы РПЛ + претенденты из Европы (немного случайности среди них)
+        const challengers = shuffle(outsiders.slice(0, 8)).slice(0, 16 - 8 - rplSpots.length);
+        s.direct = rank.slice(0, 28);
+        s.qual = [...rank.slice(28, 36), ...rplSpots, ...challengers].slice(0, 16);
+        ensureUserInEuro(s);
+        add('⬇️', `В отбор следующего сезона: ${rank.slice(28, 36).join(', ')}.`);
+        if (rplSpots.length) add('🇷🇺', `Путёвки от РПЛ: ${rplSpots.join(', ')}.`);
+        add('🆕', `Претенденты из Европы: ${challengers.join(', ')}.`);
         s.history.unshift({ title: `Сезон ${s.season}`, lines: [`🏆 ${rank[0]} · финал: ${rank[1]}`, `🥉 ${rank.slice(2, 4).join(', ')}`] });
-        s.last = { title: `Сезон ${s.season}: Еврокубок`, lines };
+        s.last = { title: `Сезон ${s.season}: Лига чемпионов`, lines };
         s.season++;
         s.phase = 'qual';
         return s.last;
@@ -455,4 +463,33 @@ function writeSeries(s) {
     const slot = readSlot(s.id) || { tournament: null, series: null };
     slot.series = s;
     writeSlot(s.id, slot);
+}
+
+// Итоговые места в Лиге чемпионов: по стадии вылета, внутри стадии — по месту в общем этапе
+function uclFinalRanking() {
+    const league = (state.uclRanking || []).map(id => state.teams.find(t => t.id === id).name);
+    const order = [];
+    const push = n => { if (n && !order.includes(n)) order.push(n); };
+    if (state.champion) push(state.champion.name);
+    [...state.tournamentHistory].reverse().forEach(r => {
+        r.matches.map(m => m.winner ? (m.winner === m.team1 ? m.team2 : m.team1).name : null).filter(Boolean)
+            .sort((a, b) => league.indexOf(a) - league.indexOf(b)).forEach(push);
+    });
+    league.forEach(push);
+    state.teams.forEach(t => push(t.name));
+    return order;
+}
+
+// Путёвки РПЛ в отбор Лиги чемпионов: тройка последнего сезона из серии «РПЛ», иначе — три сильнейших клуба
+function rplEuroSpots() {
+    const rplSlot = readSlotIndex().find(x => x.series && /РПЛ/.test(x.title));
+    const rs = rplSlot ? readSeries(rplSlot.id) : null;
+    const table = rs && rs.lastRplTable;
+    return (table && table.length ? table : byRating(getTeamsData('russia').names)).slice(0, 3);
+}
+
+// Клуб игрока всегда хотя бы в отборе (если не прошёл напрямую)
+function ensureUserInEuro(s) {
+    if (s.type !== 'euro' || !s.userTeam || s.direct.includes(s.userTeam) || s.qual.includes(s.userTeam)) return;
+    s.qual[s.qual.length - 1] = s.userTeam;
 }

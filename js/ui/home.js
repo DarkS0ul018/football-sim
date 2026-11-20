@@ -93,7 +93,7 @@ function renderHome() {
     $('home-series').innerHTML = Object.entries(SERIES_TYPES).map(([id, t]) => `<button type="button" class="home-tile tile-series-${id}" data-series="${id}">
         <span class="ht-icon">${t.icon}</span>
         <span class="ht-title">${t.title}</span>
-        <span class="ht-sub">${{ rpl: 'Сезон за сезоном: 15–16 места вылетают, 13–14 играют стыки с Первой лигой', euro: 'Лучшие остаются, остальные проходят отборочные стыки', nations: 'Отбор по континентам → стыки → ЧЕ и ЧМ по очереди' }[id]}</span>
+        <span class="ht-sub">${{ rpl: 'Сезон за сезоном: 15–16 места вылетают, 13–14 играют стыки с Первой лигой', euro: '36 клубов в новом формате; 28 лучших остаются, тройка РПЛ — через отбор', nations: 'Отбор по континентам → стыки → ЧЕ и ЧМ по очереди' }[id]}</span>
         <span class="ht-go">→</span>
     </button>`).join('');
 

@@ -13,7 +13,7 @@ function openSeriesStart(type) {
     const t = SERIES_TYPES[type];
     const text = {
         rpl: '16 клубов РПЛ и 18 клубов Первой лиги. Вылет, подъём и стыки каждый сезон.',
-        euro: '24 лучших клуба остаются, 8 мест — через отборочные стыки.',
+        euro: 'Формат Лиги чемпионов: 36 клубов. 28 лучших остаются, 8 мест — через отборочные стыки, где играет и тройка РПЛ.',
         nations: 'Отбор по континентам → стыки → ЧЕ или ЧМ. Каждые два года — новый турнир.'
     }[type];
     openHomeSheet(`${t.icon} ${t.title}`, [
@@ -25,7 +25,7 @@ function openSeriesStart(type) {
 
 function seriesTeamPool(type) {
     if (type === 'rpl') return [...getTeamsData('russia').names, ...getTeamsData('fnl').names];
-    if (type === 'euro') return getTeamsData('world').names;
+    if (type === 'euro') return [...getTeamsData('world').names, ...getTeamsData('russia').names];
     return Object.keys(CONFEDS).flatMap(confedMembers);
 }
 
@@ -56,6 +56,7 @@ function pickSeriesTeam(type) {
 
 function beginSeries(type, gameMode, userTeam) {
     const s = createSeries(type, gameMode, userTeam);
+    ensureUserInEuro(s);
     writeSeries(s);
     openSeries();
 }
