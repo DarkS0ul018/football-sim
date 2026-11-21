@@ -159,7 +159,7 @@ function sellPlayer(career, userTeam, player, pool) {
 // Рейтинг команды по её составу (для таблиц и выбора соперников)
 function rosterTeamRating(roster) {
     const top = roster.map(p => p.rating).sort((a, b) => b - a).slice(0, 11);
-    return Math.round(top.reduce((a, b) => a + b, 0) / Math.max(1, top.length) - 3);
+    return Math.round(top.reduce((a, b) => a + b, 0) / Math.max(1, top.length));
 }
 
 // Насколько далеко прошла команда игрока: { text, place, trophy }

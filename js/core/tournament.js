@@ -83,6 +83,8 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     const rosters = {};
     state.teams.forEach(t => { rosters[t.name] = getTeamRoster(t.name, teamRatings[t.name] ?? t.rating); });
     state.rosters = rosters;
+    // Рейтинг команды в турнире — по её лучшим одиннадцати (звёзды поднимают, без лидеров — ниже)
+    state.teams.forEach(t => { if (rosters[t.name] && rosters[t.name].length) t.rating = rosterTeamRating(rosters[t.name]); });
 
     initPlayerStats();
     initSquads();

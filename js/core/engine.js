@@ -76,10 +76,10 @@ function buildBaseRoster(teamName, teamRating) {
     const lineIndex = {};
     const rate = (p, isStarter) => {
         const idx = lineIndex[p.position] = (lineIndex[p.position] ?? -1) + 1;
-        const fixed = playerRatingOverride(teamName, p.name); // звезда или рейтинг из редактора
+        const fixed = playerRatingOverride(teamName, p.name, teamRating); // звезда или рейтинг из редактора
         if (fixed) return fixed;
-        const noise = (hashString(teamName + p.name) - 0.5) * 8; // ±4
-        const base = isStarter ? teamRating + 3 - idx * 0.8 : teamRating - 5 - idx * 0.6;
+        const noise = (hashString(teamName + p.name) - 0.5) * 6; // ±3
+        const base = isStarter ? teamRating + 1 - idx * 0.8 : teamRating - 6 - idx * 0.6; // средний по старту ≈ рейтинг команды
         return Math.round(Math.max(50, Math.min(99, base + noise)));
     };
 
@@ -379,12 +379,18 @@ class MatchSimulation {
         return this.sides[side].onPitch.find(p => p.position === 'GK') || { name: 'полевой игрок', rating: 45 };
     }
 
+    // Сила команды — только по тем, кто на поле: по линиям, с весами (середина держит мяч, атака создаёт, защита и вратарь мешают)
+    lineStrength(side, pos) {
+        const list = this.sides[side].onPitch.filter(p => p.position === pos);
+        return list.length ? list.reduce((a, p) => a + effRating(p), 0) / list.length : 55;
+    }
+
     strength(side) {
         const s = this.sides[side];
-        const players = s.onPitch;
-        const avg = players.reduce((sum, p) => sum + effRating(p), 0) / Math.max(1, players.length);
-        const missing = 11 - players.length;
-        return avg - missing * 4;
+        const missing = 11 - s.onPitch.length;
+        const L = pos => this.lineStrength(side, pos);
+        const total = L('GK') * 0.12 + L('DEF') * 0.28 + L('MID') * 0.32 + L('FWD') * 0.28;
+        return total - missing * 4;
     }
 
     // Сколько игроков в каждой линии сейчас на поле (схема + удаления)
@@ -405,9 +411,12 @@ class MatchSimulation {
         return v;
     }
 
-    // Доля атак team1: зависит от силы составов, фактора поля и тактики
+    // Доля атак team1: середина поля решает, у кого мяч; атака против защиты — кто чаще доходит до ворот
     team1AttackProbability() {
-        let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.012;
+        const mid = this.lineStrength('team1', 'MID') - this.lineStrength('team2', 'MID');
+        const edge1 = this.lineStrength('team1', 'FWD') - this.lineStrength('team2', 'DEF');
+        const edge2 = this.lineStrength('team2', 'FWD') - this.lineStrength('team1', 'DEF');
+        let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.008 + mid * 0.004 + (edge1 - edge2) * 0.002;
         if (isRealistic() && this.homeSide) p += this.homeSide === 'team1' ? 0.04 : -0.04;
         p += this.tacticalAttack('team1') - this.tacticalAttack('team2');
         return clamp(p, 0.25, 0.75);

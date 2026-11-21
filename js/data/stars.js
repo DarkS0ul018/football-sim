@@ -60,11 +60,15 @@ const STAR_RATINGS = {
 // Рейтинги игроков из редактора: команда (название в игре) → { игрок: рейтинг }. Заполняет customdata.js.
 let PLAYER_RATING_OVERRIDES = {};
 
-// Заданный рейтинг игрока или null (тогда он считается от рейтинга команды)
-function playerRatingOverride(teamName, playerName) {
+// Заданный рейтинг игрока или null (тогда он считается от рейтинга команды).
+// Рейтинг из редактора — точный. Звезда — не ниже уровня своей команды + 1 (в топ-клубе звезда не слабее партнёров).
+function playerRatingOverride(teamName, playerName, teamRating = null) {
     const own = PLAYER_RATING_OVERRIDES[teamName];
     if (own && own[playerName] != null) return own[playerName];
-    return STAR_RATINGS[playerName] ?? null;
+    const star = STAR_RATINGS[playerName];
+    if (star == null) return null;
+    const tr = teamRating ?? teamRatings[teamName] ?? (typeof NATIONS !== 'undefined' && NATIONS[teamName] ? NATIONS[teamName].rating : 0);
+    return Math.min(99, Math.max(star, Math.round(tr + 1)));
 }
 
 // «Ламин Ямаль (94)» → { name: 'Ламин Ямаль', rating: 94 }

@@ -48,7 +48,7 @@ function renderTransfers() {
     setText('tr-budget', formatMoney(trCareer.budget));
     setText('tr-income', trCareer.lastIncome ? `+${formatMoney(trCareer.lastIncome)}` : '—');
     setText('tr-count', `${squad.length} / ${SQUAD_MAX}`);
-    setText('tr-strength', rosterTeamRating(squad) + 3);
+    setText('tr-strength', rosterTeamRating(squad));
 
     // Развитие за прошлый сезон
     const dev = trCareer.lastDevelopment || [];
