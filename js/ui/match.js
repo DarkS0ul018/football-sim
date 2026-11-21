@@ -380,7 +380,8 @@ function startSimulation(m) {
         let span = sim.isOver ? 1 : (prefs.hlMode ? hlSpan(events, isShot) : (isShot ? 2 : 1));
         // Стандарты «подробно»: штрафной и угловой показываются дольше — успевает и расстановка, и камера
         const setPiece = sim.play && ["freekick", "corner"].includes(sim.play.kind);
-        if (!sim.isOver && setPiece && prefs.spMode === "show") span = Math.max(span, Math.round(normalMatchInterval() * 3 / ms));
+        // Стандарт: время на расстановку (пауза перед подачей) + сама подача и удар
+        if (!sim.isOver && setPiece && prefs.spMode !== "fast") span = Math.max(span, Math.ceil((setPieceSetupMs() / 0.85 + normalMatchInterval() * (isShot ? 2.2 : 1.5)) / ms));
         if (span > 1) holdTicks = span - 1;
 
         events.forEach(ev => {

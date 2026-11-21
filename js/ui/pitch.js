@@ -419,6 +419,11 @@ function animateMinute(sim, events, ms, span = 1) {
     pitch.overrides = new Map();
     if (!team.length) return;
 
+    // Стандарт как в жизни: мяч ставят, игроки бегут на свои места, пауза, свисток — подача
+    const setup = (play.kind === 'corner' || play.kind === 'freekick') ? setPieceSetupMs() : 0;
+    pitch.setupWalk = setup > 0;
+    pitch.setupMs = setup;
+
     let chain = play.chain.map(n => byNum(team, n)).filter(Boolean);
     const shooter = end ? byNum(team, end.shooter ?? end.taker) : null;
     if (shooter && chain[chain.length - 1] === shooter) chain = chain.slice(0, -1);
@@ -439,7 +444,7 @@ function animateMinute(sim, events, ms, span = 1) {
         // Бежит прямо в зону удара; пас найдёт его там, куда он успеет (см. follow в stepBall)
         pitch.overrides.set(shooter, spot(want.r, want.y));
         // На угловой игрок уже стоит в штрафной (стандарт — как монтажная склейка)
-        if (play.kind === 'corner' || (play.kind === 'freekick' && play.fk && !play.fk.direct)) { shooter.x = abs(side, want.r - 3); shooter.y = want.y; }
+        if (!setup && (play.kind === "corner" || (play.kind === "freekick" && play.fk && !play.fk.direct))) { shooter.x = abs(side, want.r - 3); shooter.y = want.y; }
     }
 
     if (play.kind === 'freekick' && play.fk) {
@@ -451,6 +456,7 @@ function animateMinute(sim, events, ms, span = 1) {
         placeBall(ballSpot.x, ballSpot.y, 0);
         showPitchBanner(fk.direct ? 'ШТРАФНОЙ · УДАР' : 'ШТРАФНОЙ · ПОДАЧА');
         wps.push({ ...ballSpot, player: taker, corner: true });
+        if (setup) wps.push({ ...ballSpot, wait: setup, whistle: true }); // стенка выстраивается, свисток судьи
         if (!fk.direct && shooter && pitch.overrides.get(shooter)) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
         if (end && end.type === 'cleared') { wps.push(spot(89, 35 + Math.random() * 30)); wps.push(spot(62, 20 + Math.random() * 60)); }
         if (end && end.type === 'wall' && pitch.fkWall) wps.push(spot(pitch.fkWall.r, pitch.fkWall.y), spot(pitch.fkWall.r - 12, fk.y + (Math.random() - 0.5) * 30));
@@ -459,8 +465,22 @@ function animateMinute(sim, events, ms, span = 1) {
         const pre = chain.slice(0, -1);
         pre.forEach(p => wps.push({ ...lead(p), player: p }));
         const flag = spot(98.5, Math.random() < 0.5 ? 2.5 : 97.5);
-        if (taker) { pitch.overrides.set(taker, flag); taker.x = flag.x; taker.y = flag.y; } // стандарт: сразу у флажка (как монтажная склейка)
-        wps.push({ ...flag, player: taker, corner: true });
+        if (taker) {
+            pitch.overrides.set(taker, flag);
+            if (!setup) { taker.x = flag.x; taker.y = flag.y; } // быстрый режим: сразу у флажка (монтажная склейка)
+        }
+        wps.push({ ...flag, player: taker, corner: true, banner: setup ? 'УГЛОВОЙ' : null });
+        if (setup) {
+            // Пока подающий идёт к флажку, игроки заходят в штрафную: атакующие — к воротам, защитники — опекать
+            const box = team.filter(p => p !== taker && p.position !== 'GK' && p !== shooter)
+                .sort((a, b) => ({ DEF: 0, FWD: 1, MID: 2 }[a.position] - { DEF: 0, FWD: 1, MID: 2 }[b.position])).slice(0, 4);
+            box.forEach((p, i) => pitch.overrides.set(p, spot(86 + (i % 2) * 3, 38 + i * 8)));
+            foes.filter(p => p.position !== 'GK').slice(0, 6).forEach((p, i) => pitch.overrides.set(p, spot(88 + (i % 3) * 2.5, 36 + i * 5.5)));
+            const gk = foes.find(p => p.position === 'GK');
+            if (gk) pitch.overrides.set(gk, spot(98.5, 50 + (flag.y > 50 ? 3 : -3)));
+            wps.push({ ...flag, wait: setup });
+            cameraPunch(setup / 1000 + 0.8);
+        }
         if (shooter) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
     } else {
         if (play.kind === 'counter' && chain.length > 2) {
@@ -507,9 +527,11 @@ function animateMinute(sim, events, ms, span = 1) {
     if (!wps.length) return;
 
     // Длительность отрезков пропорциональна длине передачи (в сумме — почти вся минута)
-    const budget = ms * span * 0.85; // атака с ударом идёт дольше (span = 2): бьющий успевает в штрафную
+    // Паузы стандартов (расстановка) идут сверх движения мяча
+    const waits = wps.reduce((a, w) => a + (w.wait || 0), 0);
+    const budget = Math.max(ms * span * 0.85 - waits, ms * 0.6); // атака с ударом идёт дольше (span = 2): бьющий успевает в штрафную
     let from = { ...pitch.ball };
-    const lens = wps.map(w => { const d = Math.hypot(w.x - from.x, (w.y - from.y) * 0.66) + 4; from = w; return d; });
+    const lens = wps.map(w => { if (w.wait) return 0; const d = Math.hypot(w.x - from.x, (w.y - from.y) * 0.66) + 4; from = w; return d; });
     const total = lens.reduce((a, b) => a + b, 0);
 
     pitch.recording = [];
@@ -518,9 +540,11 @@ function animateMinute(sim, events, ms, span = 1) {
         x: w.x, y: w.y,
         follow: w.player && team.includes(w.player) && !w.corner && !w.penaltySpot ? w.player : null,
         shot: !!(w.goal || w.save || w.miss),
-        dur: Math.max(60, budget * lens[i] / total),
-        onStart: () => { if (!fast && i > 0) playSound('kick'); },
+        dur: w.wait ? w.wait : Math.max(60, budget * lens[i] / total),
+        onStart: () => { if (!fast && i > 0 && !w.wait) playSound('kick'); },
         onArrive: () => {
+            if (w.banner) showPitchBanner(w.banner);
+            if (w.wait) { if (w.whistle) playSound('whistle-short'); return; } // пауза закончилась — подача
             if (w.save) {
                 pitch.holder = w.player || null;               // мяч у вратаря соперника — дальше атакует он
                 pitch.possession = opp;
@@ -751,8 +775,16 @@ function hideGoalTicker() {
 // ===== Стандарты: расстановка как в трансляции =====
 function stagePlace(side, p, r, y) {
     const pt = { x: abs(side, clampv(r, 2, 98)), y: clampv(y, 3, 97) };
-    p.x = pt.x; p.y = pt.y; p.vx = p.vy = 0;
+    if (!pitch.setupWalk) { p.x = pt.x; p.y = pt.y; p.vx = p.vy = 0; } // с паузой на расстановку — идут сами
     pitch.overrides.set(p, pt);
+}
+
+// Сколько длится расстановка на угловой и штрафной (зависит от выбора в настройках и скорости матча)
+function setPieceSetupMs() {
+    const mode = (typeof prefs !== 'undefined' && prefs.spMode) || 'normal';
+    if (mode === 'fast') return 0;
+    const n = typeof normalMatchInterval === 'function' ? normalMatchInterval() : 600;
+    return mode === 'show' ? Math.round(clampv(n * 3, 1600, 3200)) : Math.round(clampv(n * 2, 700, 2000));
 }
 
 // Штрафной: стенка в 9,15 м на линии «мяч — ворота», атакующие и опекуны в штрафной, вратарь в воротах
@@ -779,14 +811,14 @@ function stageFreeKick(side, team, foes, fk) {
     att.forEach((p, i) => stagePlace(side, p, 87 + (i % 2) * 3, 36 + i * (28 / Math.max(1, att.length - 1))));
     field.filter(p => !wall.includes(p)).slice(0, att.length).forEach((p, i) => stagePlace(side, p, 89.5 + (i % 2) * 2, 37.5 + i * (28 / Math.max(1, att.length - 1))));
     if (taker) stagePlace(side, taker, fk.r - 2.6, fk.y + (fk.y < 50 ? -2 : 2));
-    cameraGoalView(side, abs(side, fk.r), fk.y, 2800);
+    cameraGoalView(side, abs(side, fk.r), fk.y, 8000);
 }
 
 // Пенальти: мяч на точке, вратарь на линии, остальные за пределами штрафной
 function stagePenalty(side, team, foes, taker) {
     const gk = foes.find(p => p.position === 'GK');
     if (gk) stagePlace(side, gk, 99.2, 50);
-    cameraGoalView(side, abs(side, 88.5), 50, 3000);
+    cameraGoalView(side, abs(side, 88.5), 50, 3000, true);
     if (taker) stagePlace(side, taker, 86.8, 50.5);
     const others = [...team.filter(p => p !== taker && p.position !== 'GK'), ...foes.filter(p => p !== gk && p.position !== 'GK')];
     others.forEach((p, i) => {
@@ -982,11 +1014,11 @@ function cameraPunch(seconds = 1.6) {
 }
 
 // Ракурс «из-за спины бьющего» на штрафной и пенальти: точка между мячом и воротами, ворота — вверху кадра
-function cameraGoalView(side, ballX, ballY, ms = 2600) {
+function cameraGoalView(side, ballX, ballY, ms = 2600, penalty = false) {
     if (!cameraOn() || prefs.spMode === "fast") return;
     const mpm = typeof normalMatchInterval === "function" ? normalMatchInterval() : (pitch.msPerMinute || 1000);
-    if (prefs.spMode !== "show" && (mpm < 350 || (pitch.msPerMinute || 1000) < 350)) return; // на высокой скорости разворот камеры не успевает — остаёмся на общем плане
-    ms = Math.min(ms, prefs.spMode === "show" ? mpm * 3.2 : mpm * 2.2);
+    if (prefs.spMode !== "show" && !(penalty && mpm >= 350) && (pitch.setupMs || 0) < 900) return; // без паузы на расстановку разворот камеры не успевает — остаёмся на общем плане
+    ms = Math.min(ms, penalty ? mpm * 2.4 : (pitch.setupMs || 0) + mpm * 1.6);
     const goalX = side === 'team1' ? 100 : 0;
     pitch.cam.shot = { kind: 'goal-view', until: performance.now() + ms,
         cx: ballX + (goalX - ballX) * 0.45, cy: ballY + (50 - ballY) * 0.3, rz: side === 'team1' ? -90 : 90 };
