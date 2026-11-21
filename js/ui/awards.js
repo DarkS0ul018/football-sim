@@ -370,7 +370,8 @@ function renderRoundCover() {
     const perf = r ? roundPerformances(r.matches) : [];
     if (!r || perf.length < 11) { host.style.display = 'none'; return; }
     host.style.display = '';
-    const key = `${state.settings.title || ''}|${r.key}`;
+    // Ключ — турнир и участники тура (у разных турниров туры называются одинаково)
+    const key = `${state.settings.title || ""}|${r.key}|${r.matches.map(m => m.team1.name + "-" + m.team2.name + ":" + (m.score1 ?? "") + (m.score2 ?? "")).join(",")}`;
     if (host.dataset.key === key) return;
     const wasNew = host.dataset.key && host.dataset.key !== key;
     host.dataset.key = key;

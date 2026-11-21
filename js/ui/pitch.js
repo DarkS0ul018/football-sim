@@ -1250,7 +1250,8 @@ function showBallTag(text, ms = 900) {
 function renderFanBand(sim) {
     const band = $('fan-band');
     if (!band || !sim) return;
-    const key = `${sim.match.id}|${sim.leg}`;
+    // Ключ — по командам и матчу: номера матчей в каждом турнире начинаются заново
+    const key = `${sim.match.team1.name}|${sim.match.team2.name}|${sim.match.roundName || ""}|${sim.match.id}|${sim.leg}`;
     if (band.dataset.key === key) return;
     band.dataset.key = key;
     const home = sim.homeSide;
