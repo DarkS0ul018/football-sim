@@ -72,10 +72,11 @@ function openSettings() {
             </div>
             <small class="muted set-note">В файл попадают все сохранения, карьера, серии, редактор команд, рекорды, достижения и настройки. На другом устройстве откройте игру → Настройки → «Загрузить из файла».</small>
         </div>
+        <button type="button" class="btn-primary set-done" data-done="1">Готово</button>
     </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', e => {
-        if (e.target === el || e.target.closest('.pc-close')) { el.remove(); return; }
+        if (e.target === el || e.target.closest('.pc-close') || e.target.closest('[data-done]')) { el.remove(); return; }
         const b = e.target.closest('button');
         if (!b) return;
         if (b.dataset.theme) { setPref('theme', b.dataset.theme); applyPrefs(); }

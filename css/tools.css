@@ -712,3 +712,14 @@ body.fs-lock { overflow: hidden; }
 .chron-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; }
 .chron-dots { display: flex; gap: 5px; } .chron-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0, 0, 0, 0.2); } .chron-dots i.on { background: #b8860b; }
 .chron-box .eleven-pitch .eleven-p b, .chron-box .eleven-pitch .eleven-p small { color: #fff; }
+
+/* ===== Окна поверх экрана: всегда помещаются, крестик всегда виден ===== */
+.confirm-overlay { overflow-y: auto; place-items: safe center; }
+.confirm-box { max-height: calc(100dvh - 32px); overflow-y: auto; overscroll-behavior: contain; }
+.confirm-box > .pc-close { position: sticky; top: 0; float: right; z-index: 6; margin: -6px -6px 4px 8px; background: var(--surface); }
+.chron-box > .pc-close { background: #f3ecdd; }
+@media (max-width: 760px) {
+    .confirm-box { max-height: calc(100dvh - 112px - env(safe-area-inset-bottom)); }
+    .confirm-box > .pc-close { width: 40px; height: 40px; font-size: 17px; }
+}
+.set-done { width: 100%; margin-top: 14px; }

@@ -311,3 +311,39 @@ function initStatTabs() {
 function assistLabel(setPiece) {
     return setPiece === 'угловой' ? 'подача с углового' : (setPiece === 'штрафной' ? 'подача со штрафного' : 'пас');
 }
+
+// ----- Окна поверх экрана закрываются кнопкой «Назад» телефона и клавишей Esc -----
+// Открылось окно — добавляем шаг в историю; «Назад» закрывает верхнее окно, а не уходит со страницы.
+(function overlayBackButton() {
+    const isOverlay = n => n.nodeType === 1 && n.classList && n.classList.contains('confirm-overlay');
+    const topOverlay = () => { const list = document.querySelectorAll('.confirm-overlay'); return list[list.length - 1] || null; };
+    let skipPop = 0;
+    const closeTop = (fromBack = false) => {
+        const top = topOverlay();
+        if (!top) return false;
+        if (fromBack) top._byBack = true; // шаг истории уже снят кнопкой «Назад»
+        const btn = top.querySelector('.pc-close') || top.querySelector('[data-r="0"]');
+        if (btn) btn.click();
+        if (top.isConnected) top.remove();
+        return true;
+    };
+    // Открытия и закрытия считаем пачкой: окно, перерисованное заново (вкладка, обновление), шаг истории не меняет
+    new MutationObserver(muts => {
+        let added = 0, removed = 0;
+        muts.forEach(m => {
+            m.addedNodes.forEach(n => { if (isOverlay(n)) added++; });
+            m.removedNodes.forEach(n => { if (isOverlay(n) && !n._byBack) removed++; });
+        });
+        const net = added - removed;
+        if (net > 0) {
+            for (let i = 0; i < net; i++) { try { history.pushState({ overlay: true }, ''); } catch (e) { /* ignore */ } }
+        } else if (net < 0 && history.state && history.state.overlay) {
+            skipPop++; history.back(); // окно закрыли крестиком или кнопкой — убираем и его шаг из истории
+        }
+    }).observe(document.body, { childList: true });
+    window.addEventListener('popstate', () => {
+        if (skipPop > 0) { skipPop--; return; }
+        closeTop(true);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && topOverlay()) { e.preventDefault(); closeTop(); } });
+})();
