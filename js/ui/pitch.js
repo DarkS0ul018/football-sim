@@ -72,11 +72,12 @@ function renderField(sim) {
     shadow.className = 'ball-shadow';
     shadow.id = 'ball-shadow';
     pitch.moments = [];
-    field.querySelector('.tv-bug')?.remove();
+    const hud = $('field-hud') || field;
+    hud.querySelector('.tv-bug')?.remove();
     const bug = document.createElement('div');
     bug.className = 'tv-bug';
     bug.id = 'tv-bug';
-    field.appendChild(bug);
+    hud.appendChild(bug);
     field.appendChild(shadow);
     ball.style.transition = 'none';
     field.appendChild(ball);
@@ -275,6 +276,7 @@ function pitchFrame(ts) {
         computeTargets();
         stepPlayers(dt);
     }
+    if (document.getElementById('football-field')?.offsetParent !== null) stepCamera(dt);
     pitch.raf = requestAnimationFrame(pitchFrame);
 }
 
@@ -553,6 +555,7 @@ function onGoalAnimation(sim, ev) {
     setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
     showGoalBanner(ev);
     showGoalSplash(sim, ev);
+    cameraPunch(1.8);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
     // В живом матче — празднование: автор бежит к угловому флажку, партнёры — к нему
@@ -602,7 +605,7 @@ function showCardAnim(ev) {
 }
 
 function showSubBoard(ev) {
-    const field = $('football-field');
+    const field = $('field-hud') || $('football-field'); // слой поверх поля — камера его не трогает
     if (!field || !ev.out || !ev.sub) return;
     field.querySelector('.sub-board')?.remove();
     const el = document.createElement('div');
@@ -635,7 +638,7 @@ function replayFrames(frames, label, side, isGoal) {
     const badge = document.createElement('div');
     badge.className = 'replay-badge';
     badge.innerHTML = `<span>ПОВТОР</span> ${label}`;
-    field.appendChild(badge);
+    ($('field-hud') || field).appendChild(badge);
     field.classList.add('replaying');
 
     const applyFrame = (fr, ms) => {
@@ -735,6 +738,7 @@ function stageFreeKick(side, team, foes, fk) {
 function stagePenalty(side, team, foes, taker) {
     const gk = foes.find(p => p.position === 'GK');
     if (gk) stagePlace(side, gk, 99.2, 50);
+    cameraPunch(2.5);
     if (taker) stagePlace(side, taker, 86.8, 50.5);
     const others = [...team.filter(p => p !== taker && p.position !== 'GK'), ...foes.filter(p => p !== gk && p.position !== 'GK')];
     others.forEach((p, i) => {
@@ -748,7 +752,7 @@ function stagePenalty(side, team, foes, taker) {
 
 // Надпись поверх поля: «ПЕНАЛЬТИ», «ШТРАФНОЙ»…
 function showPitchBanner(text) {
-    const field = $('football-field');
+    const field = $('field-hud') || $('football-field'); // слой поверх поля — камера его не трогает
     if (!field) return;
     field.querySelector('.pitch-banner')?.remove();
     const el = document.createElement('div');
@@ -775,8 +779,20 @@ function applyVenue(sim) {
     const field = $('football-field');
     if (field) field.dataset.pattern = v.pattern;
     const crowd = Math.round(v.capacity * (0.8 + hashString('crowd:' + sim.match.id + sim.leg + sim.match.team1.name) * 0.2));
-    setText('field-venue', `🏟️ ${v.name} · ${crowd.toLocaleString('ru-RU')} зрителей`);
-    sim.venue = { ...v, crowd };
+    // Время матча: днём — солнце и тени, вечером — закат, ночью — прожекторы
+    const th = hashString('time:' + sim.match.team1.name + sim.match.team2.name + sim.leg + (sim.match.roundName || ''));
+    const time = th < 0.4 ? 'day' : (th < 0.7 ? 'evening' : 'night');
+    const timeLabel = { day: '☀️ дневной матч', evening: '🌇 вечерний матч', night: '🌙 под прожекторами' }[time];
+    if (field) {
+        field.dataset.time = time;
+        if (!field.querySelector('.pitch-surface')) {
+            const surf = document.createElement('div');
+            surf.className = 'pitch-surface';
+            field.insertBefore(surf, field.firstChild);
+        }
+    }
+    setText('field-venue', `🏟️ ${v.name} · ${crowd.toLocaleString('ru-RU')} зрителей · ${timeLabel}`);
+    sim.venue = { ...v, crowd, time, timeLabel };
     return sim.venue;
 }
 
@@ -818,7 +834,7 @@ function updateTvBug() {
 
 // ===== Заставка гола поверх поля =====
 function showGoalSplash(sim, ev) {
-    const field = $('football-field');
+    const field = $('field-hud') || $('football-field'); // слой поверх поля — камера его не трогает
     if (!field || !ev || !ev.player) return;
     const kits = typeof getMatchKits === 'function' ? getMatchKits(sim.match) : {};
     const kit = kits[ev.side] || {};
@@ -855,4 +871,40 @@ const PLAYER_FIGURE = `<svg class="player-fig" viewBox="0 0 22 30" aria-hidden="
 
 function playerInnerHtml(number, shortName) {
     return `${PLAYER_FIGURE}<span class="player-num">${number}</span><span class="player-name">${shortName}</span>`;
+}
+
+// ===== Камера трансляции: поле чуть наклонено и приближено, камера плавно ведёт мяч; гол — наезд =====
+pitch.cam = { x: 50, y: 50, z: 1, boost: 0 };
+const CAM_TILT = 12; // градусов
+
+function cameraOn() {
+    return !(typeof prefs !== 'undefined' && prefs.camera === false);
+}
+
+function stepCamera(dt) {
+    const field = $('football-field');
+    if (!field) return;
+    if (!cameraOn() || !pitch.sim) {
+        if (field.style.transform) field.style.transform = '';
+        return;
+    }
+    const c = pitch.cam;
+    const mobile = window.innerWidth < 760;
+    const base = mobile ? 1.1 : 1.2;
+    const zoomTarget = base + (c.boost > 0 ? 0.32 : 0);
+    if (c.boost > 0) c.boost -= dt;
+    const bx = pitch.ball ? pitch.ball.x : 50, by = pitch.ball ? pitch.ball.y : 50;
+    const follow = Math.min(1, dt * (c.boost > 0 ? 3.5 : 2));
+    c.z += (zoomTarget - c.z) * Math.min(1, dt * 2.5);
+    c.x += (bx - c.x) * follow;
+    c.y += (by - c.y) * follow;
+    const lim = (1 - 1 / c.z) * 50; // край поля не выходит за кадр
+    const tx = Math.max(-lim, Math.min(lim, 50 - c.x));
+    const ty = Math.max(-lim, Math.min(lim, (50 - c.y) * 0.8));
+    field.style.transform = `perspective(1300px) rotateX(${CAM_TILT}deg) scale(${c.z.toFixed(3)}) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
+}
+
+// Наезд камеры на момент (гол, пенальти)
+function cameraPunch(seconds = 1.6) {
+    pitch.cam.boost = seconds;
 }
