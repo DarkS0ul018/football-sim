@@ -604,3 +604,9 @@ body.fs-lock { overflow: hidden; }
 .sp-row b:first-child { text-align: left; } .sp-row b:last-child { text-align: right; }
 .sp-row span { color: rgba(255, 255, 255, 0.6); font-weight: 500; }
 @media (max-width: 600px) { .stats-plate { min-width: 140px; font-size: 0.64rem; padding: 4px 7px; } }
+.set-file-btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 12px; border-radius: 8px; cursor: pointer; border: 1px solid rgba(127,127,127,.3); font-size: 0.85rem; } .set-file-btn:hover { border-color: var(--accent); }
+.next-opts { display: grid; gap: 8px; margin-top: 8px; }
+.next-opt { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(127, 127, 127, 0.25); background: rgba(127, 127, 127, 0.06); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.next-opt:hover { border-color: var(--accent); }
+.next-opt .no-icon { font-size: 1.5rem; }
+.next-opt span:nth-child(2) { display: flex; flex-direction: column; }

@@ -64,6 +64,14 @@ function openSettings() {
             ${toggle('bans', 'Дисквалификации', 'за красные и накопленные жёлтые')}
             <div class="muted set-note">Правила действуют на матчи, сыгранные после изменения.</div>
         </div>
+        <div class="set-group">
+            <div class="set-label">Перенос на другое устройство</div>
+            <div class="set-seg">
+                <button type="button" data-backup="export">⬇️ Сохранить всё в файл</button>
+                <label class="set-file-btn">⬆️ Загрузить из файла<input type="file" id="set-import" accept=".json,application/json" hidden></label>
+            </div>
+            <small class="muted set-note">В файл попадают все сохранения, карьера, серии, редактор команд, рекорды, достижения и настройки. На другом устройстве откройте игру → Настройки → «Загрузить из файла».</small>
+        </div>
     </div>`;
     document.body.appendChild(el);
     el.addEventListener('click', e => {
@@ -74,10 +82,13 @@ function openSettings() {
         else if (b.dataset.accent) { setPref('accent', b.dataset.accent); applyPrefs(); }
         else if (b.dataset.sound) setSoundMode(b.dataset.sound);
         else if (b.dataset.sp) setPref('spMode', b.dataset.sp);
+        else if (b.dataset.backup === 'export') { exportAllData(); return; }
         else return;
         const group = b.parentElement;
         group.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
     });
+    const imp = el.querySelector('#set-import');
+    if (imp) imp.onchange = () => { const f = imp.files && imp.files[0]; if (f) importAllData(f); imp.value = ''; };
     el.querySelectorAll('[data-pref]').forEach(inp => inp.onchange = () => { setPref(inp.dataset.pref, inp.checked); if (inp.dataset.pref === 'camera' && typeof renderCameraToggle === 'function') renderCameraToggle(); });
     const sp = el.querySelector('#set-speed');
     sp.oninput = () => {
@@ -96,4 +107,46 @@ function initSettings() {
         ms.value = prefs.speed;
         ms.addEventListener('change', () => setPref('speed', Number(ms.value)));
     }
+}
+
+// ----- Перенос всех данных игры в файл и обратно -----
+const BACKUP_PREFIX = 'footballSimPro.';
+
+function exportAllData() {
+    const data = {};
+    for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(BACKUP_PREFIX)) data[k] = localStorage.getItem(k);
+    }
+    const payload = { app: 'football-sim-pro', version: 1, date: new Date().toISOString(), data };
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `football-sim-${stamp}.json`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    notify(`💾 Сохранено записей: ${Object.keys(data).length}`);
+}
+
+async function importAllData(file) {
+    let payload;
+    try { payload = JSON.parse(await file.text()); } catch (e) { notify('⚠️ Это не файл сохранений игры'); return; }
+    if (!payload || payload.app !== 'football-sim-pro' || !payload.data || typeof payload.data !== 'object') { notify('⚠️ Это не файл сохранений игры'); return; }
+    const keys = Object.keys(payload.data).filter(k => k.startsWith(BACKUP_PREFIX) && typeof payload.data[k] === 'string');
+    if (!keys.length) { notify('⚠️ В файле нет сохранений'); return; }
+    const when = payload.date ? new Date(payload.date).toLocaleString('ru-RU') : 'неизвестно';
+    const ok = typeof askConfirm === 'function'
+        ? await askConfirm(`Загрузить сохранения из файла (${keys.length} записей, от ${when})? Текущие сохранения на этом устройстве будут заменены.`, { ok: 'Загрузить', danger: true })
+        : confirm('Заменить сохранения на этом устройстве?');
+    if (!ok) return;
+    try {
+        const old = [];
+        for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(BACKUP_PREFIX)) old.push(k); }
+        old.forEach(k => localStorage.removeItem(k));
+        keys.forEach(k => localStorage.setItem(k, payload.data[k]));
+    } catch (e) { notify('⚠️ Не хватило места в памяти браузера'); return; }
+    notify('✅ Сохранения загружены — перезапускаю игру');
+    setTimeout(() => location.reload(), 700);
 }

@@ -202,6 +202,49 @@ function showResults(champion) {
     renderSeasonAwards();
     achOnTournament(champion);
     museumRecord(champion);
+    renderWhatsNext();
     renderAchievements();
     showScreen('results');
+}
+
+// ----- «Что дальше» после отдельного турнира: следующий сезон, цикл сборных, серия -----
+function renderWhatsNext() {
+    const card = $('next-card');
+    if (!card) return;
+    const st = state.settings;
+    if (st.seriesId || st.stageOnly) { card.style.display = 'none'; return; }
+    const user = state.userTeam ? state.userTeam.name : null;
+    const mode = isCareer() ? 'career' : (isDuo() ? 'duo' : 'simulator');
+    const nationCup = typeof NATION_CUPS !== 'undefined' && NATION_CUPS[st.teamType];
+    let tileId = null;
+    try { tileId = localStorage.getItem('footballSimPro.lastTile'); } catch (e) { /* ignore */ }
+    const tile = HOME_CUPS.find(c => c.id === tileId);
+    const opts = [];
+    if (nationCup && mode !== 'duo') {
+        const next = st.teamType === 'worldcup' ? 'Чемпионат Европы и Кубок Америки' : 'Чемпионат мира';
+        opts.push({ id: 'nations', icon: '🌍', title: 'Продолжить цикл сборных', text: `Дальше — отбор и ${next}; чемпионаты чередуются, как в жизни` });
+    }
+    if (st.euroCup === 'ucl' && mode !== 'duo') opts.push({ id: 'ucl', icon: '★', title: 'Лига чемпионов по сезонам', text: 'Отборочные стыки, общий этап, плей-офф — сезон за сезоном' });
+    if (st.teamType === 'russia' && (st.originalMode || st.mode) === 'league' && mode !== 'duo')
+        opts.push({ id: 'rpl', icon: '🏟️', title: 'РПЛ: сезон по календарю', text: 'Чемпионат и Кубок, вылет и стыки, Суперкубок и еврокубки для лучших' });
+    if (tile && mode === 'simulator') opts.push({ id: 'again', icon: '🔁', title: `Следующий сезон: ${tile.title}`, text: 'Новая жеребьёвка, рекорды и музей сохраняются' });
+    if (!opts.length) { card.style.display = 'none'; return; }
+    card.innerHTML = `<div class="hr-label">Что дальше</div>
+        <div class="next-opts">${opts.map(o => `<button type="button" class="next-opt" data-next="${o.id}"><span class="no-icon">${o.icon}</span><span><b>${escapeHtml(o.title)}</b><small class="muted">${escapeHtml(o.text)}</small></span></button>`).join('')}</div>`;
+    card.style.display = '';
+    card.querySelectorAll('[data-next]').forEach(b => b.onclick = () => {
+        const id = b.dataset.next;
+        if (id === 'again') { startHomePreset(tile, 'simulator'); return; }
+        if (id === 'ucl') { beginSeries('euro', mode, user); return; }
+        if (id === 'rpl') { beginSeries('rpl', mode, user); return; }
+        if (id === 'nations') {
+            // Следующий турнир цикла — другой: после ЧМ — ЧЕ (а для Америки — Кубок Америки), после них — ЧМ
+            const s = createSeries('nations', mode, user && confedOf(user) ? user : null);
+            const after = st.teamType === 'worldcup';
+            s.cycle = after ? 'euro' : 'wc';
+            s.year = after ? 2028 : 2030;
+            writeSeries(s);
+            openSeries();
+        }
+    });
 }

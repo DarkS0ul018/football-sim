@@ -8,7 +8,7 @@
 // Состояние серии хранится в её слоте сохранения (storage.js), рядом с текущим турниром. Здесь нет DOM.
 
 const SERIES_TYPES = {
-    rpl: { title: 'РПЛ: вылет и стыки', icon: '🏟️' },
+    rpl: { title: 'РПЛ: сезон по календарю', icon: '🏟️' },
     euro: { title: 'Лига чемпионов по сезонам', icon: '★' },
     nations: { title: 'Сборные: отбор и турниры', icon: '🌍' }
 };
@@ -167,7 +167,9 @@ function cycleTitle(s) {
 function seriesStageLabel(s) {
     if (s.type === 'rpl') {
         const league = seriesUserLeague(s) === 'fnl' ? 'Первая лига' : 'РПЛ';
-        return s.phase === 'league' ? `Сезон ${s.season}: ${league}` : `Сезон ${s.season}: стыковые матчи`;
+        if (s.phase === 'eurocup') return `Сезон ${s.season}: ${(EURO_CUPS[s.euroKind] || EURO_CUPS.ucl).title.replace(/^[^А-Яа-я]+/, '')}`;
+        if (s.phase === 'super') return `Сезон ${s.season}: Суперкубок России`;
+        return s.phase === 'league' ? `Сезон ${s.season}: ${league} и Кубок России` : `Сезон ${s.season}: стыковые матчи`;
     }
     if (s.type === 'euro') return s.phase === 'qual' ? `Сезон ${s.season}: отборочные стыки` : `Сезон ${s.season}: основной турнир`;
     if (nationsUserPlaysCopa(s)) return `Кубок Америки ${s.year}`;
@@ -192,6 +194,20 @@ function seriesStage(s) {
     };
 
     if (s.type === 'rpl') {
+        if (s.phase === 'eurocup') {
+            // Еврокубок клуба игрока: формат нового общего этапа на 36 клубов
+            const kind = s.euroKind || 'uel';
+            let names = euroCupParticipants(kind);
+            if (s.userTeam && !names.includes(s.userTeam)) names = [...names.slice(0, names.length - 1), s.userTeam];
+            return make(names, { mode: 'ucl', teamType: kind === 'ucl' ? 'world' : 'mixed', euroCup: kind, title: EURO_CUPS[kind].title,
+                groupLegs: 1, playoffLegs: 2, playoffSize: 8 }, `${EURO_CUPS[kind].title.replace(/^[^А-Яа-я]+/, '')} · сезон ${s.season}`);
+        }
+        if (s.phase === 'super') {
+            const pair = (s.superPair || []).filter(Boolean);
+            const [a, b] = pair.length === 2 ? pair : byRating(s.rpl).slice(0, 2);
+            return make([a, b], { mode: 'knockout', teamType: 'russia', presetPairs: [[a, b]], pairsTitle: 'Финал', title: 'Суперкубок России',
+                playoffLegs: 1, groupLegs: 1 }, `Суперкубок России · сезон ${s.season}`);
+        }
         if (s.phase === 'league') {
             const fnl = seriesUserLeague(s) === 'fnl';
             return make(fnl ? s.fnl : s.rpl, { mode: 'league', teamType: fnl ? 'fnl' : 'russia', groupLegs: 2, playoffLegs: 1 },
@@ -282,6 +298,21 @@ function seriesFinishStage(s) {
     const add = (icon, text) => lines.push({ icon, text });
 
     if (s.type === 'rpl') {
+        if (s.phase === 'eurocup') {
+            const title = (EURO_CUPS[s.euroKind] || EURO_CUPS.ucl).title;
+            if (state.champion) add('🏆', `${title}: побеждает ${state.champion.name}.`);
+            if (s.userTeam) add('⚽', `${s.userTeam}: ${userResultText()}`);
+            s.history.unshift({ title: `Сезон ${s.season}: ${title}`, lines: lines.map(l => `${l.icon} ${l.text}`) });
+            s.last = { title: `Сезон ${s.season}: ${title}`, lines };
+            s.phase = 'super';
+            return s.last;
+        }
+        if (s.phase === 'super') {
+            if (state.champion) add('🥇', `Суперкубок России выигрывает ${state.champion.name}.`);
+            s.last = { title: `Сезон ${s.season}: Суперкубок России`, lines };
+            s.phase = 'league';
+            return s.last;
+        }
         if (s.phase === 'league') {
             const fnlVisible = seriesUserLeague(s) === 'fnl';
             const played = sortGroup([...state.teams]).map(t => t.name);
@@ -294,6 +325,8 @@ function seriesFinishStage(s) {
                 pairs: [[fnl[3], rpl[n - 4]], [fnl[2], rpl[n - 3]]].filter(p => p[0] && p[1])
             };
             s.lastRplTable = rpl; // тройка — в отбор серии «Лига чемпионов по сезонам»
+            s.cupWinner = state.cup && state.cup.winner ? state.cup.winner.name : null; // для Суперкубка
+            if (s.cupWinner) add('🏆', `Кубок России выиграл ${s.cupWinner}.`);
             add('🏆', `Чемпион РПЛ — ${rpl[0]}. Путёвки в отбор Лиги чемпионов: ${rpl.slice(0, 3).join(', ')}.`);
             add('⬇️', `Вылетают в Первую лигу: ${s.pending.relegated.join(' и ')}.`);
             add('⬆️', `Выходят в РПЛ: ${s.pending.promoted.join(' и ')} (1–2 места Первой лиги).`);
@@ -325,7 +358,11 @@ function seriesFinishStage(s) {
         ] });
         s.last = { title: `Сезон ${s.season}: стыковые матчи`, lines };
         s.season++;
-        s.phase = 'league';
+        // Календарь следующего сезона: еврокубок для клуба игрока (если попал в зону), Суперкубок, затем чемпионат
+        const place = s.userTeam ? s.pending.rplTable.indexOf(s.userTeam) : -1;
+        s.euroKind = place >= 0 && place <= 1 ? 'ucl' : (place === 2 ? 'uel' : (place === 3 ? 'uecl' : null));
+        s.superPair = [s.pending.rplTable[0], s.cupWinner && s.cupWinner !== s.pending.rplTable[0] ? s.cupWinner : s.pending.rplTable[1]];
+        s.phase = s.euroKind && s.gameMode === 'career' ? 'eurocup' : 'super';
         s.pending = null;
         return s.last;
     }

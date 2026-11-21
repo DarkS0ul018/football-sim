@@ -127,6 +127,12 @@ function getTeamsData(teamType) {
     const rpl = filterTeams(russianTeams, n => !FNL_CLUBS.has(n));
     if (teamType === 'mixed') return { names: [...rpl.names, ...euro.names], emojis: [...rpl.emojis, ...euro.emojis] };
     if (teamType === 'legends' && typeof legendTeamsData === 'function') return legendTeamsData(); // ретро-сезоны (js/data/legends.js)
+    if (teamType === 'all') {
+        // Свой турнир из любых команд: клубы России и мира, легенды и сборные
+        const nations = typeof NATIONS !== 'undefined' ? Object.keys(NATIONS) : [];
+        const leg = typeof legendTeamsData === 'function' ? legendTeamsData() : { names: [], emojis: [] };
+        return { names: [...russianTeams.names, ...worldTeams.names, ...leg.names, ...nations], emojis: [...russianTeams.emojis, ...worldTeams.emojis, ...leg.emojis, ...nations.map(() => '')] };
+    }
     if (teamType === 'clubwc') return worldTeams;
     if (teamType === 'fnl') return filterTeams(russianTeams, n => FNL_CLUBS.has(n));
     if (teamType === 'rusall') return russianTeams;  // РПЛ + Первая лига (Кубок России)

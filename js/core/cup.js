@@ -7,7 +7,9 @@ const CUP_NAME = 'Кубок';
 
 function cupEnabled(settings) {
     const mode = settings.originalMode || settings.mode;
-    return settings.gameMode === 'career' && !settings.seriesId && (mode === 'league' || mode === 'leaguePlayoff') && state.teams.length >= 6;
+    // В серии РПЛ кубок тоже идёт параллельно с чемпионатом (сезон по календарю)
+    const seriesOk = !settings.seriesId || (settings.seriesType === 'rpl' && settings.seriesPhase === 'league' && settings.teamType === 'russia');
+    return settings.gameMode === 'career' && seriesOk && (mode === 'league' || mode === 'leaguePlayoff') && state.teams.length >= 6;
 }
 
 function createCup() {

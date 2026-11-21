@@ -19,6 +19,10 @@ const HOME_CUPS = [
       settings: { mode: 'groups', count: 32, groupLegs: 1, playoffLegs: 1 } },
     { id: 'rpl', icon: '🏟️', title: 'Российская Премьер-лига', cls: 'tile-rpl', type: 'russia', sub: '16 клубов · два круга',
       settings: { mode: 'league', count: 16, groupLegs: 2, playoffLegs: 1 } },
+    { id: 'superru', icon: '🥇', title: 'Суперкубок России', cls: 'tile-rpl', type: 'russia', superCup: 'ru', sub: 'Один матч: чемпион РПЛ против обладателя Кубка России (из вашей истории турниров)' },
+    { id: 'superuefa', icon: '🌟', title: 'Суперкубок УЕФА', cls: 'tile-ucl', type: 'world', superCup: 'uefa', sub: 'Один матч: победитель Лиги чемпионов против победителя Лиги Европы' },
+    { id: 'leaguecup', icon: '🏅', title: 'Кубок Лиги', cls: 'tile-ruscup', type: 'russia', titled: true, sub: '16 клубов РПЛ · группы по 4 команды и плей-офф в два матча',
+      settings: { mode: 'groups', count: 16, groupLegs: 1, playoffLegs: 2 } },
     { id: 'legends', icon: '🏛️', title: 'Турнир легенд', cls: 'tile-legends', type: 'legends', sub: '16 великих составов разных лет: Милан-89, Барселона-09, МЮ-99, Зенит-08, ЦСКА-05… · группы и плей-офф',
       settings: { mode: 'groups', count: 16, groupLegs: 1, playoffLegs: 1 } },
     { id: 'mixed', icon: '⚔️', title: 'Россия против Европы', cls: 'tile-mixed', type: 'mixed', sub: '16 клубов РПЛ и Европы · группы и плей-офф',
@@ -167,6 +171,8 @@ function startHomePreset(cup, gameMode) {
     try { localStorage.setItem('footballSimPro.lastTile', cup.id); } catch (e) { /* ignore */ }
     if (cup.euroCup) { startEuroCup(cup.euroCup, gameMode); return; }
     if (cup.rusCup) { startRussianCup(gameMode); return; }
+    if (cup.superCup) { startSuperCup(cup, gameMode); return; }
+    if (cup.titled) { applyHomePreset(cup, gameMode); const settings = { ...readSettings(), title: cup.title }; startNewSlot(); proceedWithPool(settings, pickRandomTeams(settings.teamType, settings.count)); return; }
     applyHomePreset(cup, gameMode);
     onStartClick();
 }
@@ -175,7 +181,7 @@ function openCupSheet(cup) {
     const modes = ['simulator', 'career', 'duo'];
     openHomeSheet(`${cup.icon} ${cup.title}`, [
         ...modes.map(m => ({ ...HOME_MODES[m], ...(cup.nations && m === 'career' ? { title: 'Играть за сборную', text: 'Выберите сборную: состав, тактика, решения по ходу матча' } : {}), run: () => startHomePreset(cup, m) })),
-        ...(cup.euroCup || cup.rusCup ? [] : [{ icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
+        ...(cup.euroCup || cup.rusCup || cup.superCup ? [] : [{ icon: '⚙️', title: 'Настроить подробно', text: 'Формат, участники, число матчей', minor: true,
           run: () => { applyHomePreset(cup, 'simulator'); showScreen('setup'); } }])
     ]);
 }
@@ -258,4 +264,30 @@ function quickNextMatch() {
     const next = cupNext || state.matches.find(m => !m.isFinished && (!hasHumans() || isUserMatch(m)));
     if (next) openMatch(next);
     else notify('Этап доигран — продолжите с экрана турнира');
+}
+
+// ----- Суперкубок: один матч двух победителей (из вашей истории турниров, иначе — два сильнейших) -----
+function superCupPair(kind) {
+    const hall = typeof readHall === 'function' ? readHall() : { tournaments: [] };
+    const find = re => (hall.tournaments.find(t => t.champion && re.test(t.format || '')) || {}).champion?.name || null;
+    const pool = getTeamsData(kind === 'ru' ? 'russia' : 'world').names;
+    let a, b;
+    if (kind === 'ru') { a = find(/^РПЛ(:| ·)/); b = find(/^Кубок России/); }
+    else { a = find(/Лига чемпионов/); b = find(/Лига Европы/); }
+    const ranked = [...pool].sort((x, y) => (teamRatings[y] || 0) - (teamRatings[x] || 0));
+    if (!a || !pool.includes(a)) a = ranked[0];
+    if (!b || !pool.includes(b) || b === a) b = ranked.find(n => n !== a);
+    return [a, b];
+}
+
+function startSuperCup(cup, gameMode) {
+    const [a, b] = superCupPair(cup.superCup);
+    const settings = { mode: 'knockout', count: 2, teamType: cup.type, gameMode, simMode: 'realistic', groupLegs: 1, playoffLegs: 1,
+        teamPick: 'random', presetPairs: [[a, b]], pairsTitle: 'Финал', title: cup.title };
+    const pool = [a, b].map(n => ({ name: n, emoji: (getTeamsData(cup.type).emojis[getTeamsData(cup.type).names.indexOf(n)]) || '⚽', rating: teamRatings[n] || 80 }));
+    startNewSlot();
+    if (gameMode === 'simulator') { startTournament(settings, pool, null); return; }
+    // Карьера и «вдвоём»: выбор команды из двух финалистов
+    if (gameMode === 'duo') { startTournament({ ...settings, gameMode: 'duo' }, pool, [a, b]); return; }
+    openHomeSheet(`${cup.icon} ${cup.title}: за кого играете?`, pool.map(p => ({ icon: '⚽', title: p.name, text: `рейтинг ${p.rating}`, run: () => startTournament(settings, pool, p.name) })));
 }
