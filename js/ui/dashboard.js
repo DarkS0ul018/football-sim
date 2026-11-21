@@ -35,6 +35,7 @@ function renderDashboard() {
     renderTopScorers();
     renderMatchesList(isPlayoff);
     renderNextRoundButton();
+    renderQuickActions();
 }
 
 function renderUserBadge() {
@@ -102,7 +103,7 @@ function renderUclTable() {
             <table>
                 <tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>РМ</th><th>О</th><th>Форма</th></tr>
                 ${table.map((t, i) => `
-                    <tr class="${zoneCls[uclZone(i + 1)]}${i === 7 || i === 23 ? ' ucl-cut' : ''}" style="${userRowStyle(t.id)}">
+                    <tr data-team-id="${t.id}" class="${zoneCls[uclZone(i + 1)]}${i === 7 || i === 23 ? ' ucl-cut' : ''}" style="${userRowStyle(t.id)}">
                         <td>${i + 1}</td><td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td>${t.stats.gf}:${t.stats.ga}</td><td>${t.stats.gf - t.stats.ga > 0 ? '+' : ''}${t.stats.gf - t.stats.ga}</td><td><b>${t.stats.points}</b></td>
@@ -127,7 +128,7 @@ function renderLeagueTable() {
             <table>
                 <tr><th>#</th><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>Мячи</th><th>О</th><th>Форма</th></tr>
                 ${table.map((t, i) => `
-                    <tr class="${withPlayoff ? (i < playoffSize ? 'qualify-winner' : '') : (i === 0 ? 'qualify-third' : '')}" style="${userRowStyle(t.id)}">
+                    <tr data-team-id="${t.id}" class="${withPlayoff ? (i < playoffSize ? 'qualify-winner' : '') : (i === 0 ? 'qualify-third' : '')}" style="${userRowStyle(t.id)}">
                         <td>${i + 1}</td><td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td>${t.stats.gf}:${t.stats.ga}</td><td><b>${t.stats.points}</b></td>
@@ -154,7 +155,7 @@ function renderGroupTables() {
             <table>
                 <tr><th>Команда</th><th>И</th><th>В</th><th>Н</th><th>П</th><th>О</th><th>РМ</th><th class="col-form">Форма</th></tr>
                 ${sortGroup(group).map(t => `
-                    <tr class="${q[t.id] ? 'qualify-' + q[t.id] : ''}" style="${userRowStyle(t.id)}" title="${QUALIFY_LABELS[q[t.id]] || ''}">
+                    <tr data-team-id="${t.id}" class="${q[t.id] ? 'qualify-' + q[t.id] : ''}" style="${userRowStyle(t.id)}" title="${QUALIFY_LABELS[q[t.id]] || ''}">
                         <td>${teamLabel(t)}</td>
                         <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.drawn}</td><td>${t.stats.lost}</td>
                         <td><b>${t.stats.points}</b></td><td>${t.stats.gf - t.stats.ga}</td>
@@ -219,6 +220,7 @@ function renderBracket() {
         });
         container.appendChild(roundDiv);
     });
+    decorateBracket();
 }
 
 // ----- Список матчей (группы и лига): прошлый и текущий тур -----

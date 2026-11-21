@@ -18,6 +18,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Oswald:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/app.css">
     <link rel="stylesheet" href="css/motion.css">
+    <link rel="stylesheet" href="css/tools.css">
 </head>
 <body>
     <canvas id="confetti-canvas"></canvas>
@@ -31,6 +32,7 @@
         <div class="topbar-actions">
             <button id="btn-install" class="install-btn" type="button" style="display:none" title="Установить как приложение">📲 <span>Установить</span></button>
             <button id="btn-sound" class="sound-toggle" type="button">🔊</button>
+            <button id="btn-settings" class="sound-toggle" type="button" title="Настройки">⚙️</button>
         </div>
     </header>
 
@@ -337,6 +339,7 @@
                     </button>
                 </div>
             </header>
+            <div id="quick-actions" class="quick-actions"></div>
 
             <div id="playoff-bracket" class="bracket-section">
                 <div class="bracket-wrapper">
@@ -468,6 +471,7 @@
 
             <div class="match-layout">
                 <div class="match-main">
+                    <div id="match-preview" class="card match-preview" style="display:none"></div>
                     <div class="field-container">
                         <div class="football-field" id="football-field">
                             <div class="field-markings"></div>
@@ -725,6 +729,7 @@
                 <div class="trophy-animation">🏆</div>
                 <h2>Чемпион турнира</h2>
                 <h1 id="champion-name" class="champion-name"></h1>
+                <div id="podium" class="podium"></div>
                 <button id="btn-share-tournament" class="btn-secondary share-btn" type="button">📤 Поделиться результатом</button>
             </div>
             <div id="series-result-card" class="card series-result" style="display:none;"></div>
@@ -791,6 +796,15 @@
         </section>
     </main>
 
+    <!-- Нижнее меню на телефоне -->
+    <nav id="mobile-nav" class="mobile-nav" aria-label="Навигация">
+        <button type="button" data-nav="home"><span>🏠</span>Меню</button>
+        <button type="button" data-nav="tournament"><span>📊</span>Турнир</button>
+        <button type="button" data-nav="calendar"><span>📅</span>Календарь</button>
+        <button type="button" data-nav="hall"><span>🏛️</span>Рекорды</button>
+        <button type="button" data-nav="settings"><span>⚙️</span>Настройки</button>
+    </nav>
+
     <!-- Данные -->
     <script src="js/data/teams.js"></script>
     <script src="js/data/squads.js"></script>
@@ -801,6 +815,7 @@
     <script src="js/data/birthyears.js"></script>
     <script src="js/data/tactics.js"></script>
     <!-- Логика (без DOM) -->
+    <script src="js/core/prefs.js"></script>
     <script src="js/core/state.js"></script>
     <script src="js/core/engine.js"></script>
     <script src="js/core/squad.js"></script>
@@ -839,6 +854,9 @@
     <script src="js/ui/protocol.js"></script>
     <script src="js/ui/results.js"></script>
     <script src="js/ui/share.js"></script>
+    <script src="js/ui/settings.js"></script>
+    <script src="js/ui/tools.js"></script>
+    <script src="js/ui/showcase.js"></script>
     <script src="js/ui/motion.js"></script>
     <script src="js/main.js"></script>
     <script src="js/pwa.js"></script>

@@ -281,7 +281,8 @@ function applyPostMatch(team, report) {
             if (p.injury.matches <= 0) { delete p.injury; p.fitness = Math.min(p.fitness, 80); } // вернулся, но ещё не в тонусе
         }
         updateFormAndMorale(p, num, report); // до новой дисквалификации: отбывший её не «обижается» на скамейку
-        if (report.redCards.has(num)) {
+        if (!prefs.bans) { /* дисквалификации выключены в настройках */ }
+        else if (report.redCards.has(num)) {
             const len = (report.redCards.get && report.redCards.get(num)) || 1;
             p.suspended += len;
             p.banReason = len > 1 ? 'прямая красная' : 'красная карточка';

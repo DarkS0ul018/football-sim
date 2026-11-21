@@ -1429,3 +1429,47 @@ body.theme-uecl .champion-box-v2 { background: radial-gradient(600px 260px at 50
 .pm-node text.pm-name { fill: #fff; font-weight: 500; font-size: 2px; paint-order: stroke; stroke: rgba(0,0,0,0.6); stroke-width: 0.5px; }
 .pm-arrow { font-size: 4px; fill: rgba(255,255,255,0.6); }
 .pm-note { font-size: 12px; margin-top: 6px; }
+
+/* ===== Окно настроек ===== */
+.settings-box { position: relative; max-width: 460px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.settings-box h3 { margin: 0 40px 12px 0; font-family: var(--font-display); text-transform: uppercase; }
+.set-group { padding: 12px 0; border-top: 1px solid var(--line-soft); }
+.set-label { font-size: 0.85rem; color: var(--text-2); margin-bottom: 8px; }
+.set-seg { display: flex; gap: 6px; flex-wrap: wrap; }
+.set-seg button { flex: 1; min-height: 38px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 0.85rem; cursor: pointer; }
+.set-seg button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.set-swatches { display: flex; gap: 8px; flex-wrap: wrap; }
+.set-swatches button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px; border-radius: 10px; border: 2px solid transparent; background: transparent; color: var(--text-2); font: inherit; font-size: 0.72rem; cursor: pointer; }
+.set-swatches button i { width: 30px; height: 30px; border-radius: 50%; background: var(--sw); box-shadow: inset 0 0 0 2px rgba(0,0,0,0.15); }
+.set-swatches button.active { border-color: var(--sw); color: var(--text); }
+.settings-box input[type=range] { width: 100%; }
+.set-toggle { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; cursor: pointer; }
+.set-toggle span { display: flex; flex-direction: column; }
+.set-toggle small { font-size: 0.78rem; }
+.set-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.set-toggle i { flex: none; width: 44px; height: 24px; border-radius: 12px; background: var(--surface-3); border: 1px solid var(--line); position: relative; transition: background 0.2s; }
+.set-toggle i::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+.set-toggle input:checked + i { background: var(--accent); border-color: var(--accent); }
+.set-toggle input:checked + i::after { transform: translateX(20px); }
+.set-note { font-size: 0.78rem; margin-top: 6px; }
+
+/* ===== Светлая тема ===== */
+body.theme-light {
+    --bg: #f3f6fb; --bg-2: #e9eef6; --surface: #ffffff; --surface-2: #f2f5fa; --surface-3: #e3e9f3;
+    --line: #d5dce8; --line-soft: rgba(15, 25, 45, 0.08);
+    --text: #121a2b; --text-2: #3d4a63; --muted: #6c7a95;
+    --gold: #b8860b; --info: #1f6fd1; --win: #129a55; --loss: #d42a3c;
+    --shadow: 0 8px 24px rgba(20, 35, 70, 0.12);
+    background: radial-gradient(1000px 500px at 85% -10%, rgba(31, 111, 209, 0.10), transparent 60%), linear-gradient(180deg, #f6f8fc, #eaf0f8);
+    background-attachment: fixed;
+}
+body.theme-light .topbar { background: rgba(255, 255, 255, 0.9); border-bottom-color: var(--line); }
+body.theme-light .card, body.theme-light .table-container, body.theme-light .confirm-box { background: var(--surface); border-color: var(--line); box-shadow: var(--shadow); }
+body.theme-light .home-hero { color: #fff; }
+body.theme-light .home-hero h1, body.theme-light .home-tile { color: #fff; }
+body.theme-light .stats-table tbody tr:hover td, body.theme-light .table-container tr:hover td { background: rgba(15, 25, 45, 0.03); }
+body.theme-light .btn-secondary { background: var(--surface); }
+body.theme-light .pc-tile, body.theme-light .sh-item { background: var(--surface-2); }
+body.theme-light .confirm-overlay { background: rgba(20, 30, 50, 0.45); }
+body.theme-light .bracket-match, body.theme-light .tactics-player, body.theme-light .editor-team { background: var(--surface); }
+body.theme-light .muted { color: var(--muted); }

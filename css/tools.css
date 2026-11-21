@@ -1,0 +1,95 @@
+/* ===== Быстрые кнопки и календарь ===== */
+.quick-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: -6px 0 16px; }
+.qa-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 6px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); color: var(--text); font: inherit; font-size: 0.86rem; font-weight: 600; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }
+.qa-btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+.qa-btn[data-qa="mine"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.calendar-box { position: relative; max-width: 620px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.calendar-box h3 { margin: 0 40px 10px 0; font-family: var(--font-display); text-transform: uppercase; }
+.cal-filter { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; font-size: 0.9rem; cursor: pointer; }
+.cal-list { overflow-y: auto; flex: 1; }
+.cal-section h4 { position: sticky; top: 0; margin: 0; padding: 8px 0 6px; background: var(--surface); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-2); z-index: 1; }
+.cal-row { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: 0.9rem; }
+.cal-row:nth-child(even) { background: rgba(255, 255, 255, 0.025); }
+.cal-row.done, .cal-row.playable { cursor: pointer; }
+.cal-row.done:hover, .cal-row.playable:hover { background: var(--surface-2); }
+.cal-row.mine { box-shadow: inset 3px 0 0 var(--accent); }
+.cal-team { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cal-team.right { justify-content: flex-start; flex-direction: row-reverse; }
+.cal-score { min-width: 54px; text-align: center; font-family: var(--font-display); font-size: 1.05rem; }
+.cal-row:not(.done) .cal-score { color: var(--muted); font-weight: 400; }
+.cal-note { font-size: 0.8rem; margin-top: 8px; }
+
+/* ===== Страница команды ===== */
+[data-team-id] { cursor: pointer; }
+.team-page { position: relative; max-width: 640px; max-height: calc(100vh - 32px); overflow-y: auto; }
+.team-page h4 { margin: 14px 0 8px; }
+.team-page .pc-tiles { grid-template-columns: repeat(4, 1fr); }
+.tm-form { margin-top: 6px; }
+.tm-squad { max-height: 340px; overflow-y: auto; }
+.tm-squad .stats-table { display: table; font-size: 13px; }
+.tm-squad td { padding: 6px 7px; }
+.tm-squad tr.tp-start td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.tm-games { display: flex; flex-direction: column; gap: 6px; max-height: 220px; overflow-y: auto; }
+.tm-game { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; }
+@media (max-width: 520px) { .team-page .pc-tiles { grid-template-columns: repeat(2, 1fr); } }
+
+/* ===== Экран перед матчем ===== */
+.match-preview { margin-bottom: 14px; padding: 16px; border-color: rgba(255, 255, 255, 0.12);
+    background: radial-gradient(500px 200px at 50% 0%, rgba(120, 160, 255, 0.12), transparent 70%), var(--surface); animation: pvIn 0.4s ease-out; }
+@keyframes pvIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.pv-head { display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); }
+.pv-hide { border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: 16px; }
+.pv-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: start; margin: 8px 0 14px; }
+.pv-side { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+.pv-name { font-family: var(--font-display); font-size: 1.3rem; text-transform: uppercase; }
+.pv-meta { font-size: 0.78rem; color: var(--text-2); }
+.pv-stars, .pv-absent { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 10px; font-size: 0.8rem; }
+.pv-absent { color: var(--loss); }
+.pv-vs { align-self: center; font-family: var(--font-display); font-size: 1.6rem; color: var(--muted); }
+.pv-bar { display: flex; height: 26px; border-radius: 13px; overflow: hidden; font-size: 0.78rem; font-weight: 700; }
+.pv-bar span { display: grid; place-items: center; min-width: 34px; background: var(--accent); color: var(--accent-ink); }
+.pv-bar span:last-child { background: var(--info); color: #04121f; }
+.pv-bar .pv-draw { background: var(--surface-3); color: var(--text); }
+.pv-legend { display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--muted); margin: 3px 4px 10px; }
+.pv-info { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; color: var(--text-2); }
+
+/* ===== Пьедестал ===== */
+.podium { margin: 18px auto 4px; max-width: 560px; }
+.podium-row { display: grid; grid-template-columns: 1fr 1.15fr 1fr; align-items: end; gap: 10px; }
+.pod-step { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; animation: podUp 0.7s cubic-bezier(.2, .9, .3, 1.2) both; }
+.pod-1 { animation-delay: 0.6s; }
+.pod-2 { animation-delay: 0.3s; }
+.pod-3 { animation-delay: 0.1s; }
+@keyframes podUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: none; } }
+.pod-name { font-weight: 700; font-size: 0.88rem; }
+.pod-block { width: 100%; display: grid; place-items: center; border-radius: 10px 10px 0 0; font-size: 26px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04)); border: 1px solid rgba(255, 255, 255, 0.18); border-bottom: none; }
+.pod-1 .pod-block { height: 92px; background: linear-gradient(180deg, rgba(245, 200, 75, 0.45), rgba(245, 200, 75, 0.08)); }
+.pod-2 .pod-block { height: 66px; background: linear-gradient(180deg, rgba(200, 210, 225, 0.4), rgba(200, 210, 225, 0.06)); }
+.pod-3 .pod-block { height: 48px; background: linear-gradient(180deg, rgba(205, 127, 50, 0.4), rgba(205, 127, 50, 0.06)); }
+@media (prefers-reduced-motion: reduce) { .pod-step, .match-preview { animation: none; } }
+
+/* ===== Сетка плей-офф: соединители, появление, путь команды ===== */
+.bracket { gap: 34px; }
+.bracket-match { overflow: visible; position: relative; animation: bmIn 0.35s ease-out both; animation-delay: calc(var(--i, 0) * 30ms); }
+@keyframes bmIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.bracket-round:not(:last-child) .bracket-match::after { content: ''; position: absolute; top: 50%; right: -35px; width: 34px; border-top: 2px solid var(--line); }
+.bracket-match.bm-path { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 6px 18px rgba(0, 0, 0, 0.25); }
+.bracket-round:not(:last-child) .bracket-match.bm-path::after { border-top-color: var(--accent); }
+.bracket-match.final { box-shadow: 0 0 24px rgba(245, 200, 75, 0.25); }
+@media (prefers-reduced-motion: reduce) { .bracket-match { animation: none; } }
+
+/* ===== Нижнее меню на телефоне ===== */
+.mobile-nav { display: none; }
+@media (max-width: 760px) {
+    .mobile-nav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 3000;
+        padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(10, 16, 30, 0.94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
+    body.theme-light .mobile-nav { background: rgba(255, 255, 255, 0.95); }
+    .mobile-nav button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 48px; border: none; background: transparent; color: var(--text-2); font: inherit; font-size: 0.68rem; cursor: pointer; border-radius: 10px; }
+    .mobile-nav button span { font-size: 1.25rem; }
+    .mobile-nav button.active { color: var(--accent); background: rgba(255, 255, 255, 0.05); }
+    .mobile-nav button:disabled { opacity: 0.35; }
+    body { padding-bottom: calc(72px + env(safe-area-inset-bottom)); }
+    .btn-primary, .btn-secondary { min-height: 44px; }
+    .confirm-overlay { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
+}

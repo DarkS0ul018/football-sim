@@ -207,9 +207,10 @@ function showResults(champion) {
     renderTournamentPath();
     renderCareerCard();
     renderSeriesResult();
+    renderPodium(champion);
 
     $('teams-stats').innerHTML = [...state.teams].sort((a, b) => b.stats.points - a.stats.points).map(t => `
-        <tr style="${userRowStyle(t.id)}">
+        <tr data-team-id="${t.id}" style="${userRowStyle(t.id)}">
             <td>${teamLabel(t)} ${t.id === champion.id ? '👑' : ''}</td>
             <td>${t.stats.played}</td><td>${t.stats.won}</td><td>${t.stats.points}</td><td>${t.stats.gf}-${t.stats.ga}</td>
         </tr>`).join('');

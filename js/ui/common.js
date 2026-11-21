@@ -25,6 +25,8 @@ function showScreen(name) {
     const cupTheme = tournamentScreen && typeof state !== 'undefined' && state.settings && state.settings.ucl
         ? (EURO_CUPS[state.settings.euroCup || 'ucl'] || EURO_CUPS.ucl).theme : null;
     ['theme-ucl', 'theme-uel', 'theme-uecl'].forEach(c => document.body.classList.toggle(c, c === cupTheme));
+    if (typeof applyPrefs === 'function') applyPrefs(); // светлая тема — вне еврокубков
+    if (typeof renderMobileNav === 'function') renderMobileNav();
     window.scrollTo(0, 0);
 }
 
@@ -106,7 +108,7 @@ resizeConfetti();
 window.addEventListener('resize', resizeConfetti);
 
 function createConfetti(x, y) {
-    const colors = ['#4cc9f0', '#4361ee', '#e94560', '#ffd700', '#00ff88'];
+    const colors = window.confettiColors || ['#4cc9f0', '#4361ee', '#e94560', '#ffd700', '#00ff88'];
     for (let i = 0; i < 50; i++) {
         confettiParticles.push({
             x, y,

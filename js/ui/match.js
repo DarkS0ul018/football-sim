@@ -312,10 +312,13 @@ function openMatchScreen(match) {
 
     setVisible(['btn-sim-match', 'btn-instant-match'], true);
     setVisible(['btn-next-match', 'btn-close-match', 'btn-share-match'], false);
+    window.confettiColors = null;
+    renderMatchPreview(match, currentSim);
     showScreen('match');
 }
 
 function beginMatch(runner) {
+    hideMatchPreview();
     setVisible(['btn-sim-match', 'btn-instant-match'], false);
     setMatchInProgress(true);
     runner(state.activeMatch);

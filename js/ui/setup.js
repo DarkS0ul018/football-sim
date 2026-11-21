@@ -166,7 +166,7 @@ function renderTeamsList() {
         const ratingClass = team.rating >= 90 ? 'rating-high' : (team.rating < 80 ? 'rating-low' : 'rating-medium');
         const isUser = isHuman(team);
         return `
-            <div class="team-list-item ${isUser ? 'user-team' : ''}">
+            <div class="team-list-item ${isUser ? 'user-team' : ''}" data-team-id="${team.id}">
                 <span class="team-num">${index + 1}.</span>
                 <div class="team-info">
                     <span class="team-emoji">${crestHtml(team)}</span>

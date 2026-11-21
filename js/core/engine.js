@@ -466,7 +466,7 @@ class MatchSimulation {
             if (extra > 0 && Math.random() < 0.18 * extra) this.foul(side, otherSide(side));
         });
         this.tire();
-        if (Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
+        if (prefs.injuries && Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
         this.aiSubstitutions();
         this.aiCoach();
 
@@ -1083,6 +1083,6 @@ function rollWeather() {
 
 function matchWeather(match, leg) {
     match.weather = match.weather || {};
-    if (!match.weather[leg]) match.weather[leg] = rollWeather();
+    if (!match.weather[leg]) match.weather[leg] = prefs.weather ? rollWeather() : 'clear';
     return match.weather[leg];
 }
