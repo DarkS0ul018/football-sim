@@ -173,64 +173,122 @@ function renderPenaltyKicks(m, side) {
         .map(k => `<span class="penalty-kick ${k.scored ? 'penalty-goal' : 'penalty-miss'}">${k.scored ? '⚽' : '❌'}</span>`).join('');
 }
 
+// ----- Сетка плей-офф: две половины сходятся к финалу в центре -----
+function bracketMatchEl(m, idx) {
+    const agg = m.aggregateScore;
+    const el = document.createElement('div');
+    el.className = 'bracket-match';
+    el.style.setProperty('--i', idx);
+    el.dataset.teams = `${m.team1.name}|${m.team2.name}`;
+    if (isUserMatch(m)) el.classList.add('user-team');
+    if (m.isFinished) el.classList.add('played');
+    if (m.isFinal) el.classList.add('final');
+    const cls = team => m.winner === team ? 'winner' : (m.isFinished ? 'loser' : '');
+    const sub = [];
+    if (m.legs === 2 && m.isFinished) sub.push(`${m.leg1.t1}:${m.leg1.t2}, ${m.leg2.t1}:${m.leg2.t2}`);
+    if (m.extraTime) sub.push('д.в.');
+    if (m.penalties.kicks.length) sub.push(`пен. ${m.penalties.t1}:${m.penalties.t2}`);
+    if (m.isAutoSimulated) sub.push('🤖');
+    el.innerHTML = `
+        <div class="bracket-team ${cls(m.team1)}"><span class="bt-name">${teamLabel(m.team1)}</span><span class="bracket-score">${m.isFinished ? agg.t1 : '–'}</span></div>
+        <div class="bracket-team ${cls(m.team2)}"><span class="bt-name">${teamLabel(m.team2)}</span><span class="bracket-score">${m.isFinished ? agg.t2 : '–'}</span></div>
+        ${sub.length ? `<div class="bm-sub">${sub.join(' · ')}</div>` : ''}`;
+    if (m.isFinished) { el.dataset.report = reportIndex(m); el.classList.add('clickable'); el.title = 'Протокол матча'; }
+    else if (!hasHumans() || isUserMatch(m)) { el.onclick = () => openMatch(m); el.title = 'Сыграть матч'; el.classList.add('playable'); }
+    return el;
+}
+
+// Будущий матч: известные участники или «победитель пары»
+function bracketPlaceholderEl(a, b, idx) {
+    const el = document.createElement('div');
+    el.className = 'bracket-match placeholder';
+    el.style.setProperty('--i', idx);
+    const row = t => `<div class="bracket-team">${t ? `<span class="bt-name">${teamLabel(t)}</span>` : '<span class="bt-name muted">победитель пары</span>'}<span class="bracket-score">–</span></div>`;
+    el.innerHTML = row(a) + row(b);
+    if (a && b) el.dataset.teams = `${a.name}|${b.name}`;
+    return el;
+}
+
 function renderBracket() {
     const bracketDiv = $('playoff-bracket');
     const container = $('bracket-container');
-
+    const history = state.tournamentHistory;
     bracketDiv.querySelector('.tournament-progress')?.remove();
-    const rounds = state.tournamentHistory;
-    bracketDiv.insertAdjacentHTML('afterbegin', `<div class="tournament-progress">${rounds.map((r, i) =>
-        `<div class="progress-step active ${i < rounds.length - 1 ? 'completed' : ''}">${r.round}</div>`).join('')}</div>`);
+    bracketDiv.insertAdjacentHTML('afterbegin', `<div class="tournament-progress">${history.map((r, i) =>
+        `<div class="progress-step active ${i < history.length - 1 ? 'completed' : ''}">${r.round}</div>`).join('')}</div>`);
 
     container.innerHTML = '';
-    // Как «Сыграть тур автоматически» в группах: текущий раунд плей-офф — одной кнопкой
     bracketDiv.querySelector('.bracket-auto')?.remove();
+    bracketDiv.querySelector('.bracket-pre')?.remove();
     const pending = state.matches.filter(m => !m.isFinished && (!hasHumans() || !isUserMatch(m)));
     if (pending.length && !hasHumans()) {
-        const cur = rounds[rounds.length - 1];
+        const cur = history[history.length - 1];
         const auto = document.createElement('button');
         auto.className = 'btn-secondary bracket-auto';
         auto.innerHTML = `🤖 Сыграть «${cur ? cur.round : 'раунд'}» автоматически <small class="muted">(${pending.length})</small>`;
         auto.onclick = () => { autoSimulateAllRemainingMatches(); renderDashboard(); };
         container.parentElement.insertBefore(auto, container);
     }
-    rounds.forEach(round => {
-        const roundDiv = document.createElement('div');
-        roundDiv.className = 'bracket-round';
-        roundDiv.innerHTML = `<div class="bracket-round-title">${ROUND_ICONS[round.roundIndex] || '🎮'} ${round.round}</div>`;
 
-        round.matches.forEach(m => {
-            const agg = m.aggregateScore;
-            const el = document.createElement('div');
-            el.className = 'bracket-match';
-            if (isUserMatch(m)) el.classList.add('user-team');
-            if (m.isFinished) el.classList.add('played');
-            if (m.isFinal) el.classList.add('final');
-
-            const cls = team => m.winner === team ? 'winner' : (m.isFinished ? 'loser' : '');
-            const pens = m.penalties.kicks.length ? `
-                <div class="penalty-details">
-                    <div style="margin-bottom:8px;font-size:12px;font-weight:bold;color:#e94560">⚽ Пенальти ${m.penalties.t1}:${m.penalties.t2}</div>
-                    <div style="font-size:11px;color:#888">${m.team1.name}: ${renderPenaltyKicks(m, 'team1')}</div>
-                    <div style="font-size:11px;color:#888">${m.team2.name}: ${renderPenaltyKicks(m, 'team2')}</div>
-                </div>` : '';
-            const legs = m.legs === 2 && m.isFinished
-                ? `<div class="bracket-match-info"><div>1-й: ${m.leg1.t1}:${m.leg1.t2}</div><div>2-й: ${m.leg2.t1}:${m.leg2.t2}</div><div style="margin-top:5px;font-weight:bold;color:var(--gold)">Итого: ${agg.t1}:${agg.t2}</div></div>`
-                : (m.isFinal ? '<div class="bracket-match-info final-label">🏆 ГЛАВНЫЙ МАТЧ</div>' : '');
-            const auto = (m.extraTime ? '<span style="font-size:10px;color:var(--gold);margin-right:6px">⏱️ д.в.</span>' : '')
-                + (m.isAutoSimulated ? '<span style="font-size:10px;color:#888">🤖 Авто</span>' : '');
-
-            el.innerHTML = `
-                <div class="bracket-team ${cls(m.team1)}"><span style="flex:1">${teamLabel(m.team1)}</span><span class="bracket-score">${m.isFinished ? agg.t1 : '-'}</span></div>
-                <div class="bracket-team ${cls(m.team2)}"><span style="flex:1">${teamLabel(m.team2)}</span><span class="bracket-score">${m.isFinished ? agg.t2 : '-'}</span></div>
-                ${legs}${pens}${auto}${scorersMiniHtml(m)}`;
-            if (m.isFinished) { el.dataset.report = reportIndex(m); el.classList.add('clickable'); el.title = 'Протокол матча'; }
-
-            if (!m.isFinished && (!hasHumans() || isUserMatch(m))) el.onclick = () => openMatch(m);
-            roundDiv.appendChild(el);
+    // Дерево — с того раунда, после которого каждый следующий вдвое меньше (стыковой раунд ЛЧ — отдельно)
+    // Стыки серии и стыковой раунд ЛЧ (пока не сыгран) — просто список пар, без дерева
+    let start = state.settings.stageOnly || state.uclPhase === 'playoff' ? history.length : 0;
+    for (let i = history.length - 2; i >= 0; i--) {
+        if (history[i].matches.length !== history[i + 1].matches.length * 2) { start = i + 1; break; }
+    }
+    const pre = history.slice(0, start);
+    if (pre.length) {
+        const box = document.createElement('div');
+        box.className = 'bracket-pre';
+        pre.forEach(r => {
+            box.insertAdjacentHTML('beforeend', `<div class="bracket-round-title">${ROUND_ICONS[r.roundIndex] || '⚡'} ${r.round}</div>`);
+            const list = document.createElement('div');
+            list.className = 'bracket-pre-list';
+            r.matches.forEach((m, i) => list.appendChild(bracketMatchEl(m, i)));
+            box.appendChild(list);
         });
-        container.appendChild(roundDiv);
-    });
+        container.parentElement.insertBefore(box, container);
+    }
+
+    // Раунды дерева + будущие (участники — победители соседних пар)
+    const tree = history.slice(start).map(r => ({ title: r.round, idx: r.roundIndex, items: r.matches.map(m => ({ m })) }));
+    if (!tree.length) { container.className = 'bracket'; return; }
+    while (tree[tree.length - 1].items.length > 1) {
+        const prev = tree[tree.length - 1].items;
+        const items = [];
+        for (let i = 0; i + 1 < prev.length; i += 2) {
+            const w = x => (x.m && x.m.isFinished ? x.m.winner : null);
+            items.push({ a: w(prev[i]), b: w(prev[i + 1]) });
+        }
+        const n = items.length * 2;
+        tree.push({ title: getRoundName(n), idx: getRoundIndex(n), items, future: true });
+    }
+
+    let k = 0;
+    const make = item => item.m ? bracketMatchEl(item.m, k++) : bracketPlaceholderEl(item.a, item.b, k++);
+    const column = (round, items, sideCls) => {
+        const col = document.createElement('div');
+        col.className = `bk-col ${sideCls}${round.future ? ' future' : ''}`;
+        col.innerHTML = `<div class="bracket-round-title">${ROUND_ICONS[round.idx] || '🎮'} ${round.title}</div>`;
+        const body = document.createElement('div');
+        body.className = 'bk-body';
+        for (let i = 0; i < items.length; i += (items.length > 1 ? 2 : 1)) {
+            const g = document.createElement('div');
+            g.className = `bk-group ${items.length > 1 ? 'two' : 'one'}`;
+            items.slice(i, i + (items.length > 1 ? 2 : 1)).forEach(it => g.appendChild(make(it)));
+            body.appendChild(g);
+        }
+        col.appendChild(body);
+        return col;
+    };
+    const final = tree[tree.length - 1];
+    const sides = tree.slice(0, -1);
+    container.className = 'bracket bk-tree';
+    sides.forEach(r => container.appendChild(column(r, r.items.slice(0, r.items.length / 2), 'left')));
+    const fc = column(final, final.items, 'center');
+    fc.querySelector('.bracket-round-title').innerHTML = '🏆 Финал';
+    container.appendChild(fc);
+    [...sides].reverse().forEach(r => container.appendChild(column(r, r.items.slice(r.items.length / 2), 'right')));
     decorateBracket();
 }
 

@@ -325,7 +325,10 @@ function advanceStage() {
             state.champion = winners[0];
             return winners[0];
         }
-        createKnockoutRound(winners);
+        // Сетка без новой жеребьёвки: победители соседних пар встречаются друг с другом
+        const next = [];
+        for (let i = 0; i + 1 < winners.length; i += 2) next.push([winners[i], winners[i + 1]]);
+        createKnockoutRound(null, next);
     }
     // Если команда игрока не попала в новый этап — она выбыла
     humanTeams().forEach(t => { if (!state.matches.some(m => m.involves(t))) markEliminated(t); });

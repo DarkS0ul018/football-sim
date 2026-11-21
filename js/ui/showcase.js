@@ -94,27 +94,13 @@ function renderPodium(champion) {
 
 // ----- Сетка плей-офф: путь команды подсвечивается -----
 function highlightPath(teamName) {
-    document.querySelectorAll('#bracket-container .bracket-match').forEach(el => {
+    document.querySelectorAll('#playoff-bracket .bracket-match').forEach(el => {
         el.classList.toggle('bm-path', !!teamName && el.dataset.teams && el.dataset.teams.split('|').includes(teamName));
     });
 }
 
+// Путь чемпиона (после финала) или своей команды — подсвечен сразу (data-teams ставит renderBracket)
 function decorateBracket() {
-    const container = $('bracket-container');
-    if (!container) return;
-    const rounds = state.tournamentHistory;
-    let k = 0;
-    container.querySelectorAll('.bracket-round').forEach((roundEl, ri) => {
-        const round = rounds[ri];
-        roundEl.querySelectorAll('.bracket-match').forEach((el, mi) => {
-            const m = round && round.matches[mi];
-            if (!m) return;
-            el.dataset.teams = `${m.team1.name}|${m.team2.name}`;
-            el.style.setProperty('--i', k++);
-            if (m.isFinal) el.classList.add('final');
-        });
-    });
-    // Путь чемпиона (после финала) или своей команды — подсвечен сразу
     const focus = state.champion ? state.champion.name : (humanTeams()[0] || {}).name;
     highlightPath(focus || null);
 }
@@ -122,12 +108,12 @@ function decorateBracket() {
 function initShowcase() {
     const container = $('bracket-container');
     if (container) {
-        container.addEventListener('mouseover', e => {
+        container.parentElement.addEventListener('mouseover', e => {
             const row = e.target.closest('.bracket-team');
             if (!row) return;
             const name = row.querySelector('.team-label-name');
             if (name) highlightPath(name.textContent);
         });
-        container.addEventListener('mouseleave', () => decorateBracket());
+        container.parentElement.addEventListener('mouseleave', () => decorateBracket());
     }
 }
