@@ -159,7 +159,7 @@ function shotXg(r, y, { header = false, counter = false } = {}) {
 function pickShotSpot(position, kind, counter) {
     const rnd = Math.random;
     let r;
-    if (kind === 'corner') r = 88 + rnd() * 6;
+    if (kind === 'corner' || kind === 'freekick') r = 87 + rnd() * 7;
     else if (counter) r = 84 + rnd() * 11;
     else r = ({ FWD: 82 + rnd() * 13, MID: 74 + rnd() * 17, DEF: 73 + rnd() * 15 })[position] ?? 80 + rnd() * 12;
     const spread = clamp((100 - r) * 2.4, 16, 44); // вблизи ворот бьют по центру, издали — откуда угодно
@@ -545,7 +545,7 @@ class MatchSimulation {
 
     pickShooter(side, kind, exclude = null) {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p !== exclude);
-        const posWeight = kind === 'corner'
+        const posWeight = kind === 'corner' || kind === 'freekick'
             ? { FWD: 3, MID: 1, DEF: 3 }
             : { FWD: 5, MID: 2.5, DEF: 0.7 };
         return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3));
@@ -563,13 +563,14 @@ class MatchSimulation {
         const shooter = this.pickShooter(side, kind, cornerTaker); // подающий угловой сам себе не забивает
         if (!shooter) return;
         // Последний пас перед ударом: подающий угловой или партнёр (он же — кандидат на голевую передачу)
-        const passer = kind === 'corner' ? cornerTaker : this.pickAssister(side, shooter);
-        const play = this.startPlay(side, kind === 'corner' ? 'corner' : (counter ? 'counter' : 'attack'),
+        const setPiece = kind === 'corner' || kind === 'freekick';  // навес: голевой пас — у подающего
+        const passer = setPiece ? cornerTaker : this.pickAssister(side, shooter);
+        const play = this.startPlay(side, setPiece ? kind : (counter ? 'counter' : 'attack'),
             [...pre.filter(p => p !== shooter && p !== passer), passer, shooter]);
         const gk = this.goalkeeper(otherSide(side));
         this.stats.shots[side]++;
         // Точка удара и xG (качество момента); навес с углового — чаще удар головой
-        const header = kind === 'corner' && Math.random() < 0.75;
+        const header = setPiece && Math.random() < 0.75;
         const at = pickShotSpot(shooter.position, kind, counter);
         const xg = shotXg(at.r, at.y, { header, counter });
         this.stats.xg[side] += xg;
@@ -591,10 +592,11 @@ class MatchSimulation {
         this.stats.shotsOnTarget[side]++;
         if (result === 'goal') {
             // После углового гол почти всегда с передачи подающего (навес — это и есть голевой пас)
-            const assister = kind === 'corner' ? (passer && Math.random() < 0.92 ? passer : null) : (Math.random() < 0.75 ? passer : null);
+            const assister = setPiece ? (passer && Math.random() < 0.92 ? passer : null) : (Math.random() < 0.75 ? passer : null);
             shotInfo.assister = assister ? assister.number : null;
             play.end = { type: 'goal', shooter: shooter.number, at, xg, header };
-            this.goal(side, shooter, assister, kind === 'corner' ? (assister ? 'угловой' : 'после углового') : '', xg);
+            const spName = kind === 'freekick' ? 'штрафной' : 'угловой';
+            this.goal(side, shooter, assister, setPiece ? spName : '', xg);
         } else {
             play.end = { type: 'save', shooter: shooter.number, keeper: gk.number, at, xg, header };
             this.log('shot', side, `${gk.name} отражает удар (${shooter.name})`, { player: shooter, xg });
@@ -640,8 +642,54 @@ class MatchSimulation {
             this.log('foul', side, `Фол — ${offender.name}`, { player: offender });
         }
 
-        // Нарушение в штрафной — пенальти
+        // Нарушение в штрафной — пенальти; у штрафной — опасный штрафной удар
         if (Math.random() < 0.02) this.penaltyKick(victimSide);
+        else if (victim && this.play && this.play.side === victimSide && Math.random() < 0.2) this.freeKick(victimSide);
+    }
+
+    // Штрафной у ворот соперника: прямой удар в обвод стенки или навес в штрафную
+    freeKick(side) {
+        const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
+        if (!field.length) return;
+        const taker = [...field].sort((a, b) => (effRating(b) + (b.position === 'MID' ? 3 : 0)) - (effRating(a) + (a.position === 'MID' ? 3 : 0)))[0];
+        const at = { r: Math.round((72 + Math.random() * 10) * 10) / 10, y: Math.round((22 + Math.random() * 56) * 10) / 10 };
+        const direct = at.r > 75 && Math.abs(at.y - 50) < 20 && Math.random() < 0.6;
+        const gk = this.goalkeeper(otherSide(side));
+        const play = this.startPlay(side, 'freekick', [taker]);
+        play.fk = { r: at.r, y: at.y, direct, taker: taker.number };
+        this.stats.freeKicks = this.stats.freeKicks || { team1: 0, team2: 0 };
+        this.stats.freeKicks[side]++;
+        if (!direct) {
+            this.log('freekick', side, `Штрафной — навес в штрафную подаёт ${taker.name}`, { player: taker });
+            if (Math.random() < 0.35) this.shot(side, 'freekick', [], false, taker);
+            else { play.end = { type: 'cleared', fk: true }; this.log('freekick', otherSide(side), 'Защитники выносят мяч после подачи', {}); }
+            return;
+        }
+        // Прямой удар
+        this.log('freekick', side, `Штрафной — ${taker.name} бьёт по воротам`, { player: taker });
+        this.stats.shots[side]++;
+        const xg = 0.07;
+        this.stats.xg[side] += xg;
+        const pGoal = clamp(0.05 + (effRating(taker) - 80) * 0.004, 0.02, 0.12) * WEATHER[this.weather].goals;
+        const u = Math.random();
+        const result = u < pGoal ? 'goal' : (u < pGoal + 0.28 ? 'save' : (u < pGoal + 0.55 ? 'wall' : 'off'));
+        this.shotLog.push({ side, minute: this.minute, r: at.r, y: at.y, xg, result: result === 'wall' ? 'off' : result, freekick: true,
+            player: taker.number, name: taker.name, keeper: gk ? gk.number : null });
+        if (result === 'goal') {
+            this.stats.shotsOnTarget[side]++;
+            play.end = { type: 'goal', shooter: taker.number, at, xg, fk: true };
+            this.goal(side, taker, null, 'прямой штрафной', xg);
+        } else if (result === 'save') {
+            this.stats.shotsOnTarget[side]++;
+            play.end = { type: 'save', shooter: taker.number, keeper: gk ? gk.number : null, at, xg, fk: true };
+            this.log('shot', side, `${gk ? gk.name : 'Вратарь'} отражает удар со штрафного (${taker.name})`, { player: taker, xg });
+        } else if (result === 'wall') {
+            play.end = { type: 'wall', shooter: taker.number, at, xg, fk: true };
+            this.log('shot-off', side, `${taker.name} бьёт в стенку`, { player: taker, xg });
+        } else {
+            play.end = { type: 'off', shooter: taker.number, at, xg, fk: true };
+            this.log('shot-off', side, `${taker.name} бьёт со штрафного рядом со штангой`, { player: taker, xg });
+        }
     }
 
     penaltyKick(side) {

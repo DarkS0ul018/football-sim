@@ -371,10 +371,22 @@ function animateMinute(sim, events, ms, span = 1) {
         // Бежит прямо в зону удара; пас найдёт его там, куда он успеет (см. follow в stepBall)
         pitch.overrides.set(shooter, spot(want.r, want.y));
         // На угловой игрок уже стоит в штрафной (стандарт — как монтажная склейка)
-        if (play.kind === 'corner') { shooter.x = abs(side, want.r - 3); shooter.y = want.y; }
+        if (play.kind === 'corner' || (play.kind === 'freekick' && play.fk && !play.fk.direct)) { shooter.x = abs(side, want.r - 3); shooter.y = want.y; }
     }
 
-    if (play.kind === 'corner') {
+    if (play.kind === 'freekick' && play.fk) {
+        // Штрафной: мяч на точке нарушения, стенка, игроки в штрафной (как монтажная склейка)
+        const fk = play.fk;
+        const taker = byNum(team, fk.taker);
+        stageFreeKick(side, team, foes, fk);
+        const ballSpot = spot(fk.r, fk.y);
+        placeBall(ballSpot.x, ballSpot.y, 0);
+        showPitchBanner(fk.direct ? 'ШТРАФНОЙ · УДАР' : 'ШТРАФНОЙ · ПОДАЧА');
+        wps.push({ ...ballSpot, player: taker, corner: true });
+        if (!fk.direct && shooter && pitch.overrides.get(shooter)) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
+        if (end && end.type === 'cleared') { wps.push(spot(89, 35 + Math.random() * 30)); wps.push(spot(62, 20 + Math.random() * 60)); }
+        if (end && end.type === 'wall' && pitch.fkWall) wps.push(spot(pitch.fkWall.r, pitch.fkWall.y), spot(pitch.fkWall.r - 12, fk.y + (Math.random() - 0.5) * 30));
+    } else if (play.kind === 'corner') {
         const taker = chain[chain.length - 1];
         const pre = chain.slice(0, -1);
         pre.forEach(p => wps.push({ ...lead(p), player: p }));
@@ -405,10 +417,16 @@ function animateMinute(sim, events, ms, span = 1) {
         if (String(end.type).startsWith('penalty')) {
             const taker = byNum(team, end.taker);
             const ps = spot(89.5, 50);
-            if (taker) { const ts = { x: abs(side, 87.5), y: 50 }; pitch.overrides.set(taker, ts); taker.x = ts.x; taker.y = ts.y; }
+            wps.length = 0; // эпизод фола уже позади — сразу постановка пенальти
+            stagePenalty(side, team, foes, taker);
+            showPitchBanner('ПЕНАЛЬТИ');
+            // Мяч — сразу на точку; в живом матче сам удар показывается крупно (как в серии пенальти)
+            placeBall(ps.x, ps.y, 0);
             wps.push({ ...ps, player: taker, penaltySpot: true });
-            if (end.type === 'penalty-goal') wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
-            else wps.push({ x: goalX, y: Math.random() < 0.5 ? 38 : 62, miss: true });
+            if (!pitch.livePenalty) {
+                if (end.type === 'penalty-goal') wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
+                else wps.push({ x: goalX, y: Math.random() < 0.5 ? 38 : 62, miss: true });
+            }
         } else if (end.type === 'goal') {
             wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
         } else if (end.type === 'save') {
@@ -580,4 +598,64 @@ function showGoalBanner(ev) {
 function hideGoalTicker() {
     clearTimeout(goalTickerTimer);
     $('goal-ticker')?.classList.remove('show');
+}
+
+// ===== Стандарты: расстановка как в трансляции =====
+function stagePlace(side, p, r, y) {
+    const pt = { x: abs(side, clampv(r, 2, 98)), y: clampv(y, 3, 97) };
+    p.x = pt.x; p.y = pt.y;
+    pitch.overrides.set(p, pt);
+}
+
+// Штрафной: стенка в 9,15 м на линии «мяч — ворота», атакующие и опекуны в штрафной, вратарь в воротах
+function stageFreeKick(side, team, foes, fk) {
+    const bx = fk.r * 1.05, by = fk.y * 0.68;           // метры
+    const gx = 105, gy = 34;
+    const d = Math.hypot(gx - bx, gy - by) || 1;
+    const ux = (gx - bx) / d, uy = (gy - by) / d;
+    const cx = bx + ux * 9.15, cy = by + uy * 9.15;
+    const n = Math.abs(fk.y - 50) < 15 ? 4 : 3;
+    const ballAbs = { x: abs(side, fk.r), y: fk.y };
+    const field = foes.filter(p => p.position !== 'GK');
+    const wall = [...field].sort((a, b) => Math.hypot(a.x - ballAbs.x, a.y - ballAbs.y) - Math.hypot(b.x - ballAbs.x, b.y - ballAbs.y)).slice(0, n);
+    wall.forEach((p, i) => {
+        const off = (i - (n - 1) / 2) * 1.8;             // игроки стенки плечом к плечу (с запасом под размер фишек)
+        stagePlace(side, p, (cx - uy * off) / 1.05, (cy + ux * off) / 0.68);
+    });
+    pitch.fkWall = { r: cx / 1.05, y: cy / 0.68 };
+    const gk = foes.find(p => p.position === 'GK');
+    if (gk) stagePlace(side, gk, 98.4, 50 + (fk.y - 50) * 0.12);
+    const taker = team.find(p => p.number === fk.taker);
+    const att = team.filter(p => p !== taker && p.position !== 'GK')
+        .sort((a, b) => ({ FWD: 0, DEF: 1, MID: 2 }[a.position] - { FWD: 0, DEF: 1, MID: 2 }[b.position])).slice(0, fk.direct ? 3 : 5);
+    att.forEach((p, i) => stagePlace(side, p, 87 + (i % 2) * 3, 36 + i * (28 / Math.max(1, att.length - 1))));
+    field.filter(p => !wall.includes(p)).slice(0, att.length).forEach((p, i) => stagePlace(side, p, 89.5 + (i % 2) * 2, 37.5 + i * (28 / Math.max(1, att.length - 1))));
+    if (taker) stagePlace(side, taker, fk.r - 2.6, fk.y + (fk.y < 50 ? -2 : 2));
+}
+
+// Пенальти: мяч на точке, вратарь на линии, остальные за пределами штрафной
+function stagePenalty(side, team, foes, taker) {
+    const gk = foes.find(p => p.position === 'GK');
+    if (gk) stagePlace(side, gk, 99.2, 50);
+    if (taker) stagePlace(side, taker, 86.8, 50.5);
+    const others = [...team.filter(p => p !== taker && p.position !== 'GK'), ...foes.filter(p => p !== gk && p.position !== 'GK')];
+    others.forEach((p, i) => {
+        const k = i / Math.max(1, others.length - 1);
+        const y = 24 + k * 52;
+        stagePlace(side, p, 80.5 - Math.abs(y - 50) * 0.12 + (i % 2) * 1.2, y);
+    });
+    const ownGk = team.find(p => p.position === 'GK');
+    if (ownGk) stagePlace(side, ownGk, 8, 50);
+}
+
+// Надпись поверх поля: «ПЕНАЛЬТИ», «ШТРАФНОЙ»…
+function showPitchBanner(text) {
+    const field = $('football-field');
+    if (!field) return;
+    field.querySelector('.pitch-banner')?.remove();
+    const el = document.createElement('div');
+    el.className = 'pitch-banner';
+    el.textContent = text;
+    field.appendChild(el);
+    setTimeout(() => el.remove(), 1800);
 }

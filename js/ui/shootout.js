@@ -212,3 +212,47 @@ function playShootout(m, sim, userSide, onDone) {
     };
     next();
 }
+
+// ===== Пенальти по ходу матча — крупным планом, как в серии =====
+// Исход уже решён движком; показываем удар: куда бьёт, куда прыгает вратарь.
+function showPenaltyMoment(m, sim, info, onDone) {
+    const overlay = soEl('shootout-overlay');
+    const kits = getMatchKits(m);
+    const side = info.side;
+    const team = side === 'team1' ? m.team1 : m.team2;
+    const gkSide = side === 'team1' ? 'team2' : 'team1';
+    const keeper = sim.sides[gkSide].onPitch.find(p => p.position === 'GK') || { name: 'вратарь' };
+    const head = overlay.querySelector('.so-header h2');
+    const hidden = ['.shootout-score', '#btn-so-skip', '#btn-so-continue', '#so-prompt'].map(s => overlay.querySelector(s)).filter(Boolean);
+    const prev = hidden.map(el => el.style.display);
+    hidden.forEach(el => { el.style.display = 'none'; });
+    head.textContent = `Пенальти · ${sim.minute}'`;
+    soEl('so-keeper').style.setProperty('--gk', (kits[gkSide] || {}).primary || '#ffcc00');
+    setText('so-keeper-name', keeper.name);
+    soEl('so-taker').innerHTML = `${crestHtml(team, 'sm')}<span><small>Бьёт</small><b>${info.taker}</b></span>`;
+    soEl('so-flash').className = 'so-flash';
+    soEl('so-flash').textContent = '';
+    soEl('so-goal').classList.remove('net-hit');
+    setText('so-last', '');
+    soSetKeeper('none', 0);
+    soSetBall(50, SO_GEOMETRY.spotY, 0);
+    overlay.classList.remove('interactive');
+    overlay.style.display = 'flex';
+    const dirs = ['left', 'center', 'right'];
+    const pick = () => dirs[Math.floor(Math.random() * 3)];
+    const shotDir = Math.random() < 0.15 ? 'center' : (Math.random() < 0.5 ? 'left' : 'right');
+    let diveDir = pick(), note = '';
+    if (info.scored) { while (diveDir === shotDir && Math.random() < 0.85) diveDir = pick(); note = 'гол'; }
+    else if (Math.random() < 0.6) { diveDir = shotDir; note = 'вратарь угадал'; }
+    else { while (diveDir === shotDir) diveDir = pick(); note = Math.random() < 0.5 ? 'мимо ворот' : 'штанга'; }
+    setTimeout(async () => {
+        await soAnimateKick({ side, shotDir, diveDir, scored: info.scored, note });
+        setText('so-last', `${info.taker}: ${KICK_DIR_LABELS[shotDir]}, вратарь — ${KICK_DIR_LABELS[diveDir]}`);
+        setTimeout(() => {
+            overlay.style.display = 'none';
+            head.textContent = 'Серия пенальти';
+            hidden.forEach((el, i) => { el.style.display = prev[i]; });
+            onDone();
+        }, 900);
+    }, 700);
+}

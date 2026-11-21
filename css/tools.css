@@ -94,3 +94,32 @@
     .confirm-overlay { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 }
 .bracket-auto { margin: 0 0 12px; }
+
+/* Надпись на поле: пенальти, штрафной */
+.pitch-banner { position: absolute; left: 50%; top: 12%; transform: translateX(-50%); z-index: 30; padding: 6px 18px; border-radius: 8px;
+    background: rgba(5, 10, 25, 0.82); color: #fff; font-family: var(--font-display); font-size: clamp(14px, 2.4vw, 22px); letter-spacing: 0.08em;
+    border: 1px solid rgba(255, 255, 255, 0.25); animation: bannerIn 1.8s ease-out both; pointer-events: none; white-space: nowrap; }
+@keyframes bannerIn { 0% { opacity: 0; transform: translate(-50%, -8px) scale(0.9); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1); } 80% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ===== Заставки внутри матча: перерыв, доп. время, между матчами ===== */
+.field-container { position: relative; }
+.interlude { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; padding: 12px;
+    background: radial-gradient(circle at 50% 40%, rgba(8, 14, 30, 0.72), rgba(4, 8, 20, 0.92)); backdrop-filter: blur(3px); animation: ilIn 0.35s ease-out; border-radius: 6px; }
+@keyframes ilIn { from { opacity: 0; } to { opacity: 1; } }
+.il-card { width: min(520px, 100%); text-align: center; color: #fff; animation: ilCard 0.45s cubic-bezier(.2, .9, .3, 1.15); }
+@keyframes ilCard { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+.il-kicker { display: inline-block; padding: 4px 12px; border-radius: 4px; background: var(--accent); color: var(--accent-ink); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.9rem; }
+.il-score { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 12px 0 4px; }
+.il-score b { display: block; font-family: var(--font-display); font-size: clamp(2.2rem, 6vw, 3.4rem); line-height: 1; }
+.il-score small { display: block; font-size: 0.75rem; color: rgba(255, 255, 255, 0.65); margin-top: 4px; }
+.il-names { display: flex; justify-content: space-between; font-weight: 700; font-size: 0.85rem; margin: 0 6% 8px; }
+.il-goals { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.82rem; text-align: left; margin: 6px 6% 10px; }
+.il-goals .right { text-align: right; }
+.il-goals.muted { display: block; text-align: center; }
+.il-stats { display: flex; flex-direction: column; gap: 4px; margin: 6px 4% 12px; }
+.il-stat { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; font-size: 0.82rem; }
+.il-stat b:first-child { text-align: right; } .il-stat b:last-child { text-align: left; }
+.il-stat span { color: rgba(255, 255, 255, 0.6); }
+.il-text { font-size: 0.88rem; color: rgba(255, 255, 255, 0.8); margin: 8px 4% 12px; }
+.il-go small { opacity: 0.7; margin-left: 4px; }
+.btn-pause { min-width: 120px; }

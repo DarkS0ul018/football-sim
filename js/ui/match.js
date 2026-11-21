@@ -24,6 +24,9 @@ function stopMatchTimers() {
     simStep = null;
     $('btn-manage-match').style.display = 'none';
     if ($('btn-pause-match')) $('btn-pause-match').style.display = 'none';
+    interludeOn = false;
+    if ($('interlude')) $('interlude').style.display = 'none';
+    pitch.livePenalty = false;
     stopCrowd();
 }
 
@@ -166,7 +169,7 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'weather': '🌤️', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
+    'half': '⏱️', 'weather': '🌤️', 'freekick': '🎯', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
 };
 
 function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
@@ -330,13 +333,14 @@ function beginMatch(runner) {
 // ----- Живая симуляция -----
 function startSimulation(m) {
     let sim = currentSim;
+    pitch.livePenalty = true; // пенальти — крупным планом (см. showPenaltyMoment)
     playSound('whistle-long');
     startCrowd();
     commentKickoff(m, sim);
 
     // Атака с ударом показывается две минуты: следующий шаг движка пропускается
     let holdTicks = 0;
-    const SHOT_ENDS = ['goal', 'save', 'off', 'penalty-goal', 'penalty-miss'];
+    const SHOT_ENDS = ['goal', 'save', 'off', 'wall', 'penalty-goal', 'penalty-miss'];
 
     function step() {
         if (holdTicks > 0) { holdTicks--; return; }
@@ -358,9 +362,34 @@ function startSimulation(m) {
         // Голы показываем, когда мяч влетит в ворота
         // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
         const goalDelay = plan.goalAt != null ? plan.goalAt + 60 : ms * span * 0.85; // +60 мс: табло меняется, когда мяч уже в сетке
+        // Пенальти: сначала постановка на поле, затем удар крупным планом; гол — после удара
+        const penEv = events.find(e => e.type === 'penalty-miss' || (e.type === 'goal' && /пенальти/.test(e.text)));
         events.forEach(ev => {
-            if (ev.type === 'goal') setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); renderLineups(sim); }, goalDelay);
+            if (ev.type === 'goal' && ev !== penEv) setTimeout(() => { showSimEvent(m, ev); updateScoreboard(m); celebrateGoal(ev.side); renderLineups(sim); }, goalDelay);
         });
+        if (penEv && penEv.player) {
+            holdMatch();
+            const penSim = sim;
+            setTimeout(() => {
+                if (simStep !== step) return;
+                showPenaltyMoment(m, penSim, { side: penEv.side, taker: penEv.player.name, scored: penEv.type === 'goal' }, () => {
+                    if (simStep !== step) return;
+                    if (penEv.type === 'goal') { showSimEvent(m, penEv); updateScoreboard(m); celebrateGoal(penEv.side); renderLineups(penSim); onGoalAnimation(penSim, penEv); }
+                    if (!penSim.isOver) releaseMatch();
+                });
+            }, Math.min(1500, ms * 1.2));
+        }
+        // Перерыв и доп. время — заставка со счётом и статистикой
+        const brk = events.find(e => e.type === 'half' && (/^Перерыв/.test(e.text) || /дополнительное время/.test(e.text)));
+        if (brk && !sim.isOver) {
+            const brkSim = sim;
+            setTimeout(() => {
+                if (simStep !== step || interludeOn) return;
+                holdMatch();
+                playSound('whistle-long');
+                showInterlude(/^Перерыв/.test(brk.text) ? halftimeHtml(m, brkSim) : extraTimeHtml(m, brkSim), 6000, releaseMatch);
+            }, ms * span * 0.9);
+        }
         commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора
         crowdIntensity(sim);
         setText('match-time', sim.minute + "'");
@@ -374,11 +403,22 @@ function startSimulation(m) {
         if (m.legs === 2 && sim.leg === 1) {
             addMatchEvent(m, 90, 'half', `Конец 1-го матча: ${m.leg1.t1}:${m.leg1.t2}`, null);
             setText('match-status', '2-й матч');
-            sim = prepareLeg(m, 2);
-            cm.trailed = { team1: false, team2: false };
-            commentKickoff(m, sim);
-            updateScoreboard(m);
-            playSound('whistle-long');
+            // Пауза между матчами пары: итог первой игры, затем — ответный матч с заставкой перед ним
+            holdMatch();
+            const firstSim = sim;
+            playSound('whistle-end');
+            setTimeout(() => {
+                if (simStep !== step) return;
+                showInterlude(legBreakHtml(m, firstSim), 7000, () => {
+                    if (simStep !== step) return;
+                    sim = prepareLeg(m, 2);
+                    cm.trailed = { team1: false, team2: false };
+                    commentKickoff(m, sim);
+                    updateScoreboard(m);
+                    renderMatchPreview(m, sim);
+                    setTimeout(() => { if (simStep !== step) return; hideMatchPreview(); playSound('whistle-long'); releaseMatch(); }, Math.max(1200, Math.min(3500, getMatchInterval() * 3)));
+                });
+            }, 1200);
             return;
         }
         stopMatchTimers();
@@ -552,6 +592,7 @@ function setPauseLabel(paused) {
 
 function togglePause() {
     if (!simStep) return;
+    if (interludeOn) { notify('Заставка — нажмите «Продолжить»'); return; }
     if (!isPaused) {
         clearInterval(simulationInterval);
         isPaused = true;
@@ -562,4 +603,65 @@ function togglePause() {
         simulationInterval = setInterval(simStep, getMatchInterval());
     }
     setPauseLabel(isPaused);
+}
+
+// ===== Паузы-заставки внутри живого матча: перерыв, доп. время, между матчами пары, пенальти =====
+let interludeOn = false;
+
+function holdMatch() {
+    clearInterval(simulationInterval);
+    interludeOn = true;
+}
+
+function releaseMatch() {
+    interludeOn = false;
+    $('interlude').style.display = 'none';
+    if (simStep && !isPaused) simulationInterval = setInterval(simStep, getMatchInterval());
+}
+
+// Заставка поверх поля; продолжение — кнопкой или само через autoMs (быстрее на высокой скорости)
+function showInterlude(html, autoMs, onDone) {
+    const el = $('interlude');
+    const wait = Math.round(autoMs * Math.max(0.35, Math.min(1, getMatchInterval() / 800)));
+    el.innerHTML = `<div class="il-card">${html}<button type="button" class="btn-primary il-go">▶ Продолжить <small class="il-timer"></small></button></div>`;
+    el.style.display = 'flex';
+    let left = Math.ceil(wait / 1000), done = false;
+    const tick = setInterval(() => { left--; const t = el.querySelector('.il-timer'); if (t) t.textContent = left > 0 ? `(${left})` : ''; }, 1000);
+    const finish = () => { if (done) return; done = true; clearInterval(tick); clearTimeout(auto); el.style.display = 'none'; onDone(); };
+    const auto = setTimeout(finish, wait);
+    el.querySelector('.il-timer').textContent = `(${left})`;
+    el.querySelector('.il-go').onclick = finish;
+}
+
+function goalsListHtml(sim) {
+    const goals = sim.events.filter(e => e.type === 'goal');
+    if (!goals.length) return '<div class="il-goals muted">Без голов</div>';
+    const row = side => goals.filter(g => g.side === side).map(g => `<div>⚽ ${escapeHtml(shortName(g.player ? g.player.name : ''))} ${g.minute}'</div>`).join('');
+    return `<div class="il-goals"><div>${row('team1')}</div><div class="right">${row('team2')}</div></div>`;
+}
+
+function statsLineHtml(sim) {
+    const s = sim.stats;
+    const line = (label, a, b) => `<div class="il-stat"><b>${a}</b><span>${label}</span><b>${b}</b></div>`;
+    return `<div class="il-stats">${line('Владение', s.possession.team1 + '%', s.possession.team2 + '%')}${line('Удары (в створ)', `${s.shots.team1} (${s.shotsOnTarget.team1})`, `${s.shots.team2} (${s.shotsOnTarget.team2})`)}${line('xG', s.xg.team1.toFixed(2), s.xg.team2.toFixed(2))}</div>`;
+}
+
+function scoreHeadHtml(m, t1, t2, note = '') {
+    return `<div class="il-score">${crestHtml(m.team1, 'lg')}<div><b>${t1} : ${t2}</b>${note ? `<small>${note}</small>` : ''}</div>${crestHtml(m.team2, 'lg')}</div>
+        <div class="il-names"><span>${escapeHtml(m.team1.name)}</span><span>${escapeHtml(m.team2.name)}</span></div>`;
+}
+
+function halftimeHtml(m, sim) {
+    return `<div class="il-kicker">Перерыв</div>${scoreHeadHtml(m, sim.score.t1, sim.score.t2, '1-й тайм')}${goalsListHtml(sim)}${statsLineHtml(sim)}`;
+}
+
+function extraTimeHtml(m, sim) {
+    return `<div class="il-kicker">Дополнительное время</div>${scoreHeadHtml(m, m.aggregateScore.t1, m.aggregateScore.t2, 'ничья после 90 минут')}
+        <div class="il-text">Два тайма по 15 минут. Если ничья сохранится — серия пенальти.</div>`;
+}
+
+function legBreakHtml(m, sim) {
+    const home2 = m.team2;
+    return `<div class="il-kicker">1-й матч завершён</div>${scoreHeadHtml(m, m.leg1.t1, m.leg1.t2, 'первая игра')}${goalsListHtml(sim)}
+        <div class="il-text">Ответный матч — на поле «${escapeHtml(home2.name)}». По сумме двух игр: ${m.leg1.t1}:${m.leg1.t2}.</div>`;
 }

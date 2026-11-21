@@ -116,7 +116,9 @@ function shotLines(sim, play, side) {
     const gk = cmPlayer(sim, otherSide(side), end.keeper);
     const sh = shooter ? shooter.name : 'Игрок';
     let shot;
-    if (play.kind === 'corner') shot = end.header
+    if (play.kind === 'freekick' && play.fk && play.fk.direct)
+        shot = cmPick('shotFK', [`${sh} разбегается… удар в обвод стенки!`, `Штрафной исполняет ${sh} — бьёт по воротам!`, `${sh} закручивает со штрафного!`]);
+    else if (play.kind === 'corner' || play.kind === 'freekick') shot = end.header
         ? cmPick('shotC', [`Подача в штрафную… ${sh} бьёт головой!`, `Навес с углового — ${sh} выигрывает верх!`, `${sh} первым на мяче после подачи — головой!`])
         : cmPick('shotCF', [`Мяч отскакивает в штрафной — ${sh} бьёт с ходу!`, `После подачи ${sh} подхватывает мяч и бьёт!`]);
     else if (passer && passer !== shooter && Math.random() < 0.6)
@@ -125,7 +127,8 @@ function shotLines(sim, play, side) {
     else shot = cmPick('shot', [`${sh} бьёт!`, `${sh} пробивает из штрафной!`, `${sh} решается на удар!`, `${sh} обыгрывает защитника и бьёт!`]);
 
     let result = null;
-    if (end.type === 'off') result = cmPick('off', ['Мимо ворот!', 'Выше перекладины!', 'Чуть-чуть мимо — в сантиметрах от штанги!', 'Не попал в створ.', 'Мяч улетает на трибуны.']);
+    if (end.type === 'wall') result = cmPick('wall', ['В стенку!', 'Стенка выстояла — мяч отскакивает.', 'Защитники в стенке приняли удар на себя.']);
+    else if (end.type === 'off') result = cmPick('off', ['Мимо ворот!', 'Выше перекладины!', 'Чуть-чуть мимо — в сантиметрах от штанги!', 'Не попал в створ.', 'Мяч улетает на трибуны.']);
     else if (end.type === 'save') {
         const g = gk ? gk.name : 'Вратарь';
         result = cmPick('save', [`${g} на месте — сейв!`, `Блестящий сейв! ${g} тащит!`, `${g} отбивает в падении!`, `${g} уверенно забирает мяч.`, `${g} переводит мяч на угловой!`]);
@@ -177,7 +180,7 @@ function commentMinute(m, sim, events, plan, ms, span) {
     if (pre.t1 < pre.t2) cm.trailed.team1 = true;
     if (pre.t2 < pre.t1) cm.trailed.team2 = true;
 
-    const shotEnd = end && ['goal', 'save', 'off'].includes(end.type);
+    const shotEnd = end && ['goal', 'save', 'off', 'wall'].includes(end.type);
     if (shotEnd) {
         const { shot, result } = shotLines(sim, play, side);
         const shotAt = plan.shotAt ?? ms * span * 0.5;
