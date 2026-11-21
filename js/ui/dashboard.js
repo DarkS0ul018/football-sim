@@ -2,6 +2,7 @@
 
 function openDashboard() {
     stopHighlights(); // ушли с экрана матча посреди обзора голов
+    if (typeof isFieldFullscreen === 'function' && isFieldFullscreen()) exitFieldFullscreen();
     showScreen('dashboard');
     renderDashboard();
 }

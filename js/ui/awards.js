@@ -396,7 +396,7 @@ function renderRoundCover() {
             <div class="rc-cards">
                 ${goal ? `<div class="rc-card"><div class="rc-label">Лучший гол</div><b>${escapeHtml(goal.g.p)}</b>
                     <div class="muted">${goal.g.min}' · ${escapeHtml(goal.team.name)} — ${escapeHtml(goal.opp.name)}${goal.g.sp ? ` · после ${goal.g.sp === 'угловой' ? 'углового' : 'штрафного'}` : ''}</div>
-                    <div class="rc-xg">шанс был ${Math.max(1, Math.round(goal.g.xg * 100))}%</div></div>` : ''}
+                    <div class="rc-xg">шанс был ${Math.max(1, Math.round(goal.g.xg * 100))}%</div><button type="button" class="btn-more rc-watch">▶ Смотреть гол</button></div>` : ''}
                 ${big ? `<div class="rc-card"><div class="rc-label">Матч тура</div><b>${escapeHtml(big.m.team1.name)} ${big.a.t1}:${big.a.t2} ${escapeHtml(big.m.team2.name)}</b>
                     <div class="muted">${big.sum} ${plural5(big.sum)} за матч</div></div>` : ''}
             </div>
@@ -404,6 +404,8 @@ function renderRoundCover() {
             ${elevenHtml(eleven, x => x.rt.toFixed(1))}
         </div>`;
     host.querySelector('.rc-hero').onclick = () => openPlayerCard(host.querySelector('.rc-hero').dataset.player);
+    const watch = host.querySelector('.rc-watch');
+    if (watch && goal) watch.onclick = e => { e.preventDefault(); e.stopPropagation(); openGoalReplay(goal); };
 }
 
 // ---------- Награды сезона ----------
@@ -625,4 +627,91 @@ function openMuseum(clubName) {
         const b = e.target.closest('[data-club]');
         if (b) openMuseum(b.dataset.club);
     });
+}
+
+// ---------- Просмотр гола (лучший гол тура): мини-трансляция по данным протокола ----------
+// Мяч идёт по цепочке: защита → полузащита → голевой пас → удар → сетка; для углового и пенальти — свой розыгрыш.
+function openGoalReplay(info) {
+    const { g, m, team, opp } = info;
+    document.querySelector('.goal-replay-overlay')?.remove();
+    const kits = typeof getMatchKits === 'function' ? getMatchKits(m) : null;
+    const isT1 = m.team1.id === team.id;
+    const kitA = kits ? (isT1 ? kits.team1 : kits.team2) : { primary: '#2d6fe8', secondary: '#fff', text: '#fff' };
+    const kitB = kits ? (isT1 ? kits.team2 : kits.team1) : { primary: '#e5323b', secondary: '#fff', text: '#fff' };
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay goal-replay-overlay';
+    el.innerHTML = `<div class="confirm-box gr-box" role="dialog" aria-modal="true">
+        <button type="button" class="pc-close" title="Закрыть">✕</button>
+        <div class="gr-head">🎬 Лучший гол тура · <b>${escapeHtml(g.p)}</b> <span class="muted">${g.min}' · ${escapeHtml(team.name)} — ${escapeHtml(opp.name)}</span></div>
+        <div class="gr-field football-field" data-pattern="stripes"><div class="field-markings"></div><div class="goal-right gr-goal"></div><div class="gr-ball ball"></div></div>
+        <div class="gr-caption" id="gr-caption"></div>
+        <div class="gr-actions"><button type="button" class="btn-secondary gr-again">↻ Ещё раз</button></div>
+    </div>`;
+    document.body.appendChild(el);
+    const field = el.querySelector('.gr-field');
+    const ball = el.querySelector('.gr-ball');
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    const mk = (kit, number, name, gk) => {
+        const p = document.createElement('div');
+        p.className = `player ${gk ? 'goalkeeper' : ''}`;
+        p.style.cssText = `--shirt:${gk ? '#a3e635' : kit.primary};--shorts:${kit.secondary};--num:${gk ? '#111' : kit.text};--face:1;transition:left .65s ease-in-out, top .65s ease-in-out`;
+        p.innerHTML = playerInnerHtml(number, name);
+        field.appendChild(p);
+        return p;
+    };
+    const place = (p, x, y) => { p.style.left = `${x}%`; p.style.top = `${y}%`; };
+    // Атакующая команда (бьёт вправо) и защищающаяся
+    const shortN = n => String(n || '').split(' ').slice(-1)[0];
+    const att = [], def = [];
+    const attPos = [[8, 50], [30, 20], [28, 40], [28, 60], [30, 80], [50, 30], [48, 50], [50, 70], [68, 22], [70, 50], [68, 78]];
+    const defPos = [[97, 50], [86, 22], [88, 40], [88, 60], [86, 78], [76, 25], [74, 45], [74, 58], [76, 75], [62, 40], [62, 60]];
+    attPos.forEach((pos, i) => att.push(mk(kitA, i + 1, '', i === 0)));
+    defPos.forEach((pos, i) => def.push(mk(kitB, i + 1, '', i === 0)));
+    const scorer = att[9], assister = g.a ? att[8] : null;
+    scorer.querySelector('.player-name') && (scorer.querySelector('.player-name').textContent = shortN(g.p));
+    if (!scorer.querySelector('.player-name')) { const s = document.createElement('span'); s.className = 'player-name'; s.textContent = shortN(g.p); scorer.appendChild(s); }
+    if (assister) { const s = document.createElement('span'); s.className = 'player-name'; s.textContent = shortN(g.a); assister.appendChild(s); }
+
+    let timers = [];
+    const later = (fn, ms) => timers.push(setTimeout(fn, ms));
+    const moveBall = (x, y, ms = 650) => { ball.style.transition = `left ${ms}ms ease-in-out, top ${ms}ms ease-in-out`; ball.style.left = `${x}%`; ball.style.top = `${y}%`; };
+    const caption = t => { const c = el.querySelector('#gr-caption'); if (c) c.textContent = t; };
+    const run = () => {
+        timers.forEach(clearTimeout); timers = [];
+        attPos.forEach((pos, i) => place(att[i], pos[0], pos[1]));
+        defPos.forEach((pos, i) => place(def[i], pos[0], pos[1]));
+        field.querySelector('.gr-goal').classList.remove('net-shake');
+        const shotY = rnd(38, 62);
+        let steps;
+        if (g.pen) {
+            place(scorer, 86, 50); defPos.forEach((pos, i) => { if (i) place(def[i], 80 - (i % 3) * 3, 20 + i * 6); });
+            steps = [{ ball: [89, 50], t: 'Пенальти' }, { ball: [99.5, rnd(42, 58)], t: `ГОЛ! ${g.p} с пенальти`, goal: true }];
+            moveBall(89, 50, 0);
+        } else if (g.sp) {
+            const top = Math.random() < 0.5;
+            const taker = assister || att[7];
+            place(taker, 98.5, top ? 3 : 97); place(scorer, 84, 50);
+            moveBall(98.5, top ? 3 : 97, 0);
+            steps = [{ ball: [98.5, top ? 3 : 97], t: `${g.sp === 'угловой' ? 'Угловой' : 'Штрафной'}: подаёт ${g.a || 'партнёр'}` },
+                { ball: [90, shotY], move: [[scorer, 89, shotY]], t: `${g.p} выигрывает верх` },
+                { ball: [99.5, shotY], t: `ГОЛ! ${g.p}`, goal: true }];
+        } else {
+            moveBall(30, 40, 0);
+            steps = [{ ball: [30, 40], t: 'Атака начинается от защиты' },
+                { ball: [50, 50], move: [[att[6], 50, 50], [scorer, 78, 50]], t: 'Передача в центр поля' },
+                { ball: assister ? [74, 24] : [72, 50], move: [[assister || att[6], assister ? 74 : 72, assister ? 24 : 50], [scorer, 84, shotY]], t: assister ? `${g.a} — на ход` : 'Проход по центру' },
+                { ball: [86, shotY], move: [[scorer, 86, shotY], [def[2], 90, shotY - 4]], t: `${g.p} бьёт${g.xg != null && g.xg < 0.08 ? ' — издалека!' : ''}` },
+                { ball: [99.5, Math.min(58, Math.max(42, shotY))], t: `ГОЛ! ${g.p}${g.xg != null ? ` · шанс был ${Math.max(1, Math.round(g.xg * 100))}%` : ''}`, goal: true }];
+        }
+        steps.forEach((s, i) => later(() => {
+            (s.move || []).forEach(([p, x, y]) => place(p, x, y));
+            moveBall(s.ball[0], s.ball[1], s.goal ? 380 : 650);
+            caption(s.t);
+            if (typeof playSound === 'function') playSound(s.goal ? 'kick' : 'kick');
+            if (s.goal) later(() => { field.querySelector('.gr-goal').classList.add('net-shake'); if (typeof playSound === 'function') playSound('goal'); }, 380);
+        }, 400 + i * 800));
+    };
+    run();
+    el.querySelector('.gr-again').onclick = run;
+    el.addEventListener('click', e => { if (e.target === el || e.target.closest('.pc-close')) { timers.forEach(clearTimeout); el.remove(); } });
 }

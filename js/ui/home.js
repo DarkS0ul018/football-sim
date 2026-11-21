@@ -209,6 +209,7 @@ function initHome() {
         else if (m === 'editor') { editor.returnTo = 'home'; openEditor(); }
     });
     $('btn-home-resume').onclick = () => resumeTournament();
+    $('btn-home-next').onclick = () => quickNextMatch();
     $('home-saves').addEventListener('click', async e => {
         const b = e.target.closest('[data-act]'), row = e.target.closest('[data-slot]');
         if (!b || !row) return;
@@ -247,4 +248,14 @@ function startRussianCup(gameMode) {
         groupLegs: 1, playoffLegs: 1, playoffSize: 8, teamPick: 'random', lowerHosts: true, title: '🏆 Кубок России' };
     startNewSlot();
     proceedWithPool(settings, poolOf([...getTeamsData('russia').names, ...fnl]));
+}
+
+// «Следующий матч» прямо из меню: открываем сохранённый турнир и сразу матч (в карьере — свой, иначе — ближайший)
+function quickNextMatch() {
+    resumeTournament();
+    if (!screens.dashboard.classList.contains('active')) return; // серия между турнирами — экран серии
+    const cupNext = state.cup && typeof userCupMatch === 'function' ? userCupMatch() : null;
+    const next = cupNext || state.matches.find(m => !m.isFinished && (!hasHumans() || isUserMatch(m)));
+    if (next) openMatch(next);
+    else notify('Этап доигран — продолжите с экрана турнира');
 }

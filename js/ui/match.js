@@ -195,7 +195,7 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'weather': '🌤️', 'freekick': '🎯', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️'
+    'half': '⏱️', 'weather': '🌤️', 'freekick': '🎯', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️', 'stoppage': '⏱️', 'offside': '🚩', 'var': '📺'
 };
 
 function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
@@ -212,7 +212,7 @@ function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
 }
 
 function showSimEvent(m, ev, prefix = '') {
-    addMatchEvent(m, ev.minute, ev.type, prefix + ev.text, ev.team);
+    addMatchEvent(m, ev.plus ? `${ev.minute}+${ev.plus}'` : ev.minute, ev.type, prefix + ev.text, ev.team);
 }
 
 // ----- Поле: см. js/ui/pitch.js -----
@@ -389,6 +389,14 @@ function startSimulation(m) {
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
             if (ev.type === 'card-red' || ev.type === 'card-yellow') later(() => { showCardAnim(ev); crowdBoo(ev.type === 'card-red' ? 1.5 : 0.7); }, ms * 0.7);
             else if (ev.type === 'foul') later(() => playSound('whistle-short'), ms * 0.6);
+            if (ev.type === 'stoppage') later(() => showAddedBoard(ev.added), 80);
+            if (ev.type === 'var' && ev.outcome === 'no-pen') later(() => showVarCheck('ПЕНАЛЬТИ ОТМЕНЁН'), ms * 0.5);
+            if (ev.type === 'injury') later(() => showInjuryStop(ev), ms * 0.4);
+            if (ev.type === 'weather' && ev.weather) {
+                applyLiveWeather(ev.weather);
+                setText('match-stage-info', `${legLabel(m, sim.leg)} · ${WEATHER[ev.weather].icon}${sim.derby ? ' · 🔥 ' + sim.derby : ''}`);
+                showPitchBanner(`${WEATHER[ev.weather].icon} ПОГОДА МЕНЯЕТСЯ`);
+            }
             if (ev.type === 'substitution') later(() => showSubBoard(ev), 50);
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
@@ -433,7 +441,7 @@ function startSimulation(m) {
         }
         commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора
         crowdIntensity(sim);
-        setText('match-time', sim.minute + "'");
+        setText('match-time', (sim.minuteLabel ? sim.minuteLabel() : sim.minute) + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
         updateStatsDisplay(sim);
         // Точка на карте ударов и xG — когда мяч долетит (не раскрываем исход заранее)
@@ -629,6 +637,7 @@ function initMatchScreen() {
 
 // ----- Кнопка паузы: остановить и продолжить живой матч одним нажатием -----
 function setPauseLabel(paused) {
+    setTimeout(() => typeof updateFsBar === 'function' && updateFsBar(), 0);
     const b = $('btn-pause-match');
     if (b) b.innerHTML = paused ? '<span class="btn-icon">▶</span><span class="btn-text">Продолжить</span>' : '<span class="btn-icon">⏸</span><span class="btn-text">Пауза</span>';
 }
@@ -764,3 +773,65 @@ function offerAnalystHint(sim) {
     };
     el.querySelector('.an-skip').onclick = () => { clearTimeout(timer); sim.dismissHint(side, hint); close(); };
 }
+
+// ----- Поле на весь экран: настоящий полноэкранный режим, а где его нет (iPhone) — растягиваем поле поверх страницы -----
+function fieldBox() { return document.querySelector('#screen-match .field-container'); }
+function isFieldFullscreen() {
+    const box = fieldBox();
+    return !!box && (document.fullscreenElement === box || document.webkitFullscreenElement === box || box.classList.contains('pseudo-fs'));
+}
+
+function enterFieldFullscreen() {
+    const box = fieldBox();
+    if (!box) return;
+    const req = box.requestFullscreen || box.webkitRequestFullscreen;
+    const pseudo = () => { box.classList.add('pseudo-fs'); document.body.classList.add('fs-lock'); updateFsBar(); };
+    if (req) {
+        try {
+            const p = req.call(box, { navigationUI: 'hide' });
+            if (p && p.then) p.then(() => { try { screen.orientation?.lock?.('landscape').catch(() => {}); } catch (e) { /* ignore */ } updateFsBar(); }).catch(pseudo);
+        } catch (e) { pseudo(); }
+    } else pseudo();
+}
+
+function exitFieldFullscreen() {
+    const box = fieldBox();
+    if (box) box.classList.remove('pseudo-fs');
+    document.body.classList.remove('fs-lock');
+    try { screen.orientation?.unlock?.(); } catch (e) { /* ignore */ }
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else if (document.webkitFullscreenElement) document.webkitExitFullscreen();
+    updateFsBar();
+}
+
+function toggleFieldFullscreen() { isFieldFullscreen() ? exitFieldFullscreen() : enterFieldFullscreen(); }
+
+function updateFsBar() {
+    const on = isFieldFullscreen();
+    fieldBox()?.classList.toggle('fs-on', on);
+    const b = $('btn-fullscreen');
+    if (b) { b.textContent = on ? '✕' : '⛶'; b.title = on ? 'Выйти из полноэкранного режима' : 'Поле на весь экран (клавиша F)'; }
+    setText('fs-speed', `${currentMatchSpeed}x`);
+    const pb = document.querySelector('#fs-bar [data-fs="pause"]');
+    if (pb) pb.textContent = isPaused ? '▶' : '⏸';
+}
+
+(function initFieldFullscreen() {
+    $('btn-fullscreen')?.addEventListener('click', toggleFieldFullscreen);
+    document.addEventListener('fullscreenchange', updateFsBar);
+    document.addEventListener('webkitfullscreenchange', updateFsBar);
+    $('fs-bar')?.addEventListener('click', e => {
+        const b = e.target.closest('[data-fs]');
+        if (!b) return;
+        const sp = $('match-speed');
+        if (b.dataset.fs === 'exit') exitFieldFullscreen();
+        else if (b.dataset.fs === 'pause') togglePause();
+        else if (sp) { sp.value = Math.max(1, Math.min(10, Number(sp.value) + (b.dataset.fs === 'faster' ? 1 : -1))); sp.dispatchEvent(new Event('input')); }
+        updateFsBar();
+    });
+    document.addEventListener('keydown', e => {
+        if ((e.key === 'f' || e.key === 'а' || e.key === 'F' || e.key === 'А') && !e.ctrlKey && !e.metaKey && !e.altKey
+            && !(e.target.closest && e.target.closest('input, textarea, select')) && screens.match.classList.contains('active')) toggleFieldFullscreen();
+        if (e.key === 'Escape' && fieldBox()?.classList.contains('pseudo-fs')) exitFieldFullscreen();
+    });
+})();

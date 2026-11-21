@@ -59,6 +59,7 @@
                     </div>
                     <div class="hr-actions">
                         <button id="btn-home-resume" class="btn-primary" type="button"><span class="btn-text">▶ Продолжить</span></button>
+                        <button id="btn-home-next" class="btn-secondary" type="button" title="Сразу к следующему матчу"><span class="btn-text">⚽ Следующий матч</span></button>
                         <button id="btn-home-discard" class="btn-secondary" type="button" title="Удалить сохранённый турнир">🗑️</button>
                     </div>
                 </div>
@@ -482,9 +483,12 @@
                     <div id="match-preview" class="card match-preview" style="display:none"></div>
                     <div class="field-container">
                         <div id="interlude" class="interlude" style="display:none"></div>
+                        <div id="fan-band" class="fan-band" aria-hidden="true"></div>
                         <div class="field-viewport" id="field-viewport">
                         <div id="field-hud" class="field-hud"></div>
             <button type="button" id="btn-camera" class="cam-toggle" title="Переключить камеру (клавиша C)"></button>
+            <button type="button" id="btn-fullscreen" class="fs-toggle" title="Поле на весь экран (клавиша F)">⛶</button>
+            <div class="fs-bar" id="fs-bar"><button type="button" data-fs="pause" title="Пауза">⏸</button><button type="button" data-fs="slower" title="Медленнее">−</button><span id="fs-speed"></span><button type="button" data-fs="faster" title="Быстрее">+</button><button type="button" data-fs="exit" title="Выйти из полноэкранного режима">✕</button></div>
                         <div class="football-field" id="football-field">
                             <div class="field-markings"></div>
                             <div class="pitch-line pa pa-left"></div>
@@ -498,6 +502,7 @@
                             <div class="goal goal-right"></div>
                         </div>
                         </div>
+                        <div class="rotate-tip">↻ Поверните телефон или нажмите ⛶ — поле на весь экран</div>
                         <div class="field-legend">
                             <div class="legend-item"><span class="dot team1"></span> <span id="team1-name"></span></div>
                             <div class="legend-item"><span class="dot team2"></span> <span id="team2-name"></span></div>

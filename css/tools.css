@@ -484,3 +484,105 @@
 .mu-seasons td, .mu-legends td { font-size: 0.8rem; }
 .mu-shelf > .muted { grid-column: 1 / -1; }
 .more-toggle td { text-align: center; padding: 8px !important; } .btn-more { border: 1px solid rgba(127,127,127,0.3); background: transparent; color: var(--accent); border-radius: 999px; padding: 5px 14px; font: 600 0.8rem/1.3 "Inter", sans-serif; cursor: pointer; } .btn-more:hover { border-color: var(--accent); }
+
+/* ===== Судейские эпизоды ===== */
+.added-board { position: absolute; right: 12px; bottom: 12px; z-index: 36; display: flex; flex-direction: column; align-items: center; padding: 6px 12px; border-radius: 6px;
+    background: #0b0f14; border: 2px solid #2b3440; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); animation: refPop 0.3s ease-out; }
+.added-board span { font: 700 9px/1 'Inter', sans-serif; letter-spacing: 0.12em; color: rgba(255, 255, 255, 0.7); }
+.added-board b { font-family: 'Courier New', monospace; font-size: 26px; color: #ff4d4d; text-shadow: 0 0 8px rgba(255, 77, 77, 0.8); line-height: 1.1; }
+.offside-flag { position: absolute; top: 44px; left: 50%; transform: translateX(-50%); z-index: 37; display: flex; align-items: center; gap: 8px; padding: 6px 14px;
+    border-radius: 6px; background: rgba(8, 16, 32, 0.9); color: #ffe066; font: 800 0.85rem/1.2 'Oswald', sans-serif; letter-spacing: 0.06em; animation: refIn 0.25s ease-out; }
+.offside-flag i { width: 4px; height: 22px; background: #d8d8d8; position: relative; transform-origin: bottom center; animation: flagUp 0.4s ease-out; }
+.offside-flag i::after { content: ''; position: absolute; top: 0; left: 4px; width: 14px; height: 10px; background: repeating-linear-gradient(45deg, #ffd400 0 4px, #e11d48 4px 8px); }
+@keyframes flagUp { from { transform: rotate(-80deg); } to { transform: rotate(0); } }
+.var-box { position: absolute; top: 40%; left: 50%; transform: translate(-50%, 0); z-index: 38; min-width: 230px; padding: 14px 20px; border-radius: 10px; text-align: center;
+    background: rgba(6, 10, 22, 0.94); border: 1px solid rgba(110, 160, 255, 0.5); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6); overflow: hidden; animation: refIn 0.25s ease-out; }
+.var-logo { display: inline-block; font: 900 1.4rem/1 'Oswald', sans-serif; letter-spacing: 0.2em; color: #fff; padding: 4px 12px; border: 2px solid #fff; border-radius: 4px; margin-bottom: 8px; }
+.var-text { font: 700 0.86rem/1.3 'Inter', sans-serif; color: #cfe0ff; letter-spacing: 0.04em; }
+.var-box:not(.checking) .var-text { color: #ffd166; font-size: 1rem; }
+.var-scan { position: absolute; left: 0; right: 0; height: 2px; top: 0; background: linear-gradient(90deg, transparent, #6ea0ff, transparent); animation: varScan 0.9s linear infinite; }
+@keyframes varScan { from { top: 0; } to { top: 100%; } }
+.player.injured-down .player-fig { rotate: 80deg; translate: 0 6px; transition: rotate 0.3s; }
+.injury-pop { position: absolute; top: -14px; left: 50%; transform: translateX(-50%); font-size: 14px; animation: cardPop 0.4s ease-out; }
+.ball-tag { position: absolute; z-index: 56; transform: translate(-50%, -190%); padding: 1px 6px; border-radius: 4px; background: rgba(8, 16, 32, 0.8); color: #fff;
+    font: 700 9px/1.4 'Inter', sans-serif; text-transform: uppercase; letter-spacing: 0.08em; pointer-events: none; rotate: calc(var(--cam-rz, 0deg) * -1); }
+@keyframes refIn { from { opacity: 0; transform: translate(-50%, 8px); } }
+@keyframes refPop { from { opacity: 0; transform: translateY(8px); } }
+
+/* ===== Фан-сектор над полем ===== */
+.fan-band { display: flex; gap: 4px; height: 30px; margin-bottom: 6px; border-radius: 6px; overflow: hidden; }
+.fan-sec { position: relative; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden;
+    background:
+        radial-gradient(circle at 50% 35%, rgba(255, 224, 189, 0.55) 0 1.6px, transparent 2px) 0 0 / 7px 9px,
+        repeating-linear-gradient(90deg, var(--c1) 0 14px, var(--c2) 14px 20px);
+    box-shadow: inset 0 -8px 12px rgba(0, 0, 0, 0.35); }
+.fan-sec.team1 { --c1: var(--kit1, #2d6fe8); --c2: var(--kit1b, #fff); }
+.fan-sec.team2 { --c1: var(--kit2, #e5323b); --c2: var(--kit2b, #fff); }
+.fan-sec::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0, 0, 0, 0.12), rgba(0, 0, 0, 0.35)); pointer-events: none; }
+.fan-banner { position: relative; z-index: 1; padding: 1px 10px; border-radius: 3px; background: rgba(0, 0, 0, 0.55); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 92%;
+    font: 700 0.68rem/1.5 'Oswald', sans-serif; letter-spacing: 0.08em; animation: bannerWave 3.2s ease-in-out infinite; }
+@keyframes bannerWave { 0%, 100% { transform: rotate(-0.6deg); } 50% { transform: rotate(0.6deg) translateY(-1px); } }
+.fan-band.jump-team1 .fan-sec.team1, .fan-band.jump-team2 .fan-sec.team2 { animation: fansJump 0.22s ease-in-out 10 alternate; }
+@keyframes fansJump { from { background-position: 0 0, 0 0; filter: brightness(1); } to { background-position: 0 -3px, 0 0; filter: brightness(1.25); } }
+.flare { position: absolute; bottom: -6px; width: 14px; height: 30px; border-radius: 50% 50% 30% 30%; opacity: 0; pointer-events: none; z-index: 2;
+    background: radial-gradient(circle at 50% 70%, #fff6c0 0 15%, #ff9b2f 35%, rgba(255, 50, 20, 0.6) 60%, transparent 75%); filter: blur(1px); }
+.flare.f1 { left: 12%; } .flare.f2 { left: 48%; } .flare.f3 { left: 82%; }
+.fan-band.flares-team1 .fan-sec.team1 .flare, .fan-band.flares-team2 .fan-sec.team2 .flare { opacity: 1; animation: flareFlicker 0.18s ease-in-out infinite alternate; }
+.fan-band.flares-team1 .fan-sec.team1, .fan-band.flares-team2 .fan-sec.team2 { box-shadow: inset 0 -12px 20px rgba(255, 90, 30, 0.55); }
+@keyframes flareFlicker { from { transform: scale(0.9, 0.95); filter: blur(1px) brightness(1); } to { transform: scale(1.08, 1.12); filter: blur(1.5px) brightness(1.3); } }
+@media (prefers-reduced-motion: reduce) { .fan-banner, .flare, .fan-sec { animation: none !important; } }
+@media (max-width: 600px) { .fan-band { height: 22px; } .fan-banner { font-size: 0.58rem; } }
+
+/* ===== Поле на весь экран ===== */
+.fs-toggle { position: absolute; top: 8px; right: 112px; z-index: 45; width: 30px; height: 26px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18);
+    background: rgba(8, 16, 32, 0.72); color: #eef3fb; font-size: 15px; line-height: 1; cursor: pointer; opacity: 0.85; }
+.fs-toggle:hover { opacity: 1; border-color: var(--accent); }
+@media (max-width: 600px) { .fs-toggle { top: 5px; right: 44px; width: 30px; height: 24px; } }
+.fs-bar { display: none; position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 46; gap: 6px; align-items: center; padding: 5px 8px;
+    border-radius: 999px; background: rgba(8, 16, 32, 0.78); backdrop-filter: blur(4px); }
+.fs-bar button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 16px; cursor: pointer; }
+.fs-bar button:hover { background: var(--accent); color: var(--accent-ink); }
+.fs-bar span { color: #fff; font: 700 0.8rem/1 'Inter', sans-serif; min-width: 30px; text-align: center; }
+.field-container.fs-on .fs-bar { display: flex; }
+.field-container.fs-on .fs-bar { opacity: 0.35; transition: opacity 0.2s; }
+.field-container.fs-on .fs-bar:hover, .field-container.fs-on .fs-bar:focus-within { opacity: 1; }
+/* Сам режим: тёмный фон, поле вписано в экран с сохранением пропорций */
+.field-container:fullscreen, .field-container.pseudo-fs { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; margin: 0; border: 0; border-radius: 0; background: #050b14; }
+.field-container:-webkit-full-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px; background: #050b14; }
+.field-container.pseudo-fs { position: fixed; inset: 0; z-index: 9000; height: 100dvh; }
+.field-container.fs-on .field-viewport { width: min(100%, calc((100dvh - 64px) * 105 / 68)); }
+.field-container.fs-on .fan-band { width: min(100%, calc((100dvh - 64px) * 105 / 68)); }
+.field-container.fs-on .field-legend, .field-container.fs-on .legend { display: none; }
+body.fs-lock { overflow: hidden; }
+
+/* ===== Режим для телефона ===== */
+.rotate-tip { display: none; }
+@media (max-width: 760px) {
+    #screen-match .btn-primary, #screen-match .btn-secondary { min-height: 46px; font-size: 0.95rem; }
+    #screen-match .match-controls-top { gap: 8px; flex-wrap: wrap; }
+    #match-speed { height: 28px; min-width: 120px; }
+    #match-speed::-webkit-slider-thumb { width: 24px; height: 24px; }
+    .field-container { padding: 6px; }
+    .cam-toggle, .fs-toggle { min-height: 30px; min-width: 34px; }
+    .event-item { padding-top: 7px; padding-bottom: 7px; }
+}
+@media (max-width: 760px) and (orientation: portrait) {
+    .rotate-tip { display: block; margin-top: 6px; text-align: center; font-size: 0.75rem; color: var(--text-2); }
+    .field-container.fs-on .rotate-tip { display: none; }
+}
+/* Телефон горизонтально: поле во всю высоту экрана */
+@media (orientation: landscape) and (max-height: 520px) {
+    #screen-match .field-viewport, #screen-match .fan-band { width: min(100%, calc((100dvh - 56px) * 105 / 68)); margin-left: auto; margin-right: auto; }
+    #screen-match .fan-band { height: 18px; }
+}
+
+/* Просмотр лучшего гола */
+.gr-box { max-width: 720px; width: 96vw; text-align: left; }
+.gr-head { font-size: 0.9rem; margin-bottom: 10px; padding-right: 30px; }
+.gr-field { position: relative; width: 100%; aspect-ratio: 105 / 68; border-radius: 8px; overflow: hidden; }
+.gr-field .gr-goal { position: absolute; right: 0; top: 44%; width: 1.8%; height: 12%; background: repeating-linear-gradient(0deg, rgba(255,255,255,.7) 0 2px, transparent 2px 5px); border: 2px solid #fff; border-right: 0; }
+.gr-field .gr-ball { position: absolute; width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; border: 1px solid #111; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #cfd6df); box-shadow: 0 1px 3px rgba(0,0,0,.6); z-index: 60; }
+.gr-field .player { position: absolute; }
+.gr-caption { min-height: 1.4em; margin-top: 8px; font-weight: 700; color: var(--accent); }
+.gr-actions { margin-top: 8px; display: flex; justify-content: flex-end; }
+.rc-watch { margin-top: 6px; }

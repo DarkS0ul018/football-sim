@@ -199,6 +199,10 @@ class MatchSimulation {
         this.leg = leg;
         this.minute = 0;
         this.maxMinute = 90;
+        this.plus = 0;               // добавленное время текущей минуты («45+2»)
+        this.stoppageLeft = 0;
+        this.stoppageDone = {};
+        this.weatherShiftAt = Math.random() < 0.22 ? 50 + Math.floor(Math.random() * 30) : null; // погода может смениться во втором тайме
         this.phase = 'regular';      // regular | extra | over
         this.isOver = false;
         this.homeSide = getHomeSide(match, leg);
@@ -528,7 +532,7 @@ class MatchSimulation {
     }
 
     log(type, side, text, extra = {}) {
-        const ev = { minute: this.minute, type, side, team: side ? this.sides[side].team : null, text, ...extra };
+        const ev = { minute: this.minute, plus: this.plus || 0, type, side, team: side ? this.sides[side].team : null, text, ...extra };
         this.events.push(ev);
         this.newEvents.push(ev);
         return ev;
@@ -538,10 +542,12 @@ class MatchSimulation {
     step() {
         this.newEvents = [];
         if (this.isOver) return this.newEvents;
-        this.minute++;
+        // Добавленное время: минута на табло не растёт («45+2»), идут компенсированные минуты
+        if (this.stoppageLeft > 0) { this.stoppageLeft--; this.plus = (this.plus || 0) + 1; }
+        else { this.minute++; this.plus = 0; }
 
         const p1 = this.team1AttackProbability();
-        const attack = Math.random() < 0.55;
+        const attack = Math.random() < 0.52; // с учётом добавленного времени — та же результативность
         this.attackingSide = Math.random() < p1 ? 'team1' : 'team2';
         this.possessionTicks[this.attackingSide]++;
         const t = this.possessionTicks;
@@ -565,13 +571,54 @@ class MatchSimulation {
         if (prefs.injuries && Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
         this.aiSubstitutions();
         this.aiCoach();
+        this.weatherShift();
 
-        if (this.minute === 45) this.log('half', null, `Перерыв: ${this.score.t1}:${this.score.t2}`);
         this.lastPlay = this.play;
-        if (this.minute >= this.maxMinute) this.endOfPeriod();
+        // Конец тайма: сначала судья добавляет время, потом свисток
+        const periodEnd = this.minute === 45 ? 45 : (this.minute >= this.maxMinute ? this.maxMinute : null);
+        if (periodEnd && !this.stoppageLeft) {
+            if (!this.stoppageDone[periodEnd]) {
+                this.stoppageDone[periodEnd] = true;
+                const n = this.stoppageFor(periodEnd);
+                if (n > 0) {
+                    this.stoppageLeft = n;
+                    this.log('stoppage', null, `Добавлено ${n} мин.`, { added: n });
+                    return this.newEvents;
+                }
+            }
+            if (periodEnd === 45) this.log('half', null, `Перерыв: ${this.score.t1}:${this.score.t2}`);
+            else this.endOfPeriod();
+        }
         return this.newEvents;
     }
 
+    // Сколько добавить: замены, голы, карточки, травмы в этом тайме
+    stoppageFor(end) {
+        const from = end === 45 ? 0 : (end === 90 ? 45 : end - 15);
+        const ev = this.events.filter(e => e.minute > from && e.minute <= end);
+        const count = type => ev.filter(e => e.type === type).length;
+        let n = (end === 45 ? 0.4 : (end === 90 ? 2 : 1)) + count('goal') * 0.5 + count('substitution') * 0.3
+            + (count('card-yellow') + count('card-red')) * 0.25 + count('injury') * 1.2 + count('var') * 1;
+        n = Math.round(n + Math.random() * 0.8);
+        return Math.max(end === 90 ? 1 : 0, Math.min(end === 90 ? 8 : 4, n));
+    }
+
+    // Подпись минуты для табло и ленты: «45+2'»
+    minuteLabel() {
+        return this.plus ? `${this.minute}+${this.plus}` : `${this.minute}`;
+    }
+
+    // Погода может поменяться по ходу матча: начинается дождь, ливень стихает, выглянуло солнце
+    weatherShift() {
+        if (!prefs.weather || this.weatherChanged || this.plus || this.minute !== this.weatherShiftAt) return;
+        this.weatherChanged = true;
+        const next = { clear: ['cloudy'], cloudy: ['rain', 'clear'], rain: ['storm', 'cloudy'], storm: ['rain'], snow: ['snow'], wind: ['rain', 'cloudy'], heat: ['clear'] }[this.weather] || [];
+        const to = next[Math.floor(Math.random() * next.length)];
+        if (!to || to === this.weather) return;
+        const text = { cloudy: 'небо затянуло тучами', rain: 'начался дождь — газон становится скользким', storm: 'дождь перешёл в ливень', clear: 'выглянуло солнце' }[to] || WEATHER[to].label;
+        this.weather = to;
+        this.log('weather', null, `${WEATHER[to].icon} Погода меняется: ${text}`, { weather: to });
+    }
     // Касания и передачи для сети передач и тепловой карты: точки от базовой позиции игрока к воротам соперника
     recordTouches(side, nums) {
         const s = this.sides[side], n = nums.length;
@@ -642,7 +689,14 @@ class MatchSimulation {
             this.startPlay(side, 'foul', [...pre, victim]);
             this.foul(otherSide(side), side, victim);
         } else {
-            this.startPlay(side, counter ? 'counter' : 'attack', pre); // атака сорвалась без удара
+            const fwd = this.sides[side].onPitch.filter(p => p.position === 'FWD');
+            if (isRealistic() && fwd.length && Math.random() < 0.35) {
+                // Пас за спину защитникам — помощник поднимает флажок
+                const runner = fwd[Math.floor(Math.random() * fwd.length)];
+                const play = this.startPlay(side, counter ? 'counter' : 'attack', [...pre, runner]);
+                play.end = { type: 'offside', player: runner.number };
+                this.log('offside', side, `Офсайд — ${runner.name}`, { player: runner });
+            } else this.startPlay(side, counter ? 'counter' : 'attack', pre); // атака сорвалась без удара
         }
     }
 
@@ -715,7 +769,7 @@ class MatchSimulation {
         // Навыки: удар (или игра головой) бьющего против реакции (или выходов) вратаря
         const skill = skillEdge(shooter, header ? 'hea' : 'sho') - skillEdge(gk, header ? 'out' : 'ref');
         const pConvert = clamp(0.276 + (effRating(shooter) - effRating(gk)) * 0.0055 + skill * 0.005 + this.finishBonus(side), 0.12, 0.5);
-        const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN * WEATHER[this.weather].goals, 0.005, 0.85);
+        const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN * WEATHER[this.weather].goals * (isRealistic() ? 1.08 : 1), 0.005, 0.85); // ×1.08: часть голов отменяют офсайд и VAR
         const pSave = Math.min(1 - pGoal, pOnTarget * (1 - pConvert) * clamp(0.6 + xg / XG_MEAN * 0.4, 0.6, 1.6));
         const u = Math.random();
         const result = u < pGoal ? 'goal' : (u < pGoal + pSave ? 'save' : 'off');
@@ -728,7 +782,17 @@ class MatchSimulation {
             return;
         }
         this.stats.shotsOnTarget[side]++;
-        if (result === 'goal') {
+        // Гол может быть отменён: офсайд (флажок помощника) или VAR (офсайд, игра рукой, фол в атаке)
+        if (result === "goal" && isRealistic() && Math.random() < 0.075) {
+            const byVar = Math.random() < 0.5;
+            const why = byVar ? ["офсайд", "игра рукой", "фол в атаке"][Math.floor(Math.random() * 3)] : "офсайд";
+            shotInfo.result = "cancelled";
+            play.end = { type: "goal", cancelled: byVar ? "var" : "offside", reason: why, shooter: shooter.number, at, xg, header };
+            if (byVar) this.log("var", side, `VAR: гол ${shooter.name} отменён — ${why}`, { player: shooter, outcome: "cancel", reason: why });
+            else this.log("offside", side, `Гол не засчитан: офсайд у ${shooter.name}`, { player: shooter, goalCancelled: true });
+            return;
+        }
+        if (result === "goal") {
             // После углового гол почти всегда с передачи подающего (навес — это и есть голевой пас)
             const assister = setPiece ? (passer && Math.random() < 0.92 ? passer : null) : (Math.random() < 0.75 ? passer : null);
             shotInfo.assister = assister ? assister.number : null;
@@ -781,7 +845,11 @@ class MatchSimulation {
         }
 
         // Нарушение в штрафной — пенальти; у штрафной — опасный штрафной удар
-        if (Math.random() < 0.02) this.penaltyKick(victimSide);
+        if (Math.random() < 0.0244) {
+            // VAR пересматривает пенальти: иногда нарушения не было
+            if (isRealistic() && Math.random() < 0.18) this.log("var", victimSide, "VAR: пенальти отменён — нарушения не было", { outcome: "no-pen" });
+            else this.penaltyKick(victimSide);
+        }
         else if (victim && this.play && this.play.side === victimSide && Math.random() < 0.2) this.freeKick(victimSide);
     }
 

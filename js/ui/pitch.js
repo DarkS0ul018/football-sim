@@ -37,6 +37,7 @@ function playerElId(p) {
 // ----- Отрисовка -----
 function renderPlayers(sim) {
     pitch.sim = sim; // покадровый цикл двигает игроков именно этой игры
+    renderFanBand(sim);
     const field = $('football-field');
     field.querySelectorAll('.player').forEach(el => el.remove());
     ['team1', 'team2'].forEach(side => {
@@ -489,6 +490,20 @@ function animateMinute(sim, events, ms, span = 1) {
         }
         chain.forEach(p => wps.push({ ...lead(p), player: p }));
         if (shooter && !String(end.type).startsWith('penalty')) wps.push({ ...pitch.overrides.get(shooter), player: shooter });
+        // Аут: иногда пас уходит за боковую — игрок соперника вбрасывает мяч руками у бровки
+        if (!end && play.kind === 'keep' && !fast && wps.length && Math.random() < 0.22) {
+            const last = wps[wps.length - 1];
+            const edge = { x: clampv(last.x + (side === 'team1' ? 6 : -6), 6, 94), y: last.y < 50 ? 0.8 : 99.2 };
+            const thrower = [...foes].filter(p => p.position !== 'GK').sort((a, b) => Math.hypot(a.x - edge.x, a.y - edge.y) - Math.hypot(b.x - edge.x, b.y - edge.y))[0];
+            wps.push({ ...edge, out: true });
+            if (thrower) pitch.overrides.set(thrower, { x: edge.x, y: edge.y < 50 ? 2.5 : 97.5 });
+            wps.push({ ...edge, wait: Math.round(clampv(ms * 0.35, 250, 700)), throwIn: true });
+        }
+    }
+    // Офсайд: пас за спину — мяч к нападающему, помощник поднимает флажок
+    if (end && end.type === 'offside') {
+        const runner = byNum(team, end.player);
+        if (runner) wps.push({ x: abs(side, clampv(rel(side, runner.x) + 6, 50, 92)), y: runner.y, offside: true });
     }
 
     // Фол: нарушитель бежит к фолимому, мяч останавливается
@@ -544,6 +559,8 @@ function animateMinute(sim, events, ms, span = 1) {
         onStart: () => { if (!fast && i > 0 && !w.wait) playSound('kick'); },
         onArrive: () => {
             if (w.banner) showPitchBanner(w.banner);
+            if (w.out) { pitch.holder = null; highlightPlayer(null); showBallTag('аут'); return; }
+            if (w.offside) { pitch.holder = null; highlightPlayer(null); showOffsideFlag(); return; }
             if (w.wait) { if (w.whistle) playSound('whistle-short'); return; } // пауза закончилась — подача
             if (w.save) {
                 pitch.holder = w.player || null;               // мяч у вратаря соперника — дальше атакует он
@@ -561,6 +578,7 @@ function animateMinute(sim, events, ms, span = 1) {
                     pitch.holder = gk;
                     pitch.possession = opp;
                     pitch.focus = { x: abs(opp, 7), y: 50 };
+                    if (!fast) showBallTag('от ворот');
                 }, Math.min(400, ms * 0.1));
             } else if (w.player && team.includes(w.player)) {
                 pitch.holder = w.player;
@@ -572,6 +590,7 @@ function animateMinute(sim, events, ms, span = 1) {
             recordFrame(pitch.holder);
             // Опасный момент без гола (сейв, мимо при большом xG) — в ленту с кнопкой повтора
             if ((w.save || w.miss) && end && (end.xg >= 0.25 || String(end.type) === 'penalty-miss')) addMoment(sim, end, side, pitch.recording.slice());
+            if (w.goal && end && end.cancelled) { showCancelledGoal(sim, end, side); return; } // офсайд или VAR
             if (w.goal) {
                 const ev = goalEv || events.find(e => e.type === 'goal');
                 if (ev) {
@@ -602,6 +621,7 @@ function onGoalAnimation(sim, ev) {
     setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
     showGoalBanner(ev);
     showGoalSplash(sim, ev);
+    fanCelebrate(ev.side, sim);
     cameraPunch(1.8);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
@@ -1057,3 +1077,161 @@ function toggleCamera() {
             && !(e.target.closest && e.target.closest('input, textarea, select')) && $('field-viewport') && $('field-viewport').offsetParent) toggleCamera();
     });
 })();
+
+// ===== Судейские эпизоды: добавленное время, офсайд, VAR, травма =====
+function hudHost() { return $('field-hud') || $('football-field'); }
+
+function holdLive(ms) {
+    if (pitch.livePenalty && typeof holdForCelebration === 'function') holdForCelebration(ms);
+}
+
+// Табло резервного судьи: «+4»
+function showAddedBoard(n) {
+    const host = hudHost();
+    if (!host || !n) return;
+    host.querySelector('.added-board')?.remove();
+    const el = document.createElement('div');
+    el.className = 'added-board';
+    el.innerHTML = `<span>ДОБАВЛЕНО</span><b>+${n}</b>`;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 2800);
+}
+
+// Флажок помощника: офсайд
+function showOffsideFlag(text = 'ОФСАЙД') {
+    const host = hudHost();
+    if (!host) return;
+    host.querySelector('.offside-flag')?.remove();
+    const el = document.createElement('div');
+    el.className = 'offside-flag';
+    el.innerHTML = `<i></i><span>🚩 ${text}</span>`;
+    host.appendChild(el);
+    playSound('whistle-short');
+    setTimeout(() => el.remove(), 2200);
+}
+
+// VAR: «проверка…», затем решение. Матч ждёт, пока идёт просмотр
+function showVarCheck(resultText, ms = 2600) {
+    const host = hudHost();
+    if (!host) return;
+    host.querySelector('.var-box')?.remove();
+    const el = document.createElement('div');
+    el.className = 'var-box checking';
+    el.innerHTML = `<div class="var-logo">VAR</div><div class="var-text">ПРОВЕРКА ЭПИЗОДА</div><div class="var-scan"></div>`;
+    host.appendChild(el);
+    holdLive(ms + 400);
+    setTimeout(() => {
+        el.classList.remove('checking');
+        el.querySelector('.var-text').textContent = resultText;
+        el.querySelector('.var-scan')?.remove();
+        playSound('whistle-short');
+        if (typeof crowdBoo === 'function') crowdBoo(0.8);
+    }, ms * 0.6);
+    setTimeout(() => el.remove(), ms + 300);
+}
+
+// Мяч в сетке, но гол отменён: офсайд (флажок) или после VAR
+function showCancelledGoal(sim, end, side) {
+    const field = $('football-field');
+    const goalEl = field && field.querySelector(side === 'team1' ? '.goal-right' : '.goal-left');
+    goalEl?.classList.add('net-shake');
+    setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
+    if (end.cancelled === 'offside') {
+        holdLive(1800);
+        setTimeout(() => showOffsideFlag('ОФСАЙД · ГОЛ НЕ ЗАСЧИТАН'), 250);
+    } else {
+        playSound('goal'); // трибуны успевают взреветь…
+        setTimeout(() => showVarCheck(`ГОЛ ОТМЕНЁН · ${String(end.reason || '').toUpperCase()}`), 700);
+        holdLive(3400);
+    }
+    // Игра возобновляется от ворот защищающейся команды
+    const opp = otherSide(side);
+    const gk = sim.sides[opp].onPitch.find(p => p.position === 'GK');
+    const token = pitch.pathToken;
+    setTimeout(() => {
+        if (pitch.pathToken !== token) return;
+        placeBall(abs(opp, 7), 50, 400);
+        pitch.holder = gk || null;
+        pitch.possession = opp;
+        pitch.focus = { x: abs(opp, 7), y: 50 };
+    }, 1200);
+}
+
+// Травма: игра останавливается, врачи выбегают, носилки
+function showInjuryStop(ev) {
+    if (!ev.player) return;
+    const el = $(playerElId(ev.player));
+    if (el) {
+        el.classList.add('injured-down');
+        const badge = document.createElement('span');
+        badge.className = 'injury-pop';
+        badge.textContent = '🚑';
+        el.appendChild(badge);
+        setTimeout(() => { el.classList.remove('injured-down'); badge.remove(); }, 2400);
+    }
+    showPitchBanner('ТРАВМА · ИГРА ОСТАНОВЛЕНА');
+    playSound('whistle-short');
+    holdLive(2200);
+}
+
+// Погода поменялась по ходу матча — сразу видно на поле
+function applyLiveWeather(w) {
+    const field = $('football-field');
+    if (field && w) field.dataset.weather = w;
+}
+
+// Короткая подпись у мяча («аут», «от ворот»)
+function showBallTag(text, ms = 900) {
+    const host = $('football-field');
+    if (!host || !pitch.ball) return;
+    const el = document.createElement('div');
+    el.className = 'ball-tag';
+    el.textContent = text;
+    el.style.left = `${pitch.ball.x}%`;
+    el.style.top = `${pitch.ball.y}%`;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), ms);
+}
+
+// ===== Фан-сектор над полем: шарфы в цветах клубов, баннеры, файеры в дерби и после голов =====
+function renderFanBand(sim) {
+    const band = $('fan-band');
+    if (!band || !sim) return;
+    const key = `${sim.match.id}|${sim.leg}`;
+    if (band.dataset.key === key) return;
+    band.dataset.key = key;
+    const home = sim.homeSide;
+    const share = side => !home ? 1 : (side === home ? 2.6 : 1);
+    const chant = t => {
+        const n = t.name;
+        return [`ВПЕРЁД, ${n.toUpperCase()}!`, `${n.toUpperCase()} — НАВСЕГДА`, `МЫ С ТОБОЙ, ${n.toUpperCase()}`][Math.floor(hashString(n + key) * 3)];
+    };
+    band.innerHTML = ['team1', 'team2'].map(side => {
+        const t = sim.sides[side].team;
+        return `<div class="fan-sec ${side}" style="flex:${share(side)}">
+            <span class="fan-banner">${escapeHtml(chant(t))}</span>
+            <i class="flare f1"></i><i class="flare f2"></i><i class="flare f3"></i>
+        </div>`;
+    }).join('');
+    band.classList.remove('flares-team1', 'flares-team2', 'jump-team1', 'jump-team2');
+    if (sim.derby) setTimeout(() => fanFlares('team1', 6000) || fanFlares('team2', 6000), 400); // дерби — файер-шоу на старте
+}
+
+function fanFlares(side, ms = 4000) {
+    const band = $('fan-band');
+    if (!band) return;
+    band.classList.add(`flares-${side}`);
+    clearTimeout(band[`_fl_${side}`]);
+    band[`_fl_${side}`] = setTimeout(() => band.classList.remove(`flares-${side}`), ms);
+}
+
+// Гол: сектор забившей команды прыгает, а в дерби и в концовке — ещё и файеры
+function fanCelebrate(side, sim) {
+    const band = $('fan-band');
+    if (!band) return;
+    band.classList.remove(`jump-${side}`);
+    void band.offsetWidth;
+    band.classList.add(`jump-${side}`);
+    setTimeout(() => band.classList.remove(`jump-${side}`), 2600);
+    if (sim && (sim.derby || sim.minute >= 80)) fanFlares(side, 4500);
+}
