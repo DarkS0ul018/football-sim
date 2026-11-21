@@ -416,3 +416,10 @@
 #achievements-list { display: block; }
 .press-q { padding-left: 12px; border-left: 3px solid var(--accent); }
 @media (max-width: 600px) { .ach-grid { grid-template-columns: 1fr 1fr; } .ach-badge { padding: 8px; } .ach-badge small { display: none; } }
+
+/* Переключатель камеры на поле */
+.cam-toggle { position: absolute; top: 8px; right: 8px; z-index: 45; display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.18); background: rgba(8, 16, 32, 0.72);
+    color: #eef3fb; font: 600 0.72rem/1.4 'Inter', sans-serif; cursor: pointer; backdrop-filter: blur(4px); opacity: 0.85; transition: opacity 0.15s, border-color 0.15s; }
+.cam-toggle:hover, .cam-toggle:focus-visible { opacity: 1; border-color: var(--accent); }
+@media (max-width: 600px) { .cam-toggle { top: 5px; right: 5px; padding: 3px 7px; } .cam-toggle span { display: none; } }

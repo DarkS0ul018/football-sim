@@ -52,7 +52,7 @@ function openSettings() {
         </div>
         <div class="set-group">
             <div class="set-label">Правила и экраны</div>
-            ${toggle('camera', 'Камера трансляции', 'поле крупнее и с наклоном, камера ведёт мяч')}
+            ${toggle('camera', 'ТВ-камера по умолчанию', 'поле крупнее, камера ведёт мяч; выкл — всё поле целиком. В матче: кнопка на поле или клавиша C')}
             ${toggle('preview', 'Экран перед матчем', 'составы, форма, прогноз, погода')}
             ${toggle('weather', 'Погода', 'дождь, снег, жара влияют на игру')}
             ${toggle('injuries', 'Травмы', 'игроки могут выбыть на несколько матчей')}
@@ -72,7 +72,7 @@ function openSettings() {
         const group = b.parentElement;
         group.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));
     });
-    el.querySelectorAll('[data-pref]').forEach(inp => inp.onchange = () => setPref(inp.dataset.pref, inp.checked));
+    el.querySelectorAll('[data-pref]').forEach(inp => inp.onchange = () => { setPref(inp.dataset.pref, inp.checked); if (inp.dataset.pref === 'camera' && typeof renderCameraToggle === 'function') renderCameraToggle(); });
     const sp = el.querySelector('#set-speed');
     sp.oninput = () => {
         setPref('speed', Number(sp.value));

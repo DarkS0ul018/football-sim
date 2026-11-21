@@ -908,3 +908,30 @@ function stepCamera(dt) {
 function cameraPunch(seconds = 1.6) {
     pitch.cam.boost = seconds;
 }
+
+// ----- Переключатель камеры прямо на поле: «ТВ-камера» ведёт мяч, «Всё поле» — неподвижный общий план -----
+function renderCameraToggle() {
+    const b = $('btn-camera');
+    if (!b) return;
+    const tv = cameraOn();
+    b.innerHTML = tv ? '🎥 <span>ТВ-камера</span>' : '🗺️ <span>Всё поле</span>';
+    b.classList.toggle('fixed', !tv);
+    b.setAttribute('aria-pressed', String(tv));
+}
+
+function toggleCamera() {
+    setPref('camera', !cameraOn());
+    pitch.cam.boost = 0;
+    renderCameraToggle();
+}
+
+(function initCameraToggle() {
+    const b = $('btn-camera');
+    if (!b) return;
+    b.onclick = toggleCamera;
+    renderCameraToggle();
+    document.addEventListener('keydown', e => {
+        if ((e.key === 'c' || e.key === 'с' || e.key === 'C' || e.key === 'С') && !e.ctrlKey && !e.metaKey && !e.altKey
+            && !(e.target.closest && e.target.closest('input, textarea, select')) && $('field-viewport') && $('field-viewport').offsetParent) toggleCamera();
+    });
+})();
