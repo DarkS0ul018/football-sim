@@ -203,6 +203,7 @@ function showResults(champion) {
     achOnTournament(champion);
     museumRecord(champion);
     renderWhatsNext();
+    renderChronicleButton();
     renderAchievements();
     showScreen('results');
 }

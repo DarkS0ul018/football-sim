@@ -442,6 +442,7 @@ function startSimulation(m) {
         }
         commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора
         crowdIntensity(sim);
+        crowdAtmosphere(sim);
         setText('match-time', (sim.minuteLabel ? sim.minuteLabel() : sim.minute) + "'");
         if (sim.phase === 'extra') setText('match-status', 'ДОП. ВРЕМЯ');
         updateStatsDisplay(sim);
@@ -490,6 +491,7 @@ function startSimulation(m) {
         simulationInterval = setInterval(step, getMatchInterval());
     };
     simStep = step;
+    if (m.isFinal && sim.minute === 0 && sim.leg === 1) setTimeout(() => showFinalCeremony(m, sim), 300); // перед финалом — церемония
     isPaused = false;
     if (userSide(m)) $('btn-manage-match').style.display = 'flex';
     $('btn-pause-match').style.display = 'flex';
@@ -836,3 +838,32 @@ function updateFsBar() {
         if (e.key === 'Escape' && fieldBox()?.classList.contains('pseudo-fs')) exitFieldFullscreen();
     });
 })();
+
+// ----- Церемония перед финалом: выход команд, гимн, рукопожатие, капитаны с кубком -----
+function finalCeremonyHtml(m, sim) {
+    const side = sd => {
+        const s = sim.sides[sd];
+        const cap = s.onPitch.find(p => p.number === s.captain);
+        return `<div class="fc-team ${sd}">
+            <div class="fc-crest">${crestHtml(s.team, 'lg')}</div>
+            <b>${escapeHtml(s.team.name)}</b>
+            <div class="fc-xi">${s.onPitch.map((p, i) => `<span style="--d:${0.15 * i + 0.4}s">${p.number} ${escapeHtml(p.name.split(' ').slice(-1)[0])}${p.number === s.captain ? ' ©' : ''}</span>`).join('')}</div>
+            ${cap ? `<small class="muted">капитан — ${escapeHtml(cap.name)}</small>` : ''}
+        </div>`;
+    };
+    const cupTitle = (typeof formatLabel === 'function' ? formatLabel(state.settings).split(',')[0] : '') || 'Финал';
+    return `<div class="il-kicker">Финал · церемония</div>
+        <div class="fc-trophy">🏆</div>
+        <div class="fc-title">${escapeHtml(String(cupTitle).replace(/^[^А-Яа-яA-Za-z]+/, ''))}</div>
+        <div class="fc-steps"><span style="--d:0s">🚶 Выход команд</span><span style="--d:2.6s">🎵 Гимн турнира</span><span style="--d:5.6s">🤝 Рукопожатие</span><span style="--d:7s">📸 Капитаны у кубка</span></div>
+        <div class="fc-teams">${side('team1')}<div class="fc-vs">VS</div>${side('team2')}</div>`;
+}
+
+function showFinalCeremony(m, sim) {
+    if (!simStep || interludeOn) return;
+    holdMatch();
+    stopCrowd();
+    playSound('whistle-short');
+    setTimeout(() => { if (typeof playAnthem === 'function') playAnthem(); }, 2600);
+    showInterlude(finalCeremonyHtml(m, sim), 11000, () => { startCrowd(); playSound('whistle-long'); releaseMatch(); });
+}

@@ -135,9 +135,11 @@ function renderHomeAchievements() {
     if (!host) return;
     const clubs = typeof museumClubs === 'function' ? museumClubs() : [];
     host.innerHTML = `<button type="button" class="home-ach-btn" data-open="ach"><span class="ach-icon">🏅</span><span><b>Достижения</b><small class="muted">${achSummary()} открыто</small></span><span class="home-ach-go">→</span></button>
+        <button type="button" class="home-ach-btn" data-open="trophies"><span class="ach-icon">🏆</span><span><b>Трофейная комната</b><small class="muted">кубки на полках и история каждой победы</small></span><span class="home-ach-go">→</span></button>
         <button type="button" class="home-ach-btn" data-open="museum"><span class="ach-icon">🏛️</span><span><b>Музей клуба</b><small class="muted">${clubs.length ? `${clubs.length} ${clubs.length === 1 ? 'клуб' : 'клуба(ов)'} · трофеи и легенды` : 'трофеи, рекорды и легенды вашей карьеры'}</small></span><span class="home-ach-go">→</span></button>`;
     host.querySelector('[data-open="ach"]').onclick = openAchievements;
     host.querySelector('[data-open="museum"]').onclick = () => openMuseum();
+    host.querySelector('[data-open="trophies"]').onclick = () => openTrophyRoom();
 }
 
 // Заменяет старые четыре значка на экране итогов
@@ -714,4 +716,200 @@ function openGoalReplay(info) {
     run();
     el.querySelector('.gr-again').onclick = run;
     el.addEventListener('click', e => { if (e.target === el || e.target.closest('.pc-close')) { timers.forEach(clearTimeout); el.remove(); } });
+}
+
+// ---------- Трофейная комната: кубки на полках, по нажатию — история победы ----------
+function trophyKind(format) {
+    const f = String(format || '');
+    if (/Лига чемпионов/.test(f)) return 'ucl';
+    if (/Лига Европы/.test(f)) return 'uel';
+    if (/конференций/i.test(f)) return 'uecl';
+    if (/Чемпионат мира|Клубный чемпионат мира/.test(f)) return 'wc';
+    if (/Чемпионат Европы/.test(f)) return 'euro';
+    if (/Кубок Америки/.test(f)) return 'copa';
+    if (/Суперкубок/.test(f)) return 'super';
+    if (/Кубок/.test(f)) return 'cup';
+    if (/РПЛ|Лига|Первая лига/.test(f)) return 'league';
+    return 'cup';
+}
+
+function trophyHtml(kind) {
+    if (kind === 'league') return `<div class="t-cup t-${kind}"><div class="t-plate"></div><div class="t-base"></div></div>`;
+    return `<div class="t-cup t-${kind}"><div class="t-handle l"></div><div class="t-handle r"></div><div class="t-body"></div><div class="t-stem"></div><div class="t-base"></div></div>`;
+}
+
+function openTrophyRoom(mode = 'mine') {
+    const hall = typeof readHall === 'function' ? readHall() : { tournaments: [] };
+    const all = hall.tournaments.filter(t => t.champion);
+    const mine = all.filter(t => t.userTeam && t.champion && t.userTeam.name === t.champion.name);
+    const list = mode === 'mine' ? mine : all;
+    document.querySelector('.trophy-overlay')?.remove();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay trophy-overlay';
+    const shelves = [];
+    for (let i = 0; i < list.length; i += 5) shelves.push(list.slice(i, i + 5));
+    el.innerHTML = `<div class="confirm-box trophy-box" role="dialog" aria-modal="true">
+        <button type="button" class="pc-close" title="Закрыть">✕</button>
+        <h3>🏆 Трофейная комната</h3>
+        <div class="mu-tabs"><button type="button" data-tmode="mine" class="${mode === 'mine' ? 'active' : ''}">Ваши трофеи (${mine.length})</button><button type="button" data-tmode="all" class="${mode === 'all' ? 'active' : ''}">Все чемпионы (${all.length})</button></div>
+        ${list.length ? shelves.map(row => `<div class="t-shelf">${row.map((t, k) => {
+            const idx = all.indexOf(t);
+            return `<button type="button" class="t-item" data-t="${idx}" style="--i:${k}">${trophyHtml(trophyKind(t.format))}<span>${escapeHtml(String(t.format || '').split(',')[0])}</span><small>${escapeHtml(t.champion.name)} · ${escapeHtml(t.date || '')}</small></button>`;
+        }).join('')}</div>`).join('')
+        : `<p class="muted">${mode === 'mine' ? 'Пока пусто. Выиграйте турнир в режиме «Играть за команду» — кубок появится на полке.' : 'Ещё не сыграно ни одного турнира.'}</p>`}
+        <div class="t-story" id="t-story"></div>
+    </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+        if (e.target === el || e.target.closest('.pc-close')) { el.remove(); return; }
+        const tab = e.target.closest('[data-tmode]');
+        if (tab) { openTrophyRoom(tab.dataset.tmode); return; }
+        const it = e.target.closest('[data-t]');
+        if (!it) return;
+        const t = all[Number(it.dataset.t)];
+        el.querySelectorAll('.t-item').forEach(x => x.classList.toggle('active', x === it));
+        const story = el.querySelector('#t-story');
+        story.innerHTML = `<div class="ts-head">${trophyHtml(trophyKind(t.format))}<div><b>${escapeHtml(t.format || '')}</b><div class="muted">${escapeHtml(t.date || '')}</div></div></div>
+            <p>🏆 Чемпион — <b>${escapeHtml(t.champion.name)}</b>${t.runnerUp ? `, ${/Лига|РПЛ/.test(t.format || '') && !/чемпионов|Европы|конференций/.test(t.format || '') ? 'второе место' : 'в финале обыгран'} — ${escapeHtml(t.runnerUp.name)}` : ''}.</p>
+            ${t.topScorer ? `<p>⚽ Лучший бомбардир: <b>${escapeHtml(t.topScorer.name)}</b> (${escapeHtml(t.topScorer.team)}) — ${t.topScorer.goals} ${plural5(t.topScorer.goals)}.</p>` : ''}
+            ${t.userTeam ? `<p>👔 Вы играли за «${escapeHtml(t.userTeam.name)}»${t.userTeam.name === t.champion.name ? ' — и выиграли!' : '.'}</p>` : ''}`;
+        story.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+}
+
+// ---------- Хроника сезона: журнал на несколько страниц после турнира ----------
+function chronicleData() {
+    const matches = allPlayedMatches();
+    const champion = state.champion;
+    // Лучшие голы — самые невероятные по xG (без пенальти)
+    const goals = [];
+    matches.forEach(m => (m.goals || []).forEach(g => {
+        if (g.pen || g.xg == null) return;
+        goals.push({ g, m, team: g.s === 1 ? m.team1 : m.team2, opp: g.s === 1 ? m.team2 : m.team1 });
+    }));
+    goals.sort((a, b) => a.g.xg - b.g.xg);
+    // Крупнейшая победа и самый результативный матч
+    let big = null, wild = null, total = 0;
+    matches.forEach(m => {
+        const a = m.aggregateScore || { t1: m.score1, t2: m.score2 };
+        const d = Math.abs(a.t1 - a.t2), sum = a.t1 + a.t2;
+        total += sum;
+        if (!big || d > big.d) big = { m, a, d };
+        if (!wild || sum > wild.sum) wild = { m, a, sum };
+    });
+    const hattricks = matches.reduce((acc, m) => {
+        const c = {};
+        (m.goals || []).forEach(g => { const k = g.s + g.p; c[k] = (c[k] || 0) + 1; });
+        return acc + Object.values(c).filter(n => n >= 3).length;
+    }, 0);
+    const quotes = (state.news || []).filter(n => n.tag === 'club' && /^Тренер/.test(n.title || '')).slice(0, 3);
+    return { champion, goals: goals.slice(0, 3), big, wild, total, games: matches.length, hattricks, quotes, awards: seasonAwards() };
+}
+
+function chroniclePages(d) {
+    const fmt = (typeof formatLabel === 'function' ? formatLabel(state.settings) : '') || 'Турнир';
+    const c = d.champion;
+    const top = Object.values(playerStats).sort((a, b) => b.goals - a.goals)[0];
+    const score = x => `${escapeHtml(x.m.team1.name)} ${x.a.t1}:${x.a.t2} ${escapeHtml(x.m.team2.name)}`;
+    const pages = [];
+    pages.push(`<div class="ch-cover">
+        <div class="ch-mast">ХРОНИКА СЕЗОНА</div>
+        <div class="ch-issue">${escapeHtml(fmt)} · ${new Date().toLocaleDateString('ru-RU')}</div>
+        ${c ? `<div class="ch-crest">${crestHtml(c, 'xl')}</div><h2>«${escapeHtml(c.name)}» — чемпион!</h2>` : ''}
+        ${top && top.goals ? `<p class="ch-lead">Лучший бомбардир — ${escapeHtml(top.name)}: ${top.goals} ${plural5(top.goals)}.</p>` : ''}
+        <p class="muted">${d.games} ${plural5m(d.games)} · ${d.total} ${plural5(d.total)} · в среднем ${(d.total / Math.max(1, d.games)).toFixed(2)} за игру</p>
+    </div>`);
+    if (d.goals.length) pages.push(`<h3 class="ch-h">⚽ Голы сезона</h3>${d.goals.map((x, i) => `<div class="ch-goal">
+        <span class="ch-rank">${i + 1}</span>
+        <div><b>${escapeHtml(x.g.p)}</b> <span class="muted">${x.g.min}' · ${escapeHtml(x.team.name)} — ${escapeHtml(x.opp.name)}</span>
+        <div class="rc-xg">шанс был ${Math.max(1, Math.round(x.g.xg * 100))}%${x.g.sp ? ` · после ${x.g.sp === 'угловой' ? 'углового' : 'штрафного'}` : ''}</div></div>
+        <button type="button" class="btn-more" data-goal="${i}">▶ Смотреть</button></div>`).join('')}`);
+    const a = d.awards;
+    if (a && a.ballon) pages.push(`<h3 class="ch-h">⭐ Герои сезона</h3>
+        <div class="ch-heroes">
+            <div><span>🏅 Золотой мяч</span><b>${escapeHtml(a.ballon.name)}</b><small>ср. ${avgRating(a.ballon).toFixed(2)} · ⚽ ${a.ballon.goals} · 👟 ${a.ballon.assists}</small></div>
+            ${a.young ? `<div><span>🌱 Лучший молодой</span><b>${escapeHtml(a.young.name)}</b><small>${a.ageOf(a.young)} лет</small></div>` : ''}
+            ${a.gk ? `<div><span>🧤 Лучший вратарь</span><b>${escapeHtml(a.gk.name)}</b><small>ср. ${avgRating(a.gk).toFixed(2)}</small></div>` : ''}
+        </div>
+        <div class="rc-label">Команда сезона</div>${elevenHtml(a.eleven, x => avgRating(x.p).toFixed(2))}`);
+    // Таблица (лига) или путь чемпиона (плей-офф)
+    const league = (state.settings.originalMode || state.settings.mode) === 'league' || state.settings.ucl;
+    if (league) {
+        const rows = sortGroup([...state.teams]).slice(0, 8);
+        pages.push(`<h3 class="ch-h">📊 Итоговая таблица</h3><table class="stats-table ch-table"><thead><tr><th>#</th><th>Команда</th><th>И</th><th>О</th><th>Мячи</th></tr></thead><tbody>
+            ${rows.map((t, i) => `<tr><td>${i + 1}</td><td>${teamLabel(t)}</td><td>${t.stats.played}</td><td><b>${t.stats.points}</b></td><td>${t.stats.gf}-${t.stats.ga}</td></tr>`).join('')}</tbody></table>`);
+    } else if (c) {
+        const path = state.tournamentHistory.map(r => ({ r, m: r.matches.find(m => m.involves(c)) })).filter(x => x.m);
+        pages.push(`<h3 class="ch-h">🛤️ Путь чемпиона</h3>${path.map(x => {
+            const g = x.m.aggregateScore;
+            return `<div class="ch-path"><span>${escapeHtml(x.r.round || x.r.name || '')}</span><b>${escapeHtml(x.m.team1.name)} ${g.t1}:${g.t2} ${escapeHtml(x.m.team2.name)}</b>${x.m.penalties && x.m.penalties.kicks.length ? `<small>пен. ${x.m.penalties.t1}:${x.m.penalties.t2}</small>` : ''}</div>`;
+        }).join('')}`);
+    }
+    pages.push(`<h3 class="ch-h">🎙️ Цитаты и цифры</h3>
+        ${d.quotes.length ? d.quotes.map(q => `<blockquote class="ch-quote">${escapeHtml(q.title)}</blockquote>`).join('') : '<p class="muted">Тренеры в этом турнире не давали пресс-конференций.</p>'}
+        <div class="ch-facts">
+            ${d.big ? `<div><span>Крупнейшая победа</span><b>${score(d.big)}</b></div>` : ''}
+            ${d.wild ? `<div><span>Самый результативный матч</span><b>${score(d.wild)}</b></div>` : ''}
+            <div><span>Хет-трики</span><b>${d.hattricks}</b></div>
+            <div><span>Голов за турнир</span><b>${d.total}</b></div>
+        </div>`);
+    return pages;
+}
+
+function openChronicle() {
+    const d = chronicleData();
+    const pages = chroniclePages(d);
+    document.querySelector('.chron-overlay')?.remove();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay chron-overlay';
+    let i = 0;
+    const render = () => {
+        el.innerHTML = `<div class="confirm-box chron-box" role="dialog" aria-modal="true">
+            <button type="button" class="pc-close" title="Закрыть">✕</button>
+            <div class="chron-page" style="animation:chPage .35s ease-out">${pages[i]}</div>
+            <div class="chron-nav">
+                <button type="button" class="btn-secondary" data-nav="-1" ${i ? '' : 'disabled'}>← Назад</button>
+                <span class="chron-dots">${pages.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</span>
+                <button type="button" class="btn-primary" data-nav="1">${i < pages.length - 1 ? 'Дальше →' : 'Закрыть'}</button>
+            </div></div>`;
+    };
+    render();
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+        if (e.target === el || e.target.closest('.pc-close')) { el.remove(); return; }
+        const nav = e.target.closest('[data-nav]');
+        if (nav) {
+            const n = i + Number(nav.dataset.nav);
+            if (n >= pages.length) { el.remove(); return; }
+            i = Math.max(0, n); render(); return;
+        }
+        const g = e.target.closest('[data-goal]');
+        if (g) openGoalReplay(d.goals[Number(g.dataset.goal)]);
+        const p = e.target.closest('.eleven-p[data-player]');
+        if (p) openPlayerCard(p.dataset.player);
+    });
+    // Листание свайпом
+    let sx = null;
+    el.addEventListener('pointerdown', e => { sx = e.clientX; });
+    el.addEventListener('pointerup', e => {
+        if (sx == null) return;
+        const dx = e.clientX - sx; sx = null;
+        if (Math.abs(dx) > 60) { i = Math.max(0, Math.min(pages.length - 1, i + (dx < 0 ? 1 : -1))); render(); }
+    });
+}
+
+function renderChronicleButton() {
+    const box = document.querySelector('#screen-results .champion-box-v2');
+    if (!box) return;
+    let b = document.getElementById('btn-chronicle');
+    if (!b) {
+        b = document.createElement('button');
+        b.type = 'button';
+        b.id = 'btn-chronicle';
+        b.className = 'btn-primary btn-chronicle';
+        b.innerHTML = '<span class="btn-text">📖 Хроника сезона</span>';
+        b.onclick = openChronicle;
+        box.insertAdjacentElement('afterend', b);
+    }
+    b.style.display = state.settings.stageOnly ? 'none' : '';
 }

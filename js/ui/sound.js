@@ -331,3 +331,28 @@ function crowdIntensity(sim) {
     }
     sound.crowd.gain.gain.setTargetAtTime(Math.min(0.16, target), sound.ctx.currentTime, 0.3);
 }
+
+// Гимн турнира перед финалом: торжественные аккорды «духовых» (своя мелодия)
+function playAnthem() {
+    const ctx = audio();
+    if (!ctx) return;
+    const t0 = ctx.currentTime + 0.1;
+    const chords = [[0, 4, 7], [5, 9, 12], [7, 11, 14], [0, 4, 7], [9, 12, 16], [5, 9, 12], [7, 11, 14], [0, 4, 7, 12]];
+    const tune = [7, 9, 11, 12, 16, 14, 11, 12];
+    const base = 196, len = 0.75;
+    const out = ctx.createGain(); out.gain.value = 0.05;
+    const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2200;
+    f.connect(out).connect(sound.master);
+    chords.forEach((ch, i) => {
+        const t = t0 + i * len;
+        [...ch.map(s => base * Math.pow(2, s / 12) / 2), base * Math.pow(2, tune[i] / 12)].forEach((fr, k) => {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = k === ch.length ? 'triangle' : 'sawtooth';
+            o.frequency.value = fr;
+            o.connect(g).connect(f);
+            envelope(g, t, 0.08, len * 0.6, len * 0.4, k === ch.length ? 0.9 : 0.35);
+            o.start(t); o.stop(t + len + 0.2);
+        });
+    });
+    setTimeout(() => applause(4), (chords.length * len + 0.2) * 1000);
+}

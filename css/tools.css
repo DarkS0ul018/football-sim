@@ -610,3 +610,105 @@ body.fs-lock { overflow: hidden; }
 .next-opt:hover { border-color: var(--accent); }
 .next-opt .no-icon { font-size: 1.5rem; }
 .next-opt span:nth-child(2) { display: flex; flex-direction: column; }
+
+/* ===== Трибуны вокруг поля: болельщики в цветах команд, волна, флаги, вспышки телефонов ===== */
+.stadium { position: relative; padding: 14px; border-radius: 6px; transform-origin: 50% 50%; will-change: transform; background:
+    radial-gradient(circle, var(--kit1, #2d6fe8) 1.3px, transparent 1.7px) 0 0 / 7px 7px,
+    radial-gradient(circle, var(--kit2, #e5323b) 1.3px, transparent 1.7px) 3.5px 3.5px / 7px 7px,
+    radial-gradient(circle, rgba(255, 224, 189, 0.35) 1px, transparent 1.4px) 1.7px 5px / 7px 7px,
+    linear-gradient(180deg, #121a26, #0b121c); }
+.stadium > .football-field { position: relative; z-index: 1; }
+.stadium::before { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.55) 48%, rgba(255, 255, 255, 0.75) 50%, rgba(255, 255, 255, 0.55) 52%, transparent 100%) -40% 0 / 30% 100% no-repeat; }
+.stadium.crowd-wave::before { opacity: 1; animation: crowdWave 3.4s linear; }
+@keyframes crowdWave { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+.stadium::after { content: ''; position: absolute; inset: 0; z-index: 0; pointer-events: none; opacity: 0;
+    background:
+        radial-gradient(circle, #fff 0.9px, transparent 1.3px) 0 0 / 23px 17px,
+        radial-gradient(circle, #fff 0.9px, transparent 1.3px) 11px 8px / 29px 21px; }
+.stadium.phone-lights::after { animation: phoneLights 1.6s steps(2) infinite; }
+@keyframes phoneLights { 0% { opacity: 0.25; } 50% { opacity: 0.85; } 100% { opacity: 0.25; } }
+.stand-flag { position: absolute; z-index: 2; width: 16px; height: 10px; border-radius: 1px; pointer-events: none; transform-origin: left center;
+    background: linear-gradient(180deg, var(--c1) 50%, var(--c2) 50%); animation: flagWave 0.5s ease-in-out infinite alternate; box-shadow: -1px 0 0 #ddd; }
+@keyframes flagWave { from { transform: skewY(-8deg) scaleX(0.92); } to { transform: skewY(8deg) scaleX(1); } }
+.stadium.pulse { animation: standsPulse 0.25s ease-in-out 8 alternate; }
+@keyframes standsPulse { to { background-position: 0 -1px, 3.5px 2.5px, 1.7px 4px, 0 0; } }
+@media (max-width: 600px) { .stadium { padding: 8px; } }
+@media (prefers-reduced-motion: reduce) { .stadium::before, .stadium::after, .stand-flag, .stadium.pulse { animation: none !important; } }
+
+/* ===== Церемония перед финалом ===== */
+.fc-trophy { font-size: 3.2rem; text-align: center; animation: fcGlow 1.6s ease-in-out infinite alternate; filter: drop-shadow(0 0 12px rgba(245, 200, 75, 0.7)); }
+@keyframes fcGlow { from { transform: scale(1) rotate(-3deg); } to { transform: scale(1.08) rotate(3deg); } }
+.fc-title { text-align: center; font: 700 1.3rem/1.2 'Oswald', sans-serif; letter-spacing: 0.05em; color: #f5c84b; margin-bottom: 8px; }
+.fc-steps { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 12px; }
+.fc-steps span { padding: 3px 10px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); font-size: 0.78rem; opacity: 0.35; animation: fcStep 0.4s ease-out var(--d) forwards; }
+@keyframes fcStep { to { opacity: 1; background: rgba(245, 200, 75, 0.25); } }
+.fc-teams { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: start; }
+.fc-team { display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.fc-xi { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px 6px; font-size: 0.72rem; }
+.fc-xi span { opacity: 0; transform: translateY(6px); animation: fcWalk 0.35s ease-out var(--d) forwards; }
+@keyframes fcWalk { to { opacity: 1; transform: none; } }
+.fc-vs { align-self: center; font: 800 1.1rem 'Oswald', sans-serif; color: var(--accent); }
+@media (max-width: 600px) { .fc-xi { display: none; } .fc-trophy { font-size: 2.4rem; } }
+
+/* ===== Трофейная комната ===== */
+.trophy-box { max-width: 820px; width: 96vw; max-height: 90vh; overflow: auto; text-align: left; }
+.t-shelf { display: flex; justify-content: center; gap: 10px; padding: 16px 8px 0; margin-top: 12px; border-bottom: 10px solid #6b4a2b; border-radius: 4px;
+    background: linear-gradient(180deg, rgba(255, 220, 150, 0.06), rgba(255, 220, 150, 0.14)); box-shadow: 0 8px 12px -6px rgba(0, 0, 0, 0.5); perspective: 600px; }
+.t-item { display: flex; flex-direction: column; align-items: center; gap: 3px; width: 140px; padding: 0 4px 8px; border: 0; background: none; color: inherit; cursor: pointer; font: inherit; text-align: center;
+    animation: tIn 0.4s ease-out calc(var(--i) * 0.08s) both; }
+.t-item span { font-size: 0.72rem; font-weight: 700; line-height: 1.2; }
+.t-item small { font-size: 0.66rem; color: var(--text-2); }
+.t-item:hover .t-cup, .t-item.active .t-cup { animation: tSpin 2.4s linear infinite; }
+@keyframes tIn { from { opacity: 0; transform: translateY(10px); } }
+@keyframes tSpin { from { transform: rotateY(0); } to { transform: rotateY(360deg); } }
+.t-cup { --m1: #fff3b0; --m2: #e0a722; --m3: #9a6a08; position: relative; width: 60px; height: 78px; transform-style: preserve-3d; }
+.t-cup.t-ucl, .t-cup.t-uel, .t-cup.t-uecl, .t-cup.t-euro, .t-cup.t-super { --m1: #ffffff; --m2: #b9c3cf; --m3: #6c7886; }
+.t-body { position: absolute; left: 12px; top: 4px; width: 36px; height: 38px; border-radius: 4px 4px 50% 50% / 4px 4px 60% 60%;
+    background: linear-gradient(90deg, var(--m3), var(--m2) 30%, var(--m1) 48%, var(--m2) 65%, var(--m3)); box-shadow: inset 0 3px 0 rgba(255, 255, 255, 0.4); }
+.t-handle { position: absolute; top: 8px; width: 14px; height: 20px; border: 4px solid var(--m2); border-radius: 50%; }
+.t-handle.l { left: 2px; border-right-color: transparent; } .t-handle.r { right: 2px; border-left-color: transparent; }
+.t-ucl .t-handle { top: 2px; width: 20px; height: 32px; border-width: 5px; } .t-ucl .t-handle.l { left: -6px; } .t-ucl .t-handle.r { right: -6px; }
+.t-stem { position: absolute; left: 26px; top: 41px; width: 8px; height: 16px; background: linear-gradient(90deg, var(--m3), var(--m1), var(--m3)); }
+.t-base { position: absolute; left: 14px; bottom: 6px; width: 32px; height: 14px; border-radius: 3px; background: linear-gradient(180deg, #3b2a1a, #1c130b); box-shadow: inset 0 2px 0 var(--m2); }
+.t-wc .t-body { border-radius: 50%; width: 30px; height: 30px; left: 15px; top: 6px; background: radial-gradient(circle at 35% 35%, var(--m1), var(--m2) 45%, var(--m3)); }
+.t-wc .t-handle { display: none; }
+.t-copa .t-body { width: 30px; left: 15px; height: 44px; border-radius: 6px 6px 40% 40%; }
+.t-super .t-body { height: 30px; } .t-uecl .t-body { width: 28px; left: 16px; height: 44px; border-radius: 30% 30% 20% 20%; }
+.t-league .t-plate { position: absolute; left: 6px; top: 6px; width: 48px; height: 48px; border-radius: 50%;
+    background: radial-gradient(circle, var(--m1) 0 22%, var(--m2) 23% 60%, var(--m3) 61% 66%, var(--m2) 67%); box-shadow: 0 0 0 2px var(--m3); }
+.t-story { margin-top: 14px; padding: 12px 14px; border-radius: 12px; background: rgba(127, 127, 127, 0.08); }
+.t-story:empty { display: none; }
+.ts-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.ts-head .t-cup { transform: scale(0.8); }
+.t-story p { margin: 4px 0; font-size: 0.86rem; }
+@media (max-width: 600px) { .t-item { width: 100px; } .t-shelf { flex-wrap: wrap; } }
+
+/* ===== Хроника сезона ===== */
+.btn-chronicle { display: block; margin: 12px auto 4px; }
+.chron-box { max-width: 640px; width: 96vw; max-height: 90vh; overflow: auto; text-align: left; background: linear-gradient(180deg, #f8f3e8, #efe6d2); color: #1d1a14; }
+.chron-box .muted, .chron-box small { color: #6d6252 !important; }
+.chron-box .pc-close { color: #1d1a14; }
+@keyframes chPage { from { opacity: 0; transform: translateX(16px); } }
+.ch-cover { text-align: center; }
+.ch-mast { font: 900 2rem/1 'Oswald', sans-serif; letter-spacing: 0.08em; border-bottom: 3px double #1d1a14; padding-bottom: 6px; }
+.ch-issue { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; margin: 6px 0 12px; }
+.ch-crest { margin: 8px auto; }
+.ch-cover h2 { font: 800 1.6rem/1.2 'Oswald', sans-serif; margin: 6px 0; }
+.ch-lead { font-size: 1rem; font-style: italic; }
+.ch-h { font: 800 1.3rem/1.2 'Oswald', sans-serif; border-bottom: 2px solid #1d1a14; padding-bottom: 4px; margin-bottom: 10px; }
+.ch-goal { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px dashed rgba(0, 0, 0, 0.2); }
+.ch-rank { font: 900 1.6rem/1 'Oswald', sans-serif; color: #b8860b; }
+.ch-heroes { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-bottom: 10px; }
+.ch-heroes div { display: flex; flex-direction: column; padding: 8px 10px; border: 1px solid rgba(0, 0, 0, 0.15); border-radius: 8px; background: rgba(255, 255, 255, 0.5); }
+.ch-heroes span { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.ch-table td, .ch-table th { color: #1d1a14; }
+.ch-path { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px dashed rgba(0, 0, 0, 0.2); }
+.ch-path span { font-size: 0.74rem; text-transform: uppercase; min-width: 110px; color: #6d6252; }
+.ch-quote { margin: 8px 0; padding: 8px 12px; border-left: 4px solid #b8860b; font-style: italic; background: rgba(255, 255, 255, 0.5); }
+.ch-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; margin-top: 10px; }
+.ch-facts div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: rgba(255, 255, 255, 0.55); }
+.ch-facts span { font-size: 0.72rem; color: #6d6252; }
+.chron-nav { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 14px; }
+.chron-dots { display: flex; gap: 5px; } .chron-dots i { width: 7px; height: 7px; border-radius: 50%; background: rgba(0, 0, 0, 0.2); } .chron-dots i.on { background: #b8860b; }
+.chron-box .eleven-pitch .eleven-p b, .chron-box .eleven-pitch .eleven-p small { color: #fff; }

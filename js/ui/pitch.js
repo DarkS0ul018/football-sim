@@ -661,6 +661,7 @@ function onGoalAnimation(sim, ev) {
     showGoalBanner(ev);
     showGoalSplash(sim, ev);
     fanCelebrate(ev.side, sim);
+    standsPulse();
     cameraPunch(1.8);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
@@ -1032,9 +1033,10 @@ function cameraOn() {
 
 function stepCamera(dt) {
     const field = $('football-field');
+    const rig = $('stadium') || field; // камера двигает стадион целиком: поле вместе с трибунами
     if (!field) return;
     if ((!cameraOn() && !pitch.cam.forced) || !pitch.sim) {
-        if (field.style.transform) { field.style.transform = ''; field.style.removeProperty('--cam-rz'); }
+        if (rig.style.transform) { rig.style.transform = ''; rig.style.removeProperty('--cam-rz'); }
         pitch.cam.rz = 0; pitch.cam._rzStr = undefined;
         return;
     }
@@ -1075,8 +1077,8 @@ function stepCamera(dt) {
         ty = Math.max(-lim, Math.min(lim, ty * 0.8));
     }
     const rzStr = Math.abs(c.rz) < 0.05 ? "0deg" : `${c.rz.toFixed(1)}deg`;
-    if (rzStr !== c._rzStr) { c._rzStr = rzStr; field.style.setProperty("--cam-rz", rzStr); } // меняем, только если повернулась камера
-    field.style.transform = `perspective(1300px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.z.toFixed(3)}) rotate(${c.rz.toFixed(2)}deg) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
+    if (rzStr !== c._rzStr) { c._rzStr = rzStr; rig.style.setProperty("--cam-rz", rzStr); } // меняем, только если повернулась камера
+    rig.style.transform = `perspective(1300px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.z.toFixed(3)}) rotate(${c.rz.toFixed(2)}deg) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
 }
 
 // Наезд камеры на момент (гол, пенальти)
@@ -1265,6 +1267,7 @@ function renderFanBand(sim) {
         </div>`;
     }).join('');
     band.classList.remove('flares-team1', 'flares-team2', 'jump-team1', 'jump-team2');
+    renderStandFlags(sim);
     if (sim.derby) setTimeout(() => fanFlares('team1', 6000) || fanFlares('team2', 6000), 400); // дерби — файер-шоу на старте
 }
 
@@ -1342,4 +1345,48 @@ function showStatsPlate(sim) {
         ${row('xG', st.xg.team1.toFixed(1), st.xg.team2.toFixed(1))}`;
     host.appendChild(el);
     setTimeout(() => el.remove(), 3600);
+}
+
+// ===== Трибуны вокруг поля: флаги, волна, вспышки телефонов =====
+function renderStandFlags(sim) {
+    const st = $('stadium');
+    if (!st) return;
+    st.querySelectorAll('.stand-flag').forEach(f => f.remove());
+    st.classList.remove('crowd-wave', 'phone-lights', 'pulse');
+    pitch.lastWave = 0;
+    // Флаги по периметру: у хозяев больше; team1 — слева, team2 — справа
+    const spots = [[6, 'top'], [18, 'top'], [31, 'top'], [69, 'top'], [82, 'top'], [94, 'top'], [10, 'bottom'], [27, 'bottom'], [73, 'bottom'], [90, 'bottom'], [30, 'left'], [70, 'left'], [30, 'right'], [70, 'right']];
+    spots.forEach(([p, edge], i) => {
+        const team1 = edge === 'left' || ((edge === 'top' || edge === 'bottom') && p < 50);
+        const f = document.createElement('i');
+        f.className = 'stand-flag';
+        f.style.setProperty('--c1', team1 ? 'var(--kit1, #2d6fe8)' : 'var(--kit2, #e5323b)');
+        f.style.setProperty('--c2', team1 ? 'var(--kit1b, #fff)' : 'var(--kit2b, #fff)');
+        f.style.animationDelay = `${(i % 5) * -0.11}s`;
+        if (edge === 'top') { f.style.left = `${p}%`; f.style.top = '2px'; }
+        else if (edge === 'bottom') { f.style.left = `${p}%`; f.style.bottom = '2px'; }
+        else { f.style.top = `${p}%`; f.style[edge] = '0px'; f.style.width = '12px'; }
+        st.appendChild(f);
+    });
+}
+
+// Каждую минуту: иногда трибуны запускают волну; в напряжённой концовке — фонарики телефонов
+function crowdAtmosphere(sim) {
+    const st = $('stadium');
+    if (!st || !sim) return;
+    const now = performance.now();
+    if (now - (pitch.lastWave || 0) > 25000 && Math.random() < 0.035 && !sim.isOver) {
+        pitch.lastWave = now;
+        st.classList.remove('crowd-wave'); void st.offsetWidth; st.classList.add('crowd-wave');
+        setTimeout(() => st.classList.remove('crowd-wave'), 3500);
+    }
+    const tense = sim.minute >= 80 && Math.abs(sim.score.t1 - sim.score.t2) <= 1;
+    st.classList.toggle('phone-lights', !sim.isOver && (tense || (sim.match.isFinal && sim.minute >= 75)));
+}
+
+function standsPulse() {
+    const st = $('stadium');
+    if (!st) return;
+    st.classList.remove('pulse'); void st.offsetWidth; st.classList.add('pulse');
+    setTimeout(() => st.classList.remove('pulse'), 2200);
 }
