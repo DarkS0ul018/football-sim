@@ -435,3 +435,22 @@
 .mini-heat { width: 100%; height: auto; display: block; border-radius: 6px; background: #1e5f33; }
 @media (max-width: 520px) { .ht-maps { grid-template-columns: 1fr; } }
 .football-field .player { rotate: calc(var(--cam-rz, 0deg) * -1); }
+
+/* Капитанская повязка */
+.player.captain::after { content: 'C'; position: absolute; top: 9px; left: -3px; width: 10px; height: 10px; border-radius: 50%;
+    background: #facc15; color: #111; font: 800 7px/10px 'Inter', sans-serif; text-align: center; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); z-index: 2; }
+@media (max-width: 600px) { .player.captain::after { width: 8px; height: 8px; font-size: 6px; line-height: 8px; top: 5px; left: -3px; } }
+
+/* Экран тактики: капитан, стандарты, роли */
+.tactics-roles { margin: 12px 0; }
+.tactics-roles > summary { cursor: pointer; }
+.tr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px; margin-top: 12px; }
+.tr-field { display: flex; flex-direction: column; gap: 4px; font-size: 0.8rem; color: var(--text-2); }
+.tr-field select, .tr-role select { width: 100%; min-width: 0; }
+.tr-note { font-size: 0.76rem; margin: 8px 0 12px; }
+.tr-roles { display: grid; gap: 6px; }
+.tr-role { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1.2fr); align-items: center; gap: 4px 8px; padding: 6px 8px; border-radius: 8px; background: rgba(127, 127, 127, 0.06); }
+.tr-role small { grid-column: 2 / -1; font-size: 0.72rem; }
+.tr-name { font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-c { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #facc15; color: #111; font-size: 9px; line-height: 14px; text-align: center; }
+@media (max-width: 560px) { .tr-role { grid-template-columns: 34px minmax(0, 1fr); } .tr-role select { grid-column: 1 / -1; } }

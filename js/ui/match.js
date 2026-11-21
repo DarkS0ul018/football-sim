@@ -350,7 +350,7 @@ function openMatchScreen(match) {
 }
 
 function beginMatch(runner) {
-    $('btn-press')?.remove();
+    $('btn-press')?.remove(); $('btn-locker')?.remove();
     hideMatchPreview();
     setVisible(['btn-sim-match', 'btn-instant-match'], false);
     setMatchInProgress(true);

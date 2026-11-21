@@ -280,6 +280,7 @@ function offerPressConference(m) {
 function afterMatchExtras(m, winner) {
     try { achOnMatch(m, winner); } catch (e) { console.warn(e); }
     offerPressConference(m);
+    offerLockerRoom(m);
 }
 
 // ---------- Обложка тура ----------
@@ -441,3 +442,72 @@ function renderSeasonAwards() {
 
 document.addEventListener('DOMContentLoaded', renderHomeAchievements);
 if (document.readyState !== 'loading') setTimeout(renderHomeAchievements, 0);
+
+// ---------- Раздевалка: после трёх поражений подряд — разговор с командой ----------
+function lossStreak(team) {
+    const form = (team.stats && team.stats.form) || [];
+    let n = 0;
+    for (let i = form.length - 1; i >= 0 && String(form[i])[0] === 'L'; i--) n++;
+    return n;
+}
+
+function offerLockerRoom(m) {
+    $('btn-locker')?.remove();
+    if (!isCareer()) return;
+    const team = humanTeams().find(t => m.involves(t));
+    const next = $('btn-next-match');
+    if (!team || !next) return;
+    const squad = getSquad(team);
+    if (lossStreak(team) < 3 || squad.lockerAt === team.stats.played) return;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.id = 'btn-locker';
+    b.className = 'btn-secondary btn-press btn-locker';
+    b.innerHTML = '<span class="btn-icon">🗣️</span><span class="btn-text">Раздевалка: напряжение</span>';
+    b.onclick = () => openLockerRoom(team);
+    next.parentElement.insertBefore(b, next);
+}
+
+function openLockerRoom(team) {
+    const squad = getSquad(team);
+    const players = getSquadPlayers(team);
+    const capNum = squad.captain != null ? squad.captain : autoCaptain(players);
+    const cap = players.find(p => p.number === capNum);
+    const capMorale = cap ? (squad.players[cap.number].morale ?? MORALE_DEFAULT) : MORALE_DEFAULT;
+    const low = players.filter(p => (squad.players[p.number].morale ?? MORALE_DEFAULT) < 45);
+    const n = lossStreak(team);
+    const bump = (p, v) => { const s = squad.players[p.number]; s.morale = Math.round(Math.max(5, Math.min(100, (s.morale ?? MORALE_DEFAULT) + v))); };
+    const options = [
+        { t: `Дать слово капитану${cap ? ` — ${cap.name}` : ''}`, run: () => {
+            if (capMorale >= 50) { players.forEach(p => bump(p, 4)); if (cap) bump(cap, 3); return `${cap ? cap.name : 'Капитан'} собрал команду: мораль +4 всем.`; }
+            players.forEach(p => bump(p, 1)); if (cap) bump(cap, -3);
+            return `${cap ? cap.name : 'Капитан'} сам подавлен — разговор не получился: мораль +1, у капитана −3.`;
+        } },
+        { t: 'Собрание всей командой: разобрать ошибки вместе', run: () => { players.forEach(p => bump(p, 2)); return 'Спокойный разговор: мораль +2 всем.'; } },
+        { t: 'Жёсткий разнос: кто не готов бороться — сядет в запас', run: () => {
+            low.forEach(p => bump(p, -6));
+            players.filter(p => !low.includes(p)).forEach(p => bump(p, 3));
+            return low.length ? `Недовольные (${low.length}) обиделись: −6; остальные собрались: +3.` : 'Команда восприняла разнос: мораль +3.';
+        } }
+    ];
+    document.querySelector('.press-overlay')?.remove();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay press-overlay';
+    el.innerHTML = `<div class="confirm-box press-box" role="dialog" aria-modal="true">
+        <button type="button" class="pc-close" title="Закрыть">✕</button>
+        <div class="press-head">🗣️ Раздевалка <span class="muted">· ${escapeHtml(team.name)}</span></div>
+        <div class="press-q">${n} ${({ 'матч': 'поражение', 'матча': 'поражения' })[plural5m(n)] || 'поражений'} подряд — в команде напряжение.${low.length ? ` Недовольных: ${low.length}.` : ''} Капитан: ${cap ? escapeHtml(cap.name) : '—'} (настроение ${capMorale}).</div>
+        <div class="press-answers">${options.map((o, k) => `<button type="button" class="press-a" data-k="${k}">${escapeHtml(o.t)}</button>`).join('')}</div>
+    </div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => { if (e.target === el || e.target.closest('.pc-close')) el.remove(); });
+    el.querySelectorAll('.press-a').forEach(b => b.onclick = () => {
+        const res = options[Number(b.dataset.k)].run();
+        squad.lockerAt = team.stats.played;
+        if (typeof pushNews === 'function') pushNews({ tag: 'club', teams: [team], weight: 5, title: `Разговор в раздевалке «${team.name}»`, text: res });
+        saveGame();
+        $('btn-locker')?.remove();
+        el.querySelector('.confirm-box').innerHTML = `<div class="press-head">🗣️ Раздевалка</div><div class="press-result">${escapeHtml(res)}</div><button type="button" class="btn-primary press-done">Готово</button>`;
+        el.querySelector('.press-done').onclick = () => el.remove();
+    });
+}

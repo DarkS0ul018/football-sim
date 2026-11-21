@@ -93,6 +93,7 @@ function renderTactics() {
         .map(p => playerRowHtml(p, { key: `r${p.number}`, selected: sel && sel.key === `r${p.number}` })).join('');
 
     document.querySelectorAll('#screen-tactics .tactics-player').forEach(el => el.onclick = () => onTacticsClick(el.dataset.key));
+    renderRolesCard(team, squad, byNum, slots);
 }
 
 function onTacticsClick(key) {
@@ -184,4 +185,59 @@ function teamMoodHtml(team, opp) {
         return `<span class="tm-side">${t.name}: <span class="tm-morale ${mi.cls}">${mi.icon} ${mi.label.toLowerCase()} мораль</span> ${teamFormHtml(t)}</span>`;
     };
     return `<div class="tactics-mood">${side(team)}${side(opp)}</div>`;
+}
+
+// ----- Капитан, исполнители стандартов и роли игроков стартового состава -----
+function renderRolesCard(team, squad, byNum, slots) {
+    const box = $('tactics-roles');
+    if (!box) return;
+    const xi = squad.lineup.map((num, i) => byNum[num] ? { ...byNum[num], position: slots[i][0], slotY: slots[i][2] } : null).filter(Boolean);
+    if (!xi.length) { box.innerHTML = '<div class="muted">Сначала соберите стартовый состав.</div>'; return; }
+    squad.roles = squad.roles || {};
+    squad.setPieces = squad.setPieces || {};
+    const field = xi.filter(p => p.position !== 'GK');
+    const capNum = squad.captain != null && xi.some(p => p.number === squad.captain) ? squad.captain : autoCaptain(xi);
+    const capAuto = squad.captain == null || !xi.some(p => p.number === squad.captain);
+    const opt = (p, sel, extra = '') => `<option value="${p.number}" ${sel ? 'selected' : ''}>${escapeHtml(p.name)}${extra}</option>`;
+    const sk = (p, k) => playerSkills({ ...p, natPos: p.natPos || p.position })[k];
+    const takerSelect = (kind, label, skillLabel, f) => {
+        const auto = bestTaker(field.map(p => ({ ...p, natPos: p.natPos || p.position })), kind);
+        const cur = squad.setPieces[kind];
+        return `<label class="tr-field"><span>${label}</span><select data-sp="${kind}">
+            <option value="">Авто — ${auto ? escapeHtml(auto.name) : '—'}</option>
+            ${[...field].sort((a, b) => f(b) - f(a)).map(p => opt(p, cur === p.number, ` · ${skillLabel} ${Math.round(f(p))}`)).join('')}
+        </select></label>`;
+    };
+    box.innerHTML = `<div class="tr-grid">
+            <label class="tr-field"><span>©️ Капитан</span><select data-captain>
+                <option value="" ${capAuto ? 'selected' : ''}>Авто — ${escapeHtml((xi.find(p => p.number === capNum) || {}).name || '—')}</option>
+                ${xi.map(p => opt(p, !capAuto && p.number === capNum, p.age ? ` · ${p.age} лет` : '')).join('')}
+            </select></label>
+            ${takerSelect('corner', '⛳ Угловые', 'пас', p => sk(p, 'pas'))}
+            ${takerSelect('freekick', '🎯 Штрафные', 'удар', p => sk(p, 'sho') * 0.6 + sk(p, 'pas') * 0.4)}
+            ${takerSelect('penalty', '⚪ Пенальти', 'удар', p => sk(p, 'sho'))}
+        </div>
+        <div class="tr-note muted">Капитан поднимает команду, когда она проигрывает, а его настроение передаётся раздевалке.</div>
+        <div class="tr-roles">${xi.map(p => {
+            const roles = rolesFor(p.position);
+            const cur = squad.roles[p.number] && roles[squad.roles[p.number]] ? squad.roles[p.number] : '';
+            const auto = autoRole(p, p.slotY);
+            const shown = cur || auto;
+            return `<div class="tr-role"><span class="tp-slot">${p.position}</span><span class="tr-name">${escapeHtml(p.name)}${p.number === capNum ? ' <b class="tr-c">C</b>' : ''}</span>
+                <select data-role="${p.number}" title="${escapeHtml(roles[shown].hint)}">
+                    <option value="">Авто — ${roles[auto].label}</option>
+                    ${Object.entries(roles).map(([k, r]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${r.label}</option>`).join('')}
+                </select><small class="muted">${roles[shown].hint}</small></div>`;
+        }).join('')}</div>`;
+    const capName = (xi.find(p => p.number === capNum) || {}).name;
+    setText('tactics-roles-peek', capName ? `· капитан ${capName}` : '');
+    box.querySelector('[data-captain]').onchange = e => { squad.captain = e.target.value ? Number(e.target.value) : null; renderTactics(); };
+    box.querySelectorAll('[data-sp]').forEach(s => s.onchange = () => {
+        if (s.value) squad.setPieces[s.dataset.sp] = Number(s.value); else delete squad.setPieces[s.dataset.sp];
+        renderTactics();
+    });
+    box.querySelectorAll('[data-role]').forEach(s => s.onchange = () => {
+        if (s.value) squad.roles[s.dataset.role] = s.value; else delete squad.roles[s.dataset.role];
+        renderTactics();
+    });
 }

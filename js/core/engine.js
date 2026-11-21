@@ -261,8 +261,13 @@ class MatchSimulation {
             .slice(0, BENCH_SIZE)
             .map(p => ({ ...p, teamId: team.id, side, yellow: 0 }));
 
+        const inXI = onPitch.length ? onPitch : players;
+        const captain = squad.captain != null && inXI.some(p => p.number === squad.captain) ? squad.captain : autoCaptain(inXI);
         return {
             team, side, onPitch, bench,
+            roles: { ...(squad.roles || {}) },
+            setPieces: { ...(squad.setPieces || {}) },
+            captain,
             style: STYLES[squad.style] ? squad.style : 'balance',
             formation: squad.formation,
             line: LINES[squad.line] ? squad.line : 'mid',
@@ -483,7 +488,14 @@ class MatchSimulation {
         let v = STYLES[s.style].ownFinish + STYLES[opp.style].oppFinish + LINES[opp.line].oppFinish;
         v += (myShape.FWD - 2) * 0.006;                         // больше нападающих в штрафной
         v -= (oppShape.DEF - 4) * 0.012;                        // пятёрка защитников мешает
-        if (s.style === 'counter' && opp.line === 'high') v += 0.03; // контратака за спину высокой линии
+        if (s.style === 'counter' && opp.line === 'high') {
+            v += 0.03; // контратака за спину высокой линии
+            const oppGk = opp.onPitch.find(p => p.position === 'GK');
+            if (oppGk && this.roleOf(oppGk) === 'sweeper') v -= 0.02; // вратарь-чистильщик страхует
+        }
+        // Капитан на поле поднимает команду, когда она уступает
+        const trailing = this.score[SIDE_KEY[side]] < this.score[SIDE_KEY[otherSide(side)]];
+        if (trailing && s.captain != null && s.onPitch.some(p => p.number === s.captain)) v += 0.015;
         return v + this.adviceBonus(side, 'fin') + this.adviceBonus(otherSide(side), 'oppFin');
     }
 
@@ -589,15 +601,19 @@ class MatchSimulation {
         const counter = turnover && Math.random() < (this.sides[side].style === 'counter' ? 0.6 : 0.2) * pace;
         const pre = this.buildChain(side, counter ? 1 : 1 + (Math.random() < 0.5 ? 1 : 0));
         // Защита с хорошим отбором чаще срывает атаку до удара (и наоборот)
-        const roll = clamp(Math.random() + this.lineSkill(otherSide(side), 'DEF', 'tck') * 0.006, 0, 0.9999);
+        // Разрушители и стопперы соперника (сверх одного «обычного») тоже мешают дойти до удара
+        const opp = otherSide(side);
+        const breakers = isRealistic() ? (this.countRole(opp, 'destroyer') + this.countRole(opp, 'stopper') * 0.5 - 1) * 0.012 : 0;
+        const roll = clamp(Math.random() + this.lineSkill(opp, 'DEF', 'tck') * 0.006 + breakers, 0, 0.9999);
         if (roll < 0.42) this.shot(side, 'open', pre, counter);
         else if (roll < 0.60) {
             this.stats.corners[side]++;
             const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
-            const taker = weightedPick(field, p => ({ MID: 3, FWD: 2, DEF: 0.5 })[p.position]);
+            const taker = isRealistic() ? this.setPieceTaker(side, 'corner') : weightedPick(field, p => ({ MID: 3, FWD: 2, DEF: 0.5 })[p.position]);
             this.startPlay(side, 'corner', [...pre, taker]);
             this.log('corner', side, taker ? `Угловой — подаёт ${taker.name}` : 'Угловой', { player: taker });
-            if (Math.random() < 0.35) this.shot(side, 'corner', pre, false, taker);
+            // Качество подачи: пас подающего (лучший по пасу — это «обычный» исполнитель)
+            if (Math.random() < 0.35 * clamp(1 + (skillEdge(taker, 'pas') - 4) * 0.03, 0.8, 1.2)) this.shot(side, 'corner', pre, false, taker);
         } else if (roll < 0.92) {
             const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
             const victim = weightedPick(field, p => ({ FWD: 3, MID: 2, DEF: 0.5 })[p.position]);
@@ -613,8 +629,33 @@ class MatchSimulation {
         const posWeight = kind === 'corner' || kind === 'freekick'
             ? { FWD: 3, MID: 1, DEF: 3 }
             : { FWD: 5, MID: 2.5, DEF: 0.7 };
-        const sk = kind === 'corner' || kind === 'freekick' ? 'hea' : 'sho';
-        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3) * clamp(1 + skillEdge(p, sk) * 0.04, 0.6, 1.4));
+        const setPiece = kind === 'corner' || kind === 'freekick';
+        const sk = setPiece ? 'hea' : 'sho';
+        const fx = setPiece ? ROLE_FX.set : ROLE_FX.open;
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3) * clamp(1 + skillEdge(p, sk) * 0.04, 0.6, 1.4)
+            * (fx[this.roleOf(p)] || 1));
+    }
+
+    // Роль игрока в этом матче (заданная или по навыкам); пересчитывается, если игрок сменил позицию
+    roleOf(p) {
+        if (!isRealistic()) return null;
+        if (p._role && p._rolePos === p.position) return p._role;
+        const s = this.sides[p.side] || this.sides.team1;
+        p._role = playerRole(p, s.roles, p.baseY);
+        p._rolePos = p.position;
+        return p._role;
+    }
+
+    // Исполнитель стандарта: назначенный в составе (если на поле) или лучший по навыку
+    setPieceTaker(side, kind) {
+        const s = this.sides[side];
+        const field = s.onPitch.filter(p => p.position !== 'GK');
+        const want = s.setPieces && s.setPieces[kind];
+        return (want != null && field.find(p => p.number === want)) || bestTaker(field, kind);
+    }
+
+    countRole(side, role) {
+        return this.sides[side].onPitch.filter(p => this.roleOf(p) === role).length;
     }
 
     // Средний навык линии (отклонение от обычного): скорость атаки, отбор защиты
@@ -627,7 +668,8 @@ class MatchSimulation {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p.number !== scorer.number);
         if (!field.length) return null;
         const posWeight = { MID: 4, FWD: 3, DEF: 1.2 };
-        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 2) * clamp(1 + skillEdge(p, 'pas') * 0.04, 0.6, 1.4));
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 2) * clamp(1 + skillEdge(p, 'pas') * 0.04, 0.6, 1.4)
+            * (ROLE_FX.assist[this.roleOf(p)] || 1));
     }
 
     // pre — начало розыгрыша; cornerTaker — кто подавал угловой
@@ -725,7 +767,7 @@ class MatchSimulation {
     freeKick(side) {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
         if (!field.length) return;
-        const taker = [...field].sort((a, b) => (effRating(b) + (b.position === 'MID' ? 3 : 0)) - (effRating(a) + (a.position === 'MID' ? 3 : 0)))[0];
+        const taker = isRealistic() ? this.setPieceTaker(side, 'freekick') : [...field].sort((a, b) => (effRating(b) + (b.position === 'MID' ? 3 : 0)) - (effRating(a) + (a.position === 'MID' ? 3 : 0)))[0];
         const at = { r: Math.round((72 + Math.random() * 10) * 10) / 10, y: Math.round((22 + Math.random() * 56) * 10) / 10 };
         const direct = at.r > 75 && Math.abs(at.y - 50) < 20 && Math.random() < 0.6;
         const gk = this.goalkeeper(otherSide(side));
@@ -735,7 +777,7 @@ class MatchSimulation {
         this.stats.freeKicks[side]++;
         if (!direct) {
             this.log('freekick', side, `Штрафной — навес в штрафную подаёт ${taker.name}`, { player: taker });
-            if (Math.random() < 0.35) this.shot(side, 'freekick', [], false, taker);
+            if (Math.random() < 0.35 * clamp(1 + (skillEdge(taker, 'pas') - 4) * 0.03, 0.8, 1.2)) this.shot(side, 'freekick', [], false, taker);
             else { play.end = { type: 'cleared', fk: true }; this.log('freekick', otherSide(side), 'Защитники выносят мяч после подачи', {}); }
             return;
         }
@@ -744,7 +786,7 @@ class MatchSimulation {
         this.stats.shots[side]++;
         const xg = 0.07;
         this.stats.xg[side] += xg;
-        const pGoal = clamp(0.05 + (effRating(taker) - 80) * 0.004, 0.02, 0.12) * WEATHER[this.weather].goals;
+        const pGoal = clamp(0.05 + (effRating(taker) - 80) * 0.004 + (skillEdge(taker, 'sho') - 4) * 0.004, 0.02, 0.14) * WEATHER[this.weather].goals;
         const u = Math.random();
         const result = u < pGoal ? 'goal' : (u < pGoal + 0.28 ? 'save' : (u < pGoal + 0.55 ? 'wall' : 'off'));
         this.shotLog.push({ side, minute: this.minute, r: at.r, y: at.y, xg, result: result === 'wall' ? 'off' : result, freekick: true,
@@ -769,7 +811,7 @@ class MatchSimulation {
     penaltyKick(side) {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK');
         if (!field.length) return;
-        const taker = [...field].sort((a, b) => effRating(b) - effRating(a) || (a.position === 'FWD' ? -1 : 1))[0];
+        const taker = isRealistic() ? this.setPieceTaker(side, 'penalty') : [...field].sort((a, b) => effRating(b) - effRating(a) || (a.position === 'FWD' ? -1 : 1))[0];
         const gk = this.goalkeeper(otherSide(side));
         this.stats.shots[side]++;
         if (!this.play || this.play.side !== side) this.startPlay(side, 'foul', []);
@@ -778,7 +820,8 @@ class MatchSimulation {
         this.stats.xg[side] += PEN_XG;
         const shotInfo = { side, minute: this.minute, r: 89.5, y: 50, xg: PEN_XG, result: "pen-miss", penalty: true, player: taker.number, name: taker.name, keeper: gk ? gk.number : null };
         this.shotLog.push(shotInfo);
-        if (Math.random() < clamp(0.76 + (effRating(taker) - effRating(gk)) * 0.005, 0.6, 0.9)) {
+        const penSkill = (skillEdge(taker, 'sho') - 4) * 0.006 - skillEdge(gk, 'ref') * 0.006;
+        if (Math.random() < clamp(0.76 + (effRating(taker) - effRating(gk)) * 0.005 + penSkill, 0.6, 0.92)) {
             this.stats.shotsOnTarget[side]++;
             shotInfo.result = 'pen-goal';
             play.end = { ...(play.end || {}), type: 'penalty-goal', taker: taker.number };
@@ -1014,6 +1057,7 @@ class MatchSimulation {
                 motm: motm && motm.side === side ? motm.number : null,
                 injuries: s.injured
             });
+            if (isRealistic()) captainInfluence(getSquad(s.team), s.captain); // настроение капитана — всей раздевалке
         });
         this.match.currentLeg = this.match.legs === 2 && this.leg === 1 ? 2 : this.leg;
         try { newsFromSim(this); } catch (e) { /* новости не должны ломать матч */ }

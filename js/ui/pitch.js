@@ -42,7 +42,7 @@ function renderPlayers(sim) {
     ['team1', 'team2'].forEach(side => {
         sim.sides[side].onPitch.forEach((p, i) => {
             const el = document.createElement('div');
-            el.className = `player ${side} ${p.position === 'GK' ? 'goalkeeper' : ''}`;
+            el.className = `player ${side} ${p.position === "GK" ? "goalkeeper" : ""} ${sim.sides[side].captain === p.number ? "captain" : ""}`;
             el.style.cssText = `left:${p.x}%;top:${p.y}%;z-index:${10 + i};transition:none;--face:${side === 'team2' ? -1 : 1}`;
             el.innerHTML = playerInnerHtml(p.number, p.name.split(' ').slice(-1)[0]);
             el.id = playerElId(p);
@@ -192,7 +192,8 @@ function computeTargets() {
                 const role = roleOf(p, side); // роль заново: схема могла смениться
                 const bx = rel(side, p.baseX);
                 if (role === 'GK') {
-                    p.tx = abs(side, 5 + (s.line === 'high' ? 7 : 3) + (ballRel > 60 ? 4 : 0));
+                    const sweeper = sim.roleOf && sim.roleOf(p) === 'sweeper';
+                    p.tx = abs(side, 5 + (s.line === 'high' ? 7 : 3) + (ballRel > 60 ? 4 : 0) + (sweeper ? 6 : 0));
                     p.ty = 50 + (f.y - 50) * 0.15;
                     return;
                 }
@@ -202,6 +203,14 @@ function computeTargets() {
                 x = Math.min(x, r.max, role === 'ST' ? 95 : ballRel + 28);
                 if (ballRel < oppLine) x = Math.min(x, oppLine + 1); // не уходить в офсайд, пока мяч перед линией обороны
                 let y = 50 + (p.baseY - 50) * r.wa + (f.y - 50) * 0.22;
+                // Роль игрока (роли — в js/core/roles.js): кто подключается, кто держится позади, кто смещается в центр
+                const pr = sim.roleOf ? sim.roleOf(p) : null;
+                if (pr === 'fb') x = Math.min(x + 8, 88);
+                else if (pr === 'destroyer') x -= 8;
+                else if (pr === 'box') x = Math.min(x + 5, 88);
+                else if (pr === 'false9') x -= 10;
+                else if (pr === 'inverted') { y = 50 + (y - 50) * 0.55; x += 2; }
+                else if (pr === 'poacher' || pr === 'target') y = 50 + (y - 50) * 0.75;
                 p.tx = abs(side, clampv(x + (p.jx || 0), 3, 96));
                 p.ty = clampv(y + (p.jy || 0), 4, 96);
             });
@@ -216,7 +225,8 @@ function computeTargets() {
                     return;
                 }
                 const r = ROLE[role];
-                const x = line + (bx - 19) * 0.62;
+                const pr = sim.roleOf ? sim.roleOf(p) : null;
+                const x = line + (bx - 19) * 0.62 + (pr === 'stopper' ? 3 : 0) + (pr === 'destroyer' ? -2 : 0);
                 const y = 50 + (p.baseY - 50) * r.wd + (f.y - 50) * 0.42;
                 p.tx = abs(side, clampv(x + (p.jx || 0) * 0.5, 3, 96));
                 p.ty = clampv(y + (p.jy || 0) * 0.5, 4, 96);
