@@ -70,6 +70,12 @@ function renderField(sim) {
     const shadow = document.createElement('div');
     shadow.className = 'ball-shadow';
     shadow.id = 'ball-shadow';
+    pitch.moments = [];
+    field.querySelector('.tv-bug')?.remove();
+    const bug = document.createElement('div');
+    bug.className = 'tv-bug';
+    bug.id = 'tv-bug';
+    field.appendChild(bug);
     field.appendChild(shadow);
     ball.style.transition = 'none';
     field.appendChild(ball);
@@ -511,6 +517,8 @@ function animateMinute(sim, events, ms, span = 1) {
                 highlightPlayer(null);
             }
             recordFrame(pitch.holder);
+            // Опасный момент без гола (сейв, мимо при большом xG) — в ленту с кнопкой повтора
+            if ((w.save || w.miss) && end && (end.xg >= 0.25 || String(end.type) === 'penalty-miss')) addMoment(sim, end, side, pitch.recording.slice());
             if (w.goal) {
                 const ev = goalEv || events.find(e => e.type === 'goal');
                 if (ev) {
@@ -540,6 +548,7 @@ function onGoalAnimation(sim, ev) {
     goalEl?.classList.add('net-shake');
     setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
     showGoalBanner(ev);
+    showGoalSplash(sim, ev);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
     // Розыгрыш с центра: команды расходятся по своим половинам
@@ -562,6 +571,13 @@ let replayRunning = false;
 
 function replayLastGoal() {
     const g = pitch.lastGoal;
+    if (g) replayFrames(g.frames, `${g.ev.minute}' · ${g.ev.player ? g.ev.player.name : ''}`, g.ev.side, true);
+}
+
+// Повтор любого момента: кадры атаки в замедлении (гол — с сеткой и рёвом трибун)
+function replayFrames(frames, label, side, isGoal) {
+    const g = { frames, ev: { side } };
+
     if (!g || !g.frames || replayRunning) return;
     replayRunning = true;
     const resume = pauseForReplay();               // ставим живой матч на паузу (match.js)
@@ -570,7 +586,7 @@ function replayLastGoal() {
 
     const badge = document.createElement('div');
     badge.className = 'replay-badge';
-    badge.innerHTML = `<span>ПОВТОР</span> ${g.ev.minute}' · ${g.ev.player ? g.ev.player.name : ''}`;
+    badge.innerHTML = `<span>ПОВТОР</span> ${label}`;
     field.appendChild(badge);
     field.classList.add('replaying');
 
@@ -591,8 +607,8 @@ function replayLastGoal() {
     const end = 400 + seg * (g.frames.length - 1);
     setTimeout(() => {
         const goalEl = field.querySelector(g.ev.side === 'team1' ? '.goal-right' : '.goal-left');
-        goalEl?.classList.add('net-shake');
-        playSound('goal');
+        if (isGoal) goalEl?.classList.add('net-shake');
+        if (isGoal) playSound('goal'); else playSound('save');
         setTimeout(() => goalEl?.classList.remove('net-shake'), 700);
     }, end);
 
@@ -715,3 +731,64 @@ function applyVenue(sim) {
     sim.venue = { ...v, crowd };
     return sim.venue;
 }
+
+// ===== Опасные моменты: в ленте — карточка с повтором =====
+pitch.moments = [];
+
+function addMoment(sim, end, side, frames) {
+    if (!frames || frames.length < 2 || !state.activeMatch) return;
+    const team = sim.sides[side].team;
+    const shooter = sim.sides[side].onPitch.concat(sim.sides[side].subbedOff || []).find(p => p.number === (end.shooter ?? end.taker));
+    const kind = end.type === 'save' ? 'Сейв' : (String(end.type) === 'penalty-miss' ? 'Нереализованный пенальти' : 'Опасный момент');
+    const id = pitch.moments.length;
+    pitch.moments.push({ frames, side, label: `${sim.minute}' · ${shooter ? shooter.name : team.name}` });
+    const list = $('events-list');
+    if (!list) return;
+    const el = document.createElement('div');
+    el.className = 'event-item moment';
+    el.innerHTML = `<span class="event-time">${sim.minute}'</span><span class="event-icon">🎬</span><span class="event-team">${crestHtml(team, 'xs')}</span>
+        <span class="event-text">${kind}${shooter ? ': ' + escapeHtml(shooter.name) : ''}${end.xg ? ` <small class="muted">xG ${end.xg.toFixed(2)}</small>` : ''}
+        <button type="button" class="moment-replay">▶ Повтор</button></span>`;
+    el.querySelector('.moment-replay').onclick = () => { const mo = pitch.moments[id]; if (mo) replayFrames(mo.frames, mo.label, mo.side, false); };
+    setTimeout(() => list.prepend(el), 400);
+}
+
+// ===== ТВ-табло в углу поля =====
+function updateTvBug() {
+    const bug = $('tv-bug');
+    const sim = pitch.sim;
+    if (!bug || !sim) return;
+    const m = sim.match;
+    const kits = typeof getMatchKits === 'function' ? getMatchKits(m) : {};
+    const t1 = $('score-1') ? $('score-1').textContent : sim.score.t1;
+    const t2 = $('score-2') ? $('score-2').textContent : sim.score.t2;
+    bug.innerHTML = `<span class="tvb-team" style="--kit:${(kits.team1 || {}).primary || '#fff'}">${teamShort(m.team1.name)}</span>
+        <span class="tvb-score">${t1}–${t2}</span>
+        <span class="tvb-team" style="--kit:${(kits.team2 || {}).primary || '#fff'}">${teamShort(m.team2.name)}</span>
+        <span class="tvb-time">${$('match-time') ? $('match-time').textContent : ''}</span>`;
+}
+
+// ===== Заставка гола поверх поля =====
+function showGoalSplash(sim, ev) {
+    const field = $('football-field');
+    if (!field || !ev || !ev.player) return;
+    const kits = typeof getMatchKits === 'function' ? getMatchKits(sim.match) : {};
+    const kit = kits[ev.side] || {};
+    field.querySelector('.goal-splash')?.remove();
+    const el = document.createElement('div');
+    el.className = 'goal-splash';
+    el.style.setProperty('--k1', kit.primary || '#b8f24a');
+    el.style.setProperty('--k2', kit.secondary || '#0b1220');
+    el.innerHTML = `<div class="gs-word">ГОЛ!</div>
+        <div class="gs-card">${crestHtml(ev.team, 'md')}<div><b>${escapeHtml(ev.player.name)}</b>
+        <small>${ev.minute}'${ev.assister ? ` · ${assistLabel(ev.setPiece)}: ${escapeHtml(ev.assister.name)}` : ''}${/пенальти/.test(ev.text) ? ' · пенальти' : ''}</small></div>
+        <span class="gs-num">${ev.player.number}</span></div>`;
+    field.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+}
+
+// Табло в углу поля следит за счётом и временем
+(function watchScoreForTvBug() {
+    const obs = new MutationObserver(() => updateTvBug());
+    ['match-time', 'score-1', 'score-2'].forEach(id => { const el = $(id); if (el) obs.observe(el, { childList: true, characterData: true, subtree: true }); });
+})();
