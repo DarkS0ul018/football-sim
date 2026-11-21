@@ -324,6 +324,7 @@ function openMatchScreen(match) {
 }
 
 function beginMatch(runner) {
+    $('btn-press')?.remove();
     hideMatchPreview();
     setVisible(['btn-sim-match', 'btn-instant-match'], false);
     setMatchInProgress(true);
@@ -334,6 +335,7 @@ function beginMatch(runner) {
 function startSimulation(m) {
     let sim = currentSim;
     pitch.livePenalty = true; // пенальти — крупным планом (см. showPenaltyMoment)
+    achCount('live');
     playSound('whistle-long');
     startCrowd();
     commentKickoff(m, sim);
@@ -564,6 +566,7 @@ function finishMatch(m, winner) {
             : `<span class="btn-icon">➡️</span><span class="btn-text">${toPlayoff ? 'К плей-офф' : 'Следующий раунд'}</span>`;
         btn.onclick = goToNextStage;
     }
+    afterMatchExtras(m, winner); // достижения и пресс-конференция (awards.js)
 }
 
 function initMatchScreen() {
@@ -713,6 +716,7 @@ function offerAnalystHint(sim) {
         if (currentSim !== sim || sim.isOver) { close(); return; }
         sim.newEvents = [];
         sim.applyAdvice(side, hint);
+        achCount('hints');
         if (hint.apply.style) getSquad(s.team).style = hint.apply.style;
         sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
         renderLineups(sim);

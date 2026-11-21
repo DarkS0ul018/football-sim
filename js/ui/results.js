@@ -1,23 +1,5 @@
 // ===== ЭКРАН РЕЗУЛЬТАТОВ: путь к победе, награды, достижения =====
 
-const achievements = [
-    { title: 'Первый гол', desc: 'Забейте первый гол', icon: '⚽', check: () => Object.values(playerStats).some(p => p.goals >= 1) },
-    { title: 'Хет-трик', desc: '3+ гола игроком', icon: '🎯', check: () => Object.values(playerStats).some(p => p.goals >= 3) },
-    { title: '5 побед', desc: '5 побед за турнир', icon: '🔥', check: () => isCareer() && !!state.userTeam && state.userTeam.stats.won >= 5 },
-    { title: 'Чемпион!', desc: 'Выиграйте турнир в карьере', icon: '🏆', check: () => isCareer() && !!(state.champion && state.userTeam && state.champion.id === state.userTeam.id) }
-];
-
-function renderAchievements() {
-    $('achievements-list').innerHTML = achievements.map(a => {
-        const unlocked = a.check();
-        return `<div class="achievement-card ${unlocked ? 'unlocked' : 'locked'}">
-            <span class="achievement-icon">${a.icon}</span>
-            <div class="achievement-title">${a.title}</div>
-            <div class="achievement-desc">${a.desc}</div>
-            ${unlocked ? '<div class="achievement-progress">✅</div>' : ''}
-        </div>`;
-    }).join('');
-}
 
 function calculateTournamentAwards() {
     const players = Object.values(playerStats);
@@ -217,6 +199,8 @@ function showResults(champion) {
 
     renderFullScorers();
     renderTournamentAwards();
+    renderSeasonAwards();
+    achOnTournament(champion);
     renderAchievements();
     showScreen('results');
 }

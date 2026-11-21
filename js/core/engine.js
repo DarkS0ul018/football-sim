@@ -799,7 +799,7 @@ class MatchSimulation {
         m.reds = (m.reds || []).filter(r => r.leg !== leg);
         m.motms = (m.motms || []).filter(x => x.leg !== leg);
         this.events.forEach(e => {
-            if (e.type === 'goal') m.goals.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '', a: e.assister ? e.assister.name : null, pen: /пенальти/.test(e.text), sp: e.setPiece || null });
+            if (e.type === 'goal') m.goals.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '', a: e.assister ? e.assister.name : null, pen: /пенальти/.test(e.text), sp: e.setPiece || null, xg: e.xg != null ? Math.round(e.xg * 100) / 100 : null });
             if (e.type === 'card-red') m.reds.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '' });
         });
         if (motm) m.motms.push({ leg, s: side(motm.side), p: motm.name, r: motm.rating });

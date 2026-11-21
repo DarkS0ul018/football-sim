@@ -32,6 +32,7 @@ function renderDashboard() {
     else renderGroupTables();
 
     renderNews();
+    renderRoundCover();
     renderTopScorers();
     renderMatchesList(isPlayoff);
     renderNextRoundButton();
