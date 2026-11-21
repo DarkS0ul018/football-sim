@@ -241,3 +241,55 @@
 .home-tile.recent { box-shadow: 0 0 0 2px var(--accent), 0 12px 32px rgba(0, 0, 0, 0.4); }
 .ht-recent { position: absolute; top: 14px; right: 54px; padding: 3px 8px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; background: var(--accent); color: var(--accent-ink); }
 @media (prefers-reduced-motion: reduce) { .home-tile::before { animation: none; display: none; } }
+
+/* ===== Игрок-фигурка ===== */
+.player { width: 26px; height: 35px; margin: -28px 0 0 -13px; border: none !important; border-radius: 0; background: none !important; box-shadow: none !important;
+    --shirt: #4fa8ff; --shorts: #ffffff; --num: #fff; --skin: #e5bd96; --hair: #3a2a1f; }
+.player.team1 { --shirt: var(--kit1, #4fa8ff); --shorts: var(--kit1b, #fff); --num: var(--kit1t, #fff); }
+.player.team2 { --shirt: var(--kit2, #ff3b55); --shorts: var(--kit2b, #fff); --num: var(--kit2t, #fff); }
+.player.team1.goalkeeper { --shirt: #a3e635; --shorts: #111827; --num: #0b1220; }
+.player.team2.goalkeeper { --shirt: #f472b6; --shorts: #111827; --num: #0b1220; }
+.player.goalkeeper { width: 26px; height: 35px; margin: -28px 0 0 -13px; }
+.player-fig { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: scaleX(var(--face, 1)); transition: transform 0.18s; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.pf-shadow { fill: rgba(0, 0, 0, 0.35); }
+.pf-shirt { fill: var(--shirt); stroke: rgba(0, 0, 0, 0.45); stroke-width: 0.6; }
+.pf-shorts { fill: var(--shorts); stroke: rgba(0, 0, 0, 0.4); stroke-width: 0.5; }
+.pf-leg { stroke: var(--shirt); stroke-width: 2.6; stroke-linecap: round; filter: brightness(0.8); }
+.pf-head { fill: var(--skin); stroke: rgba(0, 0, 0, 0.35); stroke-width: 0.5; }
+.pf-hair { fill: var(--hair); }
+.pf-leg-l { transform-origin: 8.6px 21.5px; } .pf-leg-r { transform-origin: 13.4px 21.5px; }
+.player.running .pf-leg-l { animation: legSwing 0.32s ease-in-out infinite alternate; }
+.player.running .pf-leg-r { animation: legSwing 0.32s ease-in-out infinite alternate-reverse; }
+@keyframes legSwing { from { transform: rotate(-24deg); } to { transform: rotate(24deg); } }
+.player .player-num { position: absolute; left: 0; right: 0; top: 11px; z-index: 2; text-align: center; font-size: 10px; line-height: 11px; color: var(--num); font-weight: 700; pointer-events: none; }
+.player.running .player-num { animation: none; }
+.player.running .player-fig { animation: figBob 0.32s ease-in-out infinite alternate; }
+@keyframes figBob { from { translate: 0 0; } to { translate: 0 -1px; } }
+.player .player-name { top: 100%; margin-top: 1px; }
+/* Мяч у игрока — светящееся кольцо под ногами */
+.player.has-ball::before { content: ''; position: absolute; left: 50%; bottom: -2px; width: 20px; height: 7px; margin-left: -10px; border-radius: 50%;
+    border: 2px solid var(--accent); box-shadow: 0 0 8px var(--accent); }
+@media (max-width: 760px) {
+    .player, .player.goalkeeper { width: 16px; height: 22px; margin: -18px 0 0 -8px; }
+    .player .player-num { top: 7px; font-size: 6.5px; line-height: 7px; }
+}
+@media (prefers-reduced-motion: reduce) { .player.running .pf-leg-l, .player.running .pf-leg-r, .player.running .player-fig { animation: none; } }
+
+/* Соперники после пропущенного гола */
+.player.dejected .player-fig { filter: saturate(0.55) brightness(0.85) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); translate: 0 1px; }
+/* Карточка от судьи над игроком */
+.card-pop { position: absolute; left: 50%; top: -20px; width: 10px; height: 14px; margin-left: -5px; border-radius: 2px; z-index: 5;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); animation: cardPop 1.9s ease-out both; }
+.card-pop.yellow { background: #ffd400; } .card-pop.red { background: #e8202a; }
+@keyframes cardPop { 0% { transform: translateY(8px) scale(0.2) rotate(-20deg); opacity: 0; } 15% { transform: translateY(0) scale(1.25) rotate(8deg); opacity: 1; }
+    30% { transform: scale(1) rotate(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+/* Табло замены у бровки */
+.sub-board { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); z-index: 36; display: flex; align-items: center; gap: 8px; padding: 6px 12px;
+    border-radius: 6px; background: #0b0f1a; border: 2px solid #2a3550; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); animation: subIn 2.4s ease-out both; pointer-events: none; }
+.sub-board span { font-family: 'Courier New', monospace; font-weight: 700; font-size: 20px; letter-spacing: 1px; }
+.sb-out { color: #ff4b4b; text-shadow: 0 0 6px rgba(255, 75, 75, 0.8); }
+.sb-in { color: #4bff86; text-shadow: 0 0 6px rgba(75, 255, 134, 0.8); }
+.sb-arrows { color: #fff !important; font-size: 14px !important; }
+.sub-board small { color: rgba(255, 255, 255, 0.75); font-size: 11px; }
+@keyframes subIn { 0% { opacity: 0; transform: translate(-50%, 16px); } 10% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; } 100% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .card-pop, .sub-board { animation: none; } }

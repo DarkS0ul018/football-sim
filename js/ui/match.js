@@ -354,6 +354,8 @@ function startSimulation(m) {
         events.forEach(ev => {
             if (ev.lineupChanged) lineupChanged = true;
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
+            if (ev.type === 'card-red' || ev.type === 'card-yellow') later(() => showCardAnim(ev), ms * 0.7);
+            if (ev.type === 'substitution') later(() => showSubBoard(ev), 50);
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
         if (lineupChanged || sim.minute % 5 === 0 || events.some(e => e.type === 'card-yellow' || e.type === 'tactic' || e.type === 'card-red')) renderLineups(sim); // оценки обновляются раз в 5 минут
@@ -664,4 +666,19 @@ function legBreakHtml(m, sim) {
     const home2 = m.team2;
     return `<div class="il-kicker">1-й матч завершён</div>${scoreHeadHtml(m, m.leg1.t1, m.leg1.t2, 'первая игра')}${goalsListHtml(sim)}
         <div class="il-text">Ответный матч — на поле «${escapeHtml(home2.name)}». По сумме двух игр: ${m.leg1.t1}:${m.leg1.t2}.</div>`;
+}
+
+// Празднование гола: живой матч ждёт, пока игроки радуются (пауза пользователя и заставки важнее)
+let celebrating = false;
+function holdForCelebration(ms) {
+    if (!simStep || interludeOn || celebrating) return;
+    celebrating = true;
+    clearInterval(simulationInterval);
+    setTimeout(() => {
+        celebrating = false;
+        if (simStep && !isPaused && !interludeOn) {
+            clearInterval(simulationInterval);
+            simulationInterval = setInterval(simStep, getMatchInterval());
+        }
+    }, ms);
 }

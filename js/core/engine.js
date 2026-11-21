@@ -858,7 +858,7 @@ class MatchSimulation {
         s.subsUsed++;
         s.appeared.add(fresh.number);
         this.stats.substitutions[side].push({ out: out.name, in: fresh.name, minute: this.minute });
-        this.log('substitution', side, `Замена${reason ? ' (' + reason + ')' : ''}: ${out.name} → ${fresh.name}`, { lineupChanged: true });
+        this.log('substitution', side, `Замена${reason ? ' (' + reason + ')' : ''}: ${out.name} → ${fresh.name}`, { lineupChanged: true, out: { number: out.number, name: out.name }, sub: { number: fresh.number, name: fresh.name } });
         return true;
     }
 

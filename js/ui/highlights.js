@@ -96,7 +96,7 @@ function addTempPlayers(frame) {
         el.className = `player ${p.s} ${p.gk ? 'goalkeeper' : ''} reel-temp`;
         el.id = p.id;
         el.style.cssText = `left:${p.x}%;top:${p.y}%;transition:none`;
-        el.innerHTML = `<span class="player-num">${p.n}</span><span class="player-name">${p.nm}</span>`;
+        el.innerHTML = playerInnerHtml(p.n, p.nm);
         field.appendChild(el);
     });
 }

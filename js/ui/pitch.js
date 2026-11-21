@@ -43,12 +43,13 @@ function renderPlayers(sim) {
         sim.sides[side].onPitch.forEach((p, i) => {
             const el = document.createElement('div');
             el.className = `player ${side} ${p.position === 'GK' ? 'goalkeeper' : ''}`;
-            el.style.cssText = `left:${p.x}%;top:${p.y}%;z-index:${10 + i};transition:none`;
-            el.innerHTML = `<span class="player-num">${p.number}</span><span class="player-name">${p.name.split(' ').slice(-1)[0]}</span>`;
+            el.style.cssText = `left:${p.x}%;top:${p.y}%;z-index:${10 + i};transition:none;--face:${side === 'team2' ? -1 : 1}`;
+            el.innerHTML = playerInnerHtml(p.number, p.name.split(' ').slice(-1)[0]);
             el.id = playerElId(p);
             el.title = `${p.name} · ${p.position} · ${p.rating}`;
             field.appendChild(el);
             p.el = el;
+            p._face = undefined; p._run = undefined; // новый элемент — состояние анимации заново
         });
     });
 }
@@ -310,6 +311,9 @@ function stepPlayers(dt) {
             el.style.left = `${p.x}%`; el.style.top = `${p.y}%`;
             const run = Math.hypot(p.vx, p.vy) > 8;
             if (run !== p._run) { p._run = run; el.classList.toggle('running', run); }
+            // Разворот фигурки по направлению бега (стоя — лицом к воротам соперника)
+            const face = Math.abs(p.vx) > 1.5 ? (p.vx > 0 ? 1 : -1) : (p.side === 'team2' ? -1 : 1);
+            if (face !== p._face) { p._face = face; el.style.setProperty('--face', face); }
         }
     }));
 }
@@ -551,6 +555,12 @@ function onGoalAnimation(sim, ev) {
     showGoalSplash(sim, ev);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
+    // В живом матче — празднование: автор бежит к угловому флажку, партнёры — к нему
+    const cel = pitch.livePenalty ? Math.max(1400, Math.min(2600, (pitch.msPerMinute || 1000) * 2.2)) : 0;
+    if (cel) {
+        startCelebration(sim, ev, cel);
+        if (typeof holdForCelebration === 'function') holdForCelebration(cel);
+    }
     // Розыгрыш с центра: команды расходятся по своим половинам
     // (если к этому моменту уже началась следующая атака — не трогаем её: иначе её гол потеряется)
     const token = pitch.pathToken;
@@ -562,7 +572,45 @@ function onGoalAnimation(sim, ev) {
         placeBall(50, 50);
         pitch.focus = { x: 50, y: 50 };
         highlightPlayer(null);
-    }, Math.min(900, pitch.msPerMinute));
+    }, cel ? cel - 250 : Math.min(900, pitch.msPerMinute));
+}
+
+function startCelebration(sim, ev, ms) {
+    if (!ev.player || !pitch.overrides) return;
+    const side = ev.side, opp = otherSide(side);
+    const team = sim.sides[side].onPitch, foes = sim.sides[opp].onPitch;
+    const scorer = team.find(p => p.number === ev.player.number);
+    if (!scorer) return;
+    const flag = { x: abs(side, 96.5), y: scorer.y < 50 ? 5 : 95 };
+    pitch.overrides.set(scorer, flag);
+    team.filter(p => p !== scorer && p.position !== 'GK')
+        .sort((a, b) => Math.hypot(a.x - scorer.x, a.y - scorer.y) - Math.hypot(b.x - scorer.x, b.y - scorer.y))
+        .slice(0, 4).forEach(p => pitch.overrides.set(p, { follow: scorer }));
+    foes.forEach(p => { if (p.el) p.el.classList.add('dejected'); });
+    setTimeout(() => foes.forEach(p => { if (p.el) p.el.classList.remove('dejected'); }), ms);
+}
+
+// ===== Карточка от судьи и табло замены =====
+function showCardAnim(ev) {
+    if (!ev.player) return;
+    const el = $(playerElId(ev.player));
+    if (!el) return;
+    const card = document.createElement('span');
+    card.className = `card-pop ${ev.type === 'card-red' ? 'red' : 'yellow'}`;
+    el.appendChild(card);
+    setTimeout(() => card.remove(), 1900);
+}
+
+function showSubBoard(ev) {
+    const field = $('football-field');
+    if (!field || !ev.out || !ev.sub) return;
+    field.querySelector('.sub-board')?.remove();
+    const el = document.createElement('div');
+    el.className = `sub-board ${ev.side}`;
+    el.innerHTML = `<span class="sb-out">${ev.out.number}</span><span class="sb-arrows">⇄</span><span class="sb-in">${ev.sub.number}</span>
+        <small>${escapeHtml(shortName(ev.out.name))} → ${escapeHtml(shortName(ev.sub.name))}</small>`;
+    field.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
 }
 
 // ----- Повтор гола в замедлении -----
@@ -792,3 +840,19 @@ function showGoalSplash(sim, ev) {
     const obs = new MutationObserver(() => updateTvBug());
     ['match-time', 'score-1', 'score-2'].forEach(id => { const el = $(id); if (el) obs.observe(el, { childList: true, characterData: true, subtree: true }); });
 })();
+
+// ===== Фигурка игрока: голова, футболка цвета формы, шорты, ноги (на бегу — шаг) =====
+// Цвета — из CSS-переменных команды (--shirt, --shorts), разворот по направлению бега — --face
+const PLAYER_FIGURE = `<svg class="player-fig" viewBox="0 0 22 30" aria-hidden="true">
+    <ellipse class="pf-shadow" cx="11" cy="28.6" rx="6" ry="1.4"/>
+    <path class="pf-leg pf-leg-l" d="M8.6 21.5 L8 27.6"/>
+    <path class="pf-leg pf-leg-r" d="M13.4 21.5 L14 27.6"/>
+    <rect class="pf-shorts" x="6.2" y="17.2" width="9.6" height="5" rx="1.3"/>
+    <path class="pf-shirt" d="M6.3 8.6 Q11 7.1 15.7 8.6 L18.8 11.8 L16.9 13.9 L15.9 12.7 V18.2 H6.1 V12.7 L5.1 13.9 L3.2 11.8 Z"/>
+    <circle class="pf-head" cx="11" cy="4.7" r="3.4"/>
+    <path class="pf-hair" d="M7.6 4.3 A3.4 3.4 0 0 1 14.4 4.3 Q11 2.7 7.6 4.3 Z"/>
+</svg>`;
+
+function playerInnerHtml(number, shortName) {
+    return `${PLAYER_FIGURE}<span class="player-num">${number}</span><span class="player-name">${shortName}</span>`;
+}
