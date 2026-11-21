@@ -126,6 +126,7 @@ function getTeamsData(teamType) {
     const euro = filterTeams(worldTeams, n => !NON_EUROPEAN_CLUBS.has(n));
     const rpl = filterTeams(russianTeams, n => !FNL_CLUBS.has(n));
     if (teamType === 'mixed') return { names: [...rpl.names, ...euro.names], emojis: [...rpl.emojis, ...euro.emojis] };
+    if (teamType === 'legends' && typeof legendTeamsData === 'function') return legendTeamsData(); // ретро-сезоны (js/data/legends.js)
     if (teamType === 'clubwc') return worldTeams;
     if (teamType === 'fnl') return filterTeams(russianTeams, n => FNL_CLUBS.has(n));
     if (teamType === 'rusall') return russianTeams;  // РПЛ + Первая лига (Кубок России)

@@ -14,6 +14,8 @@ const ACH_LIST = [
     { id: 'hattrick', group: 'match', icon: '🎩', title: 'Хет-трик', desc: 'Ваш игрок забил три мяча за матч' },
     { id: 'shootout', group: 'match', icon: '🧊', title: 'Нервы из стали', desc: 'Выиграйте серию пенальти' },
     { id: 'clean5', group: 'match', icon: '🧤', title: 'Сухарь', desc: '5 матчей на ноль', goal: 5, counter: 'clean' },
+    { id: 'derby5', group: 'match', icon: '🔥', title: 'Король дерби', desc: 'Выиграйте 5 дерби своей командой', goal: 5, counter: 'derbyWins' },
+    { id: 'legends', group: 'trophy', icon: '🏛️', title: 'Легенда среди легенд', desc: 'Выиграйте Турнир легенд своей командой' },
     { id: 'press1', group: 'coach', icon: '🎤', title: 'Первая пресс-конференция', desc: 'Ответьте журналистам после матча' },
     { id: 'press10', group: 'coach', icon: '📺', title: 'Любимец прессы', desc: '10 пресс-конференций', goal: 10, counter: 'press' },
     { id: 'hint1', group: 'coach', icon: '📊', title: 'Слушай аналитика', desc: 'Примените подсказку аналитика по ходу матча' },
@@ -68,6 +70,7 @@ function achOnMatch(m, winner) {
         if (my) achCount('goals', my);
         if (!their) achCount('clean');
         if (won) { achCount('wins'); unlockAch('first_win'); }
+        if (won && typeof derbyTitle === 'function' && derbyTitle(m.team1, m.team2)) achCount('derbyWins');
         if (won && my - their >= 5) unlockAch('rout');
         if (won && m.penalties && m.penalties.kicks && m.penalties.kicks.length) unlockAch('shootout');
         // По ходу матча: уступали, а победили; победный гол в концовке
@@ -90,6 +93,7 @@ function achOnTournament(champion) {
         unlockAch('champ');
         if (state.settings.teamType === 'ucl' || /Лига чемпионов/.test(state.settings.title || '')) unlockAch('champ_ucl');
         if (getTeamOrigin(champion.name) === 'national') unlockAch('champ_nat');
+        if (state.settings.teamType === 'legends') unlockAch('legends');
     }
     if (state.settings.mode === 'league') humanTeams().forEach(x => { if (x.stats.played >= 10 && x.stats.lost === 0) unlockAch('invincible'); });
 }
@@ -129,8 +133,11 @@ function openAchievements() {
 function renderHomeAchievements() {
     const host = $('home-ach');
     if (!host) return;
-    host.innerHTML = `<button type="button" class="home-ach-btn"><span class="ach-icon">🏅</span><span><b>Достижения</b><small class="muted">${achSummary()} открыто</small></span><span class="home-ach-go">→</span></button>`;
-    host.querySelector('button').onclick = openAchievements;
+    const clubs = typeof museumClubs === 'function' ? museumClubs() : [];
+    host.innerHTML = `<button type="button" class="home-ach-btn" data-open="ach"><span class="ach-icon">🏅</span><span><b>Достижения</b><small class="muted">${achSummary()} открыто</small></span><span class="home-ach-go">→</span></button>
+        <button type="button" class="home-ach-btn" data-open="museum"><span class="ach-icon">🏛️</span><span><b>Музей клуба</b><small class="muted">${clubs.length ? `${clubs.length} ${clubs.length === 1 ? 'клуб' : 'клуба(ов)'} · трофеи и легенды` : 'трофеи, рекорды и легенды вашей карьеры'}</small></span><span class="home-ach-go">→</span></button>`;
+    host.querySelector('[data-open="ach"]').onclick = openAchievements;
+    host.querySelector('[data-open="museum"]').onclick = () => openMuseum();
 }
 
 // Заменяет старые четыре значка на экране итогов
@@ -509,5 +516,113 @@ function openLockerRoom(team) {
         $('btn-locker')?.remove();
         el.querySelector('.confirm-box').innerHTML = `<div class="press-head">🗣️ Раздевалка</div><div class="press-result">${escapeHtml(res)}</div><button type="button" class="btn-primary press-done">Готово</button>`;
         el.querySelector('.press-done').onclick = () => el.remove();
+    });
+}
+
+// ---------- Музей клуба: трофеи, сезоны, легенды и рекорды вашей карьеры ----------
+const MUSEUM_KEY = 'footballSimPro.museum';
+function readMuseum() {
+    try { const d = JSON.parse(localStorage.getItem(MUSEUM_KEY)); if (d && d.clubs) return d; } catch (e) { /* ignore */ }
+    return { clubs: {} };
+}
+function writeMuseum(d) { try { localStorage.setItem(MUSEUM_KEY, JSON.stringify(d)); } catch (e) { /* ignore */ } }
+
+function museumClubs() {
+    return Object.entries(readMuseum().clubs).map(([name, c]) => ({ name, ...c }))
+        .sort((a, b) => (b.trophies || []).length - (a.trophies || []).length || (b.seasons || []).length - (a.seasons || []).length);
+}
+
+// Место команды в завершённом турнире
+function museumPlace(team, champion) {
+    if (champion && champion.id === team.id) return { label: '🏆 Победитель', rank: 1 };
+    if (state.settings.mode === 'league' && !state.settings.ucl) {
+        const pos = sortGroup([...state.teams]).findIndex(t => t.id === team.id) + 1;
+        return { label: `${pos}-е место`, rank: pos };
+    }
+    const final = state.tournamentHistory[state.tournamentHistory.length - 1]?.matches[0];
+    if (final && final.involves(team)) return { label: '🥈 Финалист', rank: 2 };
+    const rounds = state.tournamentHistory.filter(r => r.matches.some(m => m.involves(team)));
+    const last = rounds[rounds.length - 1];
+    return { label: last && last.name ? last.name : 'участник', rank: 9 };
+}
+
+// Записывается один раз на экране итогов — для команд игроков
+function museumRecord(champion) {
+    if (!hasHumans() || state.museumRecorded) return;
+    state.museumRecorded = true;
+    const mus = readMuseum();
+    const fmt = state.settings.seriesTitle || state.settings.title || formatLabel(state.settings);
+    const date = new Date().toLocaleDateString('ru-RU');
+    humanTeams().forEach(team => {
+        const c = mus.clubs[team.name] || (mus.clubs[team.name] = { emoji: team.emoji, trophies: [], seasons: [], players: {}, records: {} });
+        const place = museumPlace(team, champion);
+        const st = team.stats || {};
+        const scorers = Object.values(playerStats).filter(p => p.teamId === team.id);
+        const top = [...scorers].sort((a, b) => b.goals - a.goals)[0];
+        c.seasons.unshift({ date, fmt, place: place.label, w: st.won || 0, d: st.drawn || 0, l: st.lost || 0, gf: st.gf || 0, ga: st.ga || 0,
+            top: top && top.goals ? `${top.name} (${top.goals})` : '' });
+        c.seasons = c.seasons.slice(0, 40);
+        if (place.rank === 1) c.trophies.unshift({ title: fmt, date });
+        scorers.forEach(p => {
+            if (!p.matches && !p.goals) return;
+            const r = c.players[p.name] || (c.players[p.name] = { pos: p.position, goals: 0, assists: 0, matches: 0, motm: 0, seasons: 0 });
+            r.goals += p.goals; r.assists += p.assists; r.matches += p.matches; r.motm += p.motm || 0; r.seasons++;
+            if (p.goals > ((c.records.seasonGoals && c.records.seasonGoals.n) || 0)) c.records.seasonGoals = { n: p.goals, name: p.name, date };
+        });
+        // Крупнейшая победа
+        allPlayedMatches().filter(m => m.involves(team)).forEach(m => {
+            const a = m.aggregateScore || { t1: m.score1, t2: m.score2 };
+            const home = m.team1.id === team.id;
+            const my = home ? a.t1 : a.t2, their = home ? a.t2 : a.t1;
+            const best = c.records.bigWin;
+            if (my - their > 0 && (!best || my - their > best.diff || (my - their === best.diff && my > best.my)))
+                c.records.bigWin = { diff: my - their, my, text: `${m.team1.name} ${a.t1}:${a.t2} ${m.team2.name}`, date };
+        });
+        if (!c.records.bestSeason || (st.won || 0) > c.records.bestSeason.w) c.records.bestSeason = { w: st.won || 0, text: `${fmt}: ${st.won || 0} побед`, date };
+    });
+    writeMuseum(mus);
+    renderHomeAchievements();
+}
+
+const MEDALS = ['🥇', '🥈', '🥉'];
+
+function openMuseum(clubName) {
+    const clubs = museumClubs();
+    document.querySelector('.museum-overlay')?.remove();
+    const el = document.createElement('div');
+    el.className = 'confirm-overlay museum-overlay';
+    const cur = clubs.find(c => c.name === clubName) || clubs[0];
+    const team = cur ? (state.teams.find(t => t.name === cur.name) || { name: cur.name, emoji: cur.emoji }) : null;
+    const score = p => p.goals * 2 + p.assists + p.motm * 2 + p.matches * 0.1;
+    const legends = cur ? Object.entries(cur.players).map(([name, p]) => ({ name, ...p })).sort((a, b) => score(b) - score(a)).slice(0, 10) : [];
+    const empty = '<p class="muted">Музей пополняется в режиме «Играть за команду»: после каждого турнира сюда попадают трофеи, сезоны, лучшие игроки и рекорды.</p>';
+    const body = !cur ? empty : `
+        ${clubs.length > 1 ? `<div class="mu-tabs">${clubs.map(c => `<button type="button" data-club="${escapeHtml(c.name)}" class="${c.name === cur.name ? 'active' : ''}">${escapeHtml(c.name)}</button>`).join('')}</div>` : ''}
+        <div class="mu-head">${crestHtml(team, 'lg')}<div><div class="mu-name">${escapeHtml(cur.name)}</div>
+            <div class="muted">турниров: ${cur.seasons.length} · трофеев: ${cur.trophies.length}</div></div></div>
+        <div class="mu-label">Витрина трофеев</div>
+        <div class="mu-shelf">${cur.trophies.length ? cur.trophies.map(t => `<div class="mu-cup"><span>🏆</span><b>${escapeHtml(t.title)}</b><small>${escapeHtml(t.date)}</small></div>`).join('') : '<div class="muted">Пока пусто — первый трофей впереди.</div>'}</div>
+        <div class="mu-label">Рекорды</div>
+        <div class="mu-records">
+            ${cur.records.bigWin ? `<div><span>Крупнейшая победа</span><b>${escapeHtml(cur.records.bigWin.text)}</b></div>` : ''}
+            ${cur.records.seasonGoals ? `<div><span>Голов за турнир</span><b>${escapeHtml(cur.records.seasonGoals.name)} — ${cur.records.seasonGoals.n}</b></div>` : ''}
+            ${cur.records.bestSeason ? `<div><span>Лучший турнир</span><b>${escapeHtml(cur.records.bestSeason.text)}</b></div>` : ''}
+        </div>
+        <div class="mu-label">Легенды клуба</div>
+        <table class="stats-table mu-legends"><thead><tr><th>Игрок</th><th>И</th><th>Голы</th><th>Пасы</th><th>⭐</th></tr></thead><tbody>
+            ${legends.map((p, i) => `<tr><td>${MEDALS[i] ? MEDALS[i] + ' ' : ''}${escapeHtml(p.name)}</td><td>${p.matches}</td><td>${p.goals}</td><td>${p.assists}</td><td>${p.motm}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="mu-label">История</div>
+        <table class="stats-table mu-seasons"><thead><tr><th>Турнир</th><th>Итог</th><th>В-Н-П</th><th>Мячи</th><th>Бомбардир</th></tr></thead><tbody>
+            ${cur.seasons.map(s => `<tr><td>${escapeHtml(s.fmt)}<div class="muted">${escapeHtml(s.date)}</div></td><td>${escapeHtml(s.place)}</td><td>${s.w}-${s.d}-${s.l}</td><td>${s.gf}-${s.ga}</td><td>${escapeHtml(s.top)}</td></tr>`).join('')}
+        </tbody></table>`;
+    el.innerHTML = `<div class="confirm-box museum-box" role="dialog" aria-modal="true">
+        <button type="button" class="pc-close" title="Закрыть">✕</button>
+        <h3>🏛️ Музей клуба</h3>${body}</div>`;
+    document.body.appendChild(el);
+    el.addEventListener('click', e => {
+        if (e.target === el || e.target.closest('.pc-close')) { el.remove(); return; }
+        const b = e.target.closest('[data-club]');
+        if (b) openMuseum(b.dataset.club);
     });
 }

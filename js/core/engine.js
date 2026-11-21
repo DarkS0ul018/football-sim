@@ -45,7 +45,8 @@ function buildBaseRoster(teamName, teamRating) {
 
     const origin = getTeamOrigin(teamName);
     const data = origin === 'national' ? NATIONS[teamName].squad
-        : (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName]) || fallbackPlayerNames[origin];
+        : (typeof SQUADS !== 'undefined' && SQUADS[origin] && SQUADS[origin][teamName])
+            || (typeof legendSquad === 'function' && legendSquad(teamName)) || fallbackPlayerNames[origin];
     const used = new Set();
     const unique = list => (list || []).filter(n => !used.has(n) && used.add(n));
     const lines = {};
@@ -209,6 +210,7 @@ class MatchSimulation {
         };
         this.prematchPlan();
         this.weather = matchWeather(match, leg);
+        this.derby = typeof derbyTitle === "function" ? derbyTitle(match.team1, match.team2) : null; // дерби: накал, больше фолов
         const w = WEATHER[this.weather];
         this.log('weather', null, `${w.icon} Погода: ${w.label}`);
     }
@@ -538,6 +540,7 @@ class MatchSimulation {
         if (isRealistic()) ['team1', 'team2'].forEach(side => {
             const extra = STYLES[this.sides[side].style].fouls - 1;
             if (extra > 0 && Math.random() < 0.18 * extra) this.foul(side, otherSide(side));
+            if (this.derby && Math.random() < 0.04) this.foul(side, otherSide(side)); // дерби — борьба на грани
         });
         this.tire();
         if (prefs.injuries && Math.random() < 0.0025) this.injury(Math.random() < 0.5 ? 'team1' : 'team2');
@@ -1197,6 +1200,7 @@ function completeMatch(m, winner) {
     m.isFinished = true;
     m.winner = winner;
     m.lastSims = null; // симуляции больше не нужны
+    try { if (typeof recordH2H === 'function') recordH2H(m, winner); } catch (e) { /* ignore */ }
 
     const agg = m.aggregateScore;
     const isDraw = agg.t1 === agg.t2;

@@ -37,7 +37,7 @@ function renderMatchPreview(m, sim) {
         const a = x.aggregateScore;
         return `${escapeHtml(x.team1.name)} ${a.t1}:${a.t2} ${escapeHtml(x.team2.name)}`;
     });
-    box.innerHTML = `
+    box.innerHTML = `${sim.derby ? derbyPreviewHtml(m) : ''}
         <div class="pv-head"><span>${escapeHtml(m.roundName || '')}</span><button type="button" class="pv-hide" title="Скрыть">✕</button></div>
         <div class="pv-teams">${previewSide(sim, 'team1')}<div class="pv-vs">VS</div>${previewSide(sim, 'team2')}</div>
         <div class="pv-bar" title="Прогноз по силе составов, фактору поля и форме">
@@ -117,4 +117,14 @@ function initShowcase() {
         });
         container.parentElement.addEventListener('mouseleave', () => decorateBracket());
     }
+}
+
+// Дерби: заголовок и история личных встреч (копится во всех турнирах)
+function derbyPreviewHtml(m) {
+    const title = typeof derbyTitle === 'function' ? derbyTitle(m.team1, m.team2) : null;
+    if (!title) return '';
+    const h = h2hSummary(m.team1, m.team2);
+    const hist = h ? `${escapeHtml(m.team1.name)} ${h.wa} · ничьих ${h.d} · ${escapeHtml(m.team2.name)} ${h.wb}` : 'первая встреча в вашей истории';
+    const last = h && h.games.length ? `<div class="dv-last">${h.games.slice(0, 3).map(g => `${escapeHtml(g.t1)} ${g.s} ${escapeHtml(g.t2)}`).join(' · ')}</div>` : '';
+    return `<div class="derby-banner"><div class="dv-title">🔥 ${escapeHtml(title)}</div><div class="dv-h2h">Личные встречи: ${hist}</div>${last}</div>`;
 }

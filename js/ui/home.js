@@ -19,6 +19,8 @@ const HOME_CUPS = [
       settings: { mode: 'groups', count: 32, groupLegs: 1, playoffLegs: 1 } },
     { id: 'rpl', icon: '🏟️', title: 'Российская Премьер-лига', cls: 'tile-rpl', type: 'russia', sub: '16 клубов · два круга',
       settings: { mode: 'league', count: 16, groupLegs: 2, playoffLegs: 1 } },
+    { id: 'legends', icon: '🏛️', title: 'Турнир легенд', cls: 'tile-legends', type: 'legends', sub: '16 великих составов разных лет: Милан-89, Барселона-09, МЮ-99, Зенит-08, ЦСКА-05… · группы и плей-офф',
+      settings: { mode: 'groups', count: 16, groupLegs: 1, playoffLegs: 1 } },
     { id: 'mixed', icon: '⚔️', title: 'Россия против Европы', cls: 'tile-mixed', type: 'mixed', sub: '16 клубов РПЛ и Европы · группы и плей-офф',
       settings: { mode: 'groups', count: 16, groupLegs: 1, playoffLegs: 2 } }
 ];

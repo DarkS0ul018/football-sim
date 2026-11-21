@@ -315,6 +315,7 @@ function crowdIntensity(sim) {
         if (sim.minute >= 75 && diff <= 1) target *= 1.35;
         const homeAttack = sim.homeSide && sim.play && sim.play.side === sim.homeSide;
         if (homeAttack) target *= 1.2;
+        if (sim.derby) target *= 1.2; // дерби — трибуны громче
     }
     sound.crowd.gain.gain.setTargetAtTime(Math.min(0.16, target), sound.ctx.currentTime, 0.3);
 }

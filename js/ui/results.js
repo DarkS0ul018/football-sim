@@ -201,6 +201,7 @@ function showResults(champion) {
     renderTournamentAwards();
     renderSeasonAwards();
     achOnTournament(champion);
+    museumRecord(champion);
     renderAchievements();
     showScreen('results');
 }

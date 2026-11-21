@@ -53,6 +53,7 @@ function createTournament(settings, teamsPool, userTeamName = null) {
     state.settings = { ...settings, originalMode: settings.originalMode || settings.mode };
     state.seasonRecorded = false;
     state.hallRecorded = false;
+    state.museumRecorded = false;
     state.seriesProcessed = false;
     state.stageDone = false;
     state.uclPhase = null;

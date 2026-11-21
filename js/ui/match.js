@@ -309,7 +309,7 @@ function legLabel(m, leg) {
 function prepareLeg(m, leg) {
     currentSim = new MatchSimulation(m, leg);
     highlights.sims.push(currentSim);
-    setText('match-stage-info', `${legLabel(m, leg)} · ${WEATHER[currentSim.weather].icon}`);
+    setText("match-stage-info", `${legLabel(m, leg)} · ${WEATHER[currentSim.weather].icon}${currentSim.derby ? " · 🔥 " + currentSim.derby : ""}`);
     $('football-field').dataset.weather = currentSim.weather; // дождь, снег, ветер — поверх поля
     renderField(currentSim);
     renderLineups(currentSim);
@@ -365,6 +365,7 @@ function startSimulation(m) {
     playSound('whistle-long');
     startCrowd();
     commentKickoff(m, sim);
+    if (sim.derby) setTimeout(() => { if (simStep) showPitchBanner(`🔥 ${sim.derby}`); }, 600);
 
     // Атака с ударом показывается две минуты: следующий шаг движка пропускается
     let holdTicks = 0;

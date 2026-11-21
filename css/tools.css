@@ -454,3 +454,32 @@
 .tr-name { font-size: 0.84rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tr-c { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: #facc15; color: #111; font-size: 9px; line-height: 14px; text-align: center; }
 @media (max-width: 560px) { .tr-role { grid-template-columns: 34px minmax(0, 1fr); } .tr-role select { grid-column: 1 / -1; } }
+
+/* Дерби */
+.derby-banner { margin-bottom: 10px; padding: 10px 14px; border-radius: 10px; text-align: center;
+    background: linear-gradient(90deg, rgba(220, 38, 38, 0.28), rgba(245, 158, 11, 0.22), rgba(220, 38, 38, 0.28)); border: 1px solid rgba(248, 113, 113, 0.45); }
+.dv-title { font-family: 'Oswald', sans-serif; text-transform: uppercase; letter-spacing: 0.06em; font-size: 1.05rem; color: #fecaca; }
+.dv-h2h { font-size: 0.82rem; margin-top: 2px; }
+.dv-last { font-size: 0.74rem; color: var(--text-2); margin-top: 2px; }
+.tile-legends { --t1: #7a5c1e; --t2: #2b1d08; }
+
+/* Музей клуба */
+.home-ach { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.museum-box { max-width: 760px; max-height: 88vh; overflow: auto; text-align: left; }
+.mu-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.mu-tabs button { padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(127, 127, 127, 0.3); background: transparent; color: inherit; cursor: pointer; font: inherit; font-size: 0.8rem; }
+.mu-tabs button.active { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.mu-head { display: flex; align-items: center; gap: 14px; margin: 10px 0; padding: 12px; border-radius: 12px; background: linear-gradient(120deg, rgba(245, 200, 75, 0.18), transparent 70%); }
+.mu-name { font-family: 'Oswald', sans-serif; font-size: 1.6rem; line-height: 1.1; }
+.mu-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-2); margin: 14px 0 6px; }
+.mu-shelf { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.mu-cup { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; padding: 10px 6px; border-radius: 10px;
+    background: linear-gradient(180deg, rgba(245, 200, 75, 0.22), rgba(127, 127, 127, 0.06)); border: 1px solid rgba(245, 200, 75, 0.4); }
+.mu-cup span { font-size: 1.8rem; }
+.mu-cup b { font-size: 0.76rem; line-height: 1.25; }
+.mu-cup small { font-size: 0.68rem; color: var(--text-2); }
+.mu-records { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.mu-records div { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 8px; background: rgba(127, 127, 127, 0.08); font-size: 0.82rem; }
+.mu-records span { font-size: 0.7rem; color: var(--text-2); }
+.mu-seasons td, .mu-legends td { font-size: 0.8rem; }
+.mu-shelf > .muted { grid-column: 1 / -1; }
