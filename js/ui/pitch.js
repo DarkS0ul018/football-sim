@@ -150,9 +150,13 @@ function computeTargets() {
         const oppSide = otherSide(side);
 
         if (pitch.kickoff) {
+            // Своя половина: расстановку сжимаем пропорционально, а не «прижимаем» к центру —
+            // иначе атакующий полузащитник и нападающий по центру вставали в одну точку (виден был 10-й)
+            const maxRel = Math.max(47, ...s.onPitch.map(p => rel(side, p.baseX)));
+            const k = 46 / maxRel;
             s.onPitch.forEach(p => {
-                const bx = Math.min(rel(side, p.baseX), 47);
-                p.tx = abs(side, bx); p.ty = p.baseY;
+                p.tx = abs(side, Math.max(3, rel(side, p.baseX) * k));
+                p.ty = p.baseY;
             });
             return;
         }
@@ -563,7 +567,7 @@ function showGoalBanner(ev) {
         <span class="gt-minute">${ev.minute}'</span>
         ${crestHtml(ev.team, 'sm')}
         <span class="gt-scorer">${ev.player ? ev.player.name : ''}${note}</span>
-        ${ev.assister ? `<span class="gt-assist">пас: ${ev.assister.name}</span>` : ''}
+        ${ev.assister ? `<span class="gt-assist">${assistLabel(ev.setPiece)}: ${ev.assister.name}</span>` : ''}
         <span class="gt-team">${ev.team.name}</span>
         ${pitch.lastGoal && pitch.lastGoal.ev === ev ? '<button type="button" class="gt-replay" onclick="replayLastGoal()">↺ Повтор</button>' : ''}`;
     ticker.classList.remove('show');

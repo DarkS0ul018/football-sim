@@ -93,3 +93,4 @@
     .btn-primary, .btn-secondary { min-height: 44px; }
     .confirm-overlay { padding-bottom: calc(80px + env(safe-area-inset-bottom)); }
 }
+.bracket-auto { margin: 0 0 12px; }

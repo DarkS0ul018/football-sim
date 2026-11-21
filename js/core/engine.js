@@ -590,10 +590,11 @@ class MatchSimulation {
         }
         this.stats.shotsOnTarget[side]++;
         if (result === 'goal') {
-            const assister = Math.random() < 0.75 ? passer : null;
+            // После углового гол почти всегда с передачи подающего (навес — это и есть голевой пас)
+            const assister = kind === 'corner' ? (passer && Math.random() < 0.92 ? passer : null) : (Math.random() < 0.75 ? passer : null);
             shotInfo.assister = assister ? assister.number : null;
             play.end = { type: 'goal', shooter: shooter.number, at, xg, header };
-            this.goal(side, shooter, assister, kind === 'corner' ? 'после углового' : '', xg);
+            this.goal(side, shooter, assister, kind === 'corner' ? (assister ? 'угловой' : 'после углового') : '', xg);
         } else {
             play.end = { type: 'save', shooter: shooter.number, keeper: gk.number, at, xg, header };
             this.log('shot', side, `${gk.name} отражает удар (${shooter.name})`, { player: shooter, xg });
@@ -606,9 +607,12 @@ class MatchSimulation {
         this.addStat(this.sides[side].team.id, scorer.number, 'goals');
         if (assister) this.addStat(this.sides[side].team.id, assister.number, 'assists');
         const parts = [`ГОЛ! ${scorer.name}`];
-        if (assister) parts.push(`пас: ${assister.name}`);
-        if (note) parts.push(note);
-        this.log('goal', side, parts.join(' · '), { player: scorer, assister, xg });
+        // Угловой, штрафной: голевая передача — это подача, пишем кто подавал
+        const setPiece = { 'угловой': 'подача с углового', 'штрафной': 'подача со штрафного' }[note];
+        if (assister) parts.push(`${setPiece || 'пас'}: ${assister.name}`);
+        if (note && !setPiece) parts.push(note);
+        else if (!assister && setPiece) parts.push(`после ${note === 'угловой' ? 'углового' : 'штрафного'}`);
+        this.log('goal', side, parts.join(' · '), { player: scorer, assister, xg, setPiece: setPiece ? note : null });
     }
 
     foul(side, victimSide, victim = null) {
@@ -673,7 +677,7 @@ class MatchSimulation {
         m.reds = (m.reds || []).filter(r => r.leg !== leg);
         m.motms = (m.motms || []).filter(x => x.leg !== leg);
         this.events.forEach(e => {
-            if (e.type === 'goal') m.goals.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '', a: e.assister ? e.assister.name : null, pen: /пенальти/.test(e.text) });
+            if (e.type === 'goal') m.goals.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '', a: e.assister ? e.assister.name : null, pen: /пенальти/.test(e.text), sp: e.setPiece || null });
             if (e.type === 'card-red') m.reds.push({ leg, min: e.minute, s: side(e.side), p: e.player ? e.player.name : '' });
         });
         if (motm) m.motms.push({ leg, s: side(motm.side), p: motm.name, r: motm.rating });

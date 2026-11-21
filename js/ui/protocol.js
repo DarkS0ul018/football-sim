@@ -38,7 +38,7 @@ function openMatchReport(m) {
 
     const legBlock = leg => {
         const items = [
-            ...(m.goals || []).filter(g => g.leg === leg).map(g => ({ min: g.min, s: g.s, html: `⚽ <b>${g.p}</b>${g.pen ? ' <span class="muted">(пен.)</span>' : ''}${g.a ? `<small>пас: ${g.a}</small>` : ''}` })),
+            ...(m.goals || []).filter(g => g.leg === leg).map(g => ({ min: g.min, s: g.s, html: `⚽ <b>${g.p}</b>${g.pen ? ' <span class="muted">(пен.)</span>' : ''}${g.a ? `<small>${assistLabel(g.sp)}: ${g.a}</small>` : ''}` })),
             ...(m.reds || []).filter(r => r.leg === leg).map(r => ({ min: r.min, s: r.s, html: `🟥 <b>${r.p}</b> <span class="muted">удаление</span>` }))
         ].sort((a, b) => a.min - b.min);
         const sc = legScore(leg);

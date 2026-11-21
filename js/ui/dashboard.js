@@ -183,6 +183,17 @@ function renderBracket() {
         `<div class="progress-step active ${i < rounds.length - 1 ? 'completed' : ''}">${r.round}</div>`).join('')}</div>`);
 
     container.innerHTML = '';
+    // Как «Сыграть тур автоматически» в группах: текущий раунд плей-офф — одной кнопкой
+    bracketDiv.querySelector('.bracket-auto')?.remove();
+    const pending = state.matches.filter(m => !m.isFinished && (!hasHumans() || !isUserMatch(m)));
+    if (pending.length && !hasHumans()) {
+        const cur = rounds[rounds.length - 1];
+        const auto = document.createElement('button');
+        auto.className = 'btn-secondary bracket-auto';
+        auto.innerHTML = `🤖 Сыграть «${cur ? cur.round : 'раунд'}» автоматически <small class="muted">(${pending.length})</small>`;
+        auto.onclick = () => { autoSimulateAllRemainingMatches(); renderDashboard(); };
+        container.parentElement.insertBefore(auto, container);
+    }
     rounds.forEach(round => {
         const roundDiv = document.createElement('div');
         roundDiv.className = 'bracket-round';

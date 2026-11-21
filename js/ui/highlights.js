@@ -172,7 +172,7 @@ function playHighlights() {
             <div class="rc-min">${ev.minute}'</div>
             <div class="rc-goal">ГОЛ</div>
             <div class="rc-scorer">${crestHtml(ev.team, 'sm')} ${ev.player ? ev.player.name : ''}${pen}</div>
-            ${ev.assister ? `<div class="rc-assist">пас: ${ev.assister.name}</div>` : ''}
+            ${ev.assister ? `<div class="rc-assist">${assistLabel(ev.setPiece)}: ${ev.assister.name}</div>` : ''}
             <div class="rc-score">${m ? m.team1.name : ''} <b>${g.score.t1}:${g.score.t2}</b> ${m ? m.team2.name : ''}</div>${legNote}`;
         card.classList.remove('show');
         void card.offsetWidth;

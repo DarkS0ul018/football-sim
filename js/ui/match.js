@@ -23,6 +23,7 @@ function stopMatchTimers() {
     onSpeedChange = null;
     simStep = null;
     $('btn-manage-match').style.display = 'none';
+    if ($('btn-pause-match')) $('btn-pause-match').style.display = 'none';
     stopCrowd();
 }
 
@@ -64,6 +65,7 @@ function openManagePanel() {
     if (!simStep || !currentSim) return;
     clearInterval(simulationInterval);
     isPaused = true;
+    setPauseLabel(true);
     stopCrowd();
     manageOut = manageIn = null;
     renderManagePanel();
@@ -147,6 +149,7 @@ function doManualSub() {
 function resumeMatch() {
     $('manage-overlay').style.display = 'none';
     isPaused = false;
+    setPauseLabel(false);
     startCrowd();
     if (simStep) simulationInterval = setInterval(simStep, getMatchInterval());
 }
@@ -399,6 +402,8 @@ function startSimulation(m) {
     simStep = step;
     isPaused = false;
     if (userSide(m)) $('btn-manage-match').style.display = 'flex';
+    $('btn-pause-match').style.display = 'flex';
+    setPauseLabel(false);
     simulationInterval = setInterval(step, getMatchInterval());
 }
 
@@ -526,6 +531,8 @@ function initMatchScreen() {
     $('btn-share-tournament').onclick = shareTournament;
     document.querySelector('#screen-match .btn-back').onclick = openDashboard;
     $('btn-manage-match').onclick = openManagePanel;
+    $('btn-pause-match').onclick = togglePause;
+    document.addEventListener('keydown', e => { if (e.code === 'Space' && simStep && screens.match.classList.contains('active') && !e.target.closest('input, textarea, select, button')) { e.preventDefault(); togglePause(); } });
     $('btn-manage-sub').onclick = doManualSub;
     $('btn-manage-resume').onclick = resumeMatch;
     $('manage-autosubs').onchange = e => { if (currentSim) currentSim.sides[userSide(currentSim.match)].autoSubs = e.target.checked; };
@@ -535,4 +542,24 @@ function initMatchScreen() {
         setText('speed-value', currentMatchSpeed + 'x');
         if (onSpeedChange) onSpeedChange();
     });
+}
+
+// ----- Кнопка паузы: остановить и продолжить живой матч одним нажатием -----
+function setPauseLabel(paused) {
+    const b = $('btn-pause-match');
+    if (b) b.innerHTML = paused ? '<span class="btn-icon">▶</span><span class="btn-text">Продолжить</span>' : '<span class="btn-icon">⏸</span><span class="btn-text">Пауза</span>';
+}
+
+function togglePause() {
+    if (!simStep) return;
+    if (!isPaused) {
+        clearInterval(simulationInterval);
+        isPaused = true;
+        stopCrowd();
+    } else {
+        isPaused = false;
+        startCrowd();
+        simulationInterval = setInterval(simStep, getMatchInterval());
+    }
+    setPauseLabel(isPaused);
 }
