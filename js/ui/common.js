@@ -156,6 +156,10 @@ const STAT_TYPES = {
 };
 
 // Возвращает true, если в таблице есть строки
+// Списки игроков: первые 10, остальное — по кнопке «Развернуть» (и обратно «Свернуть»)
+const LIST_TOP = 10;
+const expandedLists = new Set();
+
 function renderScorersTable(tbodyId, headerId, statType = 'goals') {
     const list = $(tbodyId);
     if (!list) return false;
@@ -165,22 +169,33 @@ function renderScorersTable(tbodyId, headerId, statType = 'goals') {
     const players = Object.values(playerStats)
         .filter(p => type.value(p) > 0)
         .sort((a, b) => type.value(b) - type.value(a) || (b.goals + b.assists) - (a.goals + a.assists))
-        .slice(0, 30);
+        .slice(0, 50);
 
     if (!players.length) {
         list.innerHTML = '<tr><td colspan="4" style="text-align:center;padding:20px;">Нет данных</td></tr>';
         // таблица скрывается целиком, только если в турнире ещё нет ни одного гола
         return statType !== 'goals' && Object.values(playerStats).some(p => p.goals > 0);
     }
-    list.innerHTML = players.map((p, i) => {
+    const open = expandedLists.has(tbodyId);
+    const rows = players.map((p, i) => {
         const team = getTeamById(p.teamId);
-        return `<tr class="player-row" data-player="${p.id}" style="${userRowStyle(p.teamId)}" title="Карточка игрока">
+        const hidden = !open && i >= LIST_TOP ? ' style="display:none"' : '';
+        return `<tr class="player-row${i >= LIST_TOP ? ' more-row' : ''}" data-player="${p.id}"${hidden || (userRowStyle(p.teamId) ? ` style="${userRowStyle(p.teamId)}"` : '')} title="Карточка игрока">
             <td>${i + 1}. ${p.name} #${p.number}</td>
             <td>${team ? teamLabel(team) : ''}</td>
             <td><b>${type.cell(p)}</b></td>
             <td>${p.matches}</td>
         </tr>`;
     }).join('');
+    const extra = players.length - LIST_TOP;
+    const toggle = extra > 0 ? `<tr class="more-toggle"><td colspan="4"><button type="button" class="btn-more" data-list="${tbodyId}">${open ? 'Свернуть ▴' : `Развернуть ещё ${extra} ▾`}</button></td></tr>` : '';
+    list.innerHTML = rows + toggle;
+    const btn = list.querySelector('.btn-more');
+    if (btn) btn.onclick = e => {
+        e.stopPropagation();
+        if (expandedLists.has(tbodyId)) expandedLists.delete(tbodyId); else expandedLists.add(tbodyId);
+        renderScorersTable(tbodyId, headerId, statType);
+    };
     return true;
 }
 

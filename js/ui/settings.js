@@ -47,6 +47,11 @@ function openSettings() {
             <input type="range" min="1" max="10" value="${prefs.speed}" id="set-speed">
         </div>
         <div class="set-group">
+            <div class="set-label">Штрафные и угловые в живом матче</div>
+            <div class="set-seg">${[['show', '🎬 Подробно'], ['normal', '⚖️ Обычно'], ['fast', '⚡ Быстро']].map(([v, l]) => `<button type="button" data-sp="${v}" class="${(prefs.spMode || 'normal') === v ? 'active' : ''}">${l}</button>`).join('')}</div>
+            <small class="muted set-note">Подробно — матч притормаживает на стандартах, камера показывает из-за спины бьющего. Обычно — ракурс только на спокойной скорости. Быстро — без остановок и смены ракурса.</small>
+        </div>
+        <div class="set-group">
             <div class="set-label">Звук</div>
             <div class="set-seg">${[['on', '🔊 Стадион'], ['nocrowd', '🔉 Без трибун'], ['off', '🔇 Выкл']].map(([v, l]) => `<button type="button" data-sound="${v}" class="${sound.mode === v ? 'active' : ''}">${l}</button>`).join('')}</div>
         </div>
@@ -68,6 +73,7 @@ function openSettings() {
         if (b.dataset.theme) { setPref('theme', b.dataset.theme); applyPrefs(); }
         else if (b.dataset.accent) { setPref('accent', b.dataset.accent); applyPrefs(); }
         else if (b.dataset.sound) setSoundMode(b.dataset.sound);
+        else if (b.dataset.sp) setPref('spMode', b.dataset.sp);
         else return;
         const group = b.parentElement;
         group.querySelectorAll('button').forEach(x => x.classList.toggle('active', x === b));

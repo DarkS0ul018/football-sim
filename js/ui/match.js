@@ -377,7 +377,10 @@ function startSimulation(m) {
         let lineupChanged = false;
         const ms = getMatchInterval();
         const isShot = sim.play && sim.play.end && SHOT_ENDS.includes(sim.play.end.type);
-        const span = sim.isOver ? 1 : (prefs.hlMode ? hlSpan(events, isShot) : (isShot ? 2 : 1));
+        let span = sim.isOver ? 1 : (prefs.hlMode ? hlSpan(events, isShot) : (isShot ? 2 : 1));
+        // Стандарты «подробно»: штрафной и угловой показываются дольше — успевает и расстановка, и камера
+        const setPiece = sim.play && ["freekick", "corner"].includes(sim.play.kind);
+        if (!sim.isOver && setPiece && prefs.spMode === "show") span = Math.max(span, Math.round(normalMatchInterval() * 3 / ms));
         if (span > 1) holdTicks = span - 1;
 
         events.forEach(ev => {
@@ -411,8 +414,8 @@ function startSimulation(m) {
                 if (simStep !== step) return;
                 showPenaltyMoment(m, penSim, { side: penEv.side, taker: penEv.player.name, scored: penEv.type === 'goal' }, () => {
                     if (simStep !== step) return;
-                    if (penEv.type === 'goal') { showSimEvent(m, penEv); updateScoreboard(m); celebrateGoal(penEv.side); renderLineups(penSim); onGoalAnimation(penSim, penEv); }
-                    if (!penSim.isOver) releaseMatch();
+                    if (!penSim.isOver) releaseMatch(); // сначала продолжаем матч, затем празднование держит его до розыгрыша с центра
+                    if (penEv.type === "goal") { showSimEvent(m, penEv); updateScoreboard(m); celebrateGoal(penEv.side); renderLineups(penSim); onGoalAnimation(penSim, penEv); }
                 });
             }, Math.min(1500, ms * 1.2));
         }
@@ -424,7 +427,7 @@ function startSimulation(m) {
                 if (simStep !== step || interludeOn) return;
                 holdMatch();
                 playSound('whistle-long');
-                showInterlude(/^Перерыв/.test(brk.text) ? halftimeHtml(m, brkSim) : extraTimeHtml(m, brkSim), 6000, releaseMatch);
+                showInterlude(/^Перерыв/.test(brk.text) ? halftimeHtml(m, brkSim) : extraTimeHtml(m, brkSim), 6000, () => { pitchKickoff(true); playSound("whistle-long"); releaseMatch(); }); // второй тайм — с центра
             }, ms * span * 0.9);
         }
         commentMinute(m, sim, events, plan, ms, span); // остальное в ленте — словами комментатора

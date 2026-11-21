@@ -87,14 +87,15 @@ const LEGEND_TEAMS = [
 ];
 
 
-(function registerLegends() {
+function registerLegends() {
     const year = t => Number(t.name.slice(-4));
     LEGEND_TEAMS.forEach(t => {
         if (typeof teamRatings !== 'undefined') teamRatings[t.name] = t.rating;
         if (typeof teamMeta !== 'undefined') teamMeta[t.name] = [t.code, year(t)];
         if (typeof SQUADS !== 'undefined') SQUADS.world[t.name] = t.squad;
     });
-})();
+}
+registerLegends(); // повторно — после правок из редактора (applyCustomData пересобирает справочники)
 
 function legendTeamsData() {
     return { names: LEGEND_TEAMS.map(t => t.name), emojis: LEGEND_TEAMS.map(t => t.emoji) };

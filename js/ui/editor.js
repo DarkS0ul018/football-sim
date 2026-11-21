@@ -114,6 +114,13 @@ function renderEditorForm() {
     const national = t.type === 'national';
     const colors = Array.from(t.emoji || '').filter(ch => COLOR_EMOJI.includes(ch));
     const crest = { shape: '', pattern: '', symbol: '', image: null, ...((custom && custom.crest) || {}) };
+    // Номер и рейтинг каждого игрока заявки (как в игре): «10. Имя (88)»
+    const rosterInfo = {};
+    if (!editor.isNew && t.name) {
+        try { buildBaseRoster(t.name, t.rating).forEach(p => { rosterInfo[p.name] = { number: p.number, rating: p.rating }; }); } catch (e) { /* ignore */ }
+    }
+    const ownRatings = (custom && custom.playerRatings) || {};
+    const ownNumbers = (custom && custom.playerNumbers) || {};
     const swatches = (idx) => COLOR_EMOJI.map(ch =>
         `<button type="button" class="swatch ${colors[idx] === ch ? 'active' : ''}" data-idx="${idx}" data-color="${ch}" style="background:${EMOJI_COLORS[ch]}" title="${ch}"></button>`).join('');
 
@@ -160,13 +167,14 @@ function renderEditorForm() {
             ${Object.keys(SQUAD_MINIMUM).map(line => `
                 <label>${LINE_NAMES[line][0].toUpperCase() + LINE_NAMES[line].slice(1)} <span class="muted">(сильнейшие сверху, мин. ${SQUAD_MINIMUM[line]})</span>
                     <textarea id="ed-${line}" rows="7" spellcheck="false">${escapeHtml((t.squad[line] || []).map(n => {
-                        const r = editor.isNew ? null : playerRatingOverride(t.name, n);
-                        return r ? `${n} (${r})` : n;
+                        const info = rosterInfo[n];
+                        if (!info) return n;
+                        return `${info.number}. ${n} (${info.rating})`;
                     }).join('\n'))}</textarea>
                 </label>`).join('')}
         </div>
         <div class="muted editor-hint">По одному игроку на строку. Первые в каждой линии выходят в старт: 1 вратарь, 4 защитника, 4 полузащитника, 2 нападающих.
-            Свой рейтинг игрока — в скобках: «Ламин Ямаль (94)». Без скобок рейтинг считается сам: от рейтинга команды и места в списке.</div>
+            Формат строки: «номер. Имя (рейтинг)», например «19. Ламин Ямаль (94)». Номер и рейтинг можно менять у любого игрока; без них они считаются сами.</div>
 
         <div id="ed-check" class="editor-check"></div>
 
@@ -182,11 +190,14 @@ function renderEditorForm() {
     const currentEmoji = () => state2.colors.join('');
     const readForm = () => {
         // «Имя (94)» — свой рейтинг игрока; совпадающий со списком звёзд не сохраняем
-        const squad = {}, playerRatings = {};
+        // Сохраняем только то, что отличается от расчётного (или уже было задано вручную)
+        const squad = {}, playerRatings = {}, playerNumbers = {};
         Object.keys(SQUAD_MINIMUM).forEach(line => {
             squad[line] = $(`ed-${line}`).value.split('\n').map(s => s.trim()).filter(Boolean).map(s => {
                 const p = parsePlayerLine(s);
-                if (p.rating && p.rating !== STAR_RATINGS[p.name]) playerRatings[p.name] = p.rating;
+                const was = rosterInfo[p.name];
+                if (p.rating && (ownRatings[p.name] != null || !was || p.rating !== was.rating) && p.rating !== STAR_RATINGS[p.name]) playerRatings[p.name] = p.rating;
+                if (p.number && (ownNumbers[p.name] != null || !was || p.number !== was.number)) playerNumbers[p.name] = p.number;
                 return p.name;
             });
         });
@@ -202,6 +213,7 @@ function renderEditorForm() {
             rating: Number($('ed-rating').value),
             squad,
             playerRatings: Object.keys(playerRatings).length ? playerRatings : undefined,
+            playerNumbers: Object.keys(playerNumbers).length ? playerNumbers : undefined,
             crest: { ...crest }
         };
     };
@@ -213,6 +225,14 @@ function renderEditorForm() {
         const taken = n => n !== t.name && (worldTeams.names.includes(n) || russianTeams.names.includes(n) || (typeof NATIONS !== 'undefined' && NATIONS[n]));
         if (!d.name) check.errors.unshift('введите название');
         else if (taken(d.name)) check.errors.unshift('команда с таким названием уже есть');
+        // Номера не должны повторяться
+        const seen = new Map();
+        Object.keys(SQUAD_MINIMUM).forEach(line => $(`ed-${line}`).value.split('\n').map(s => s.trim()).filter(Boolean).forEach(s => {
+            const p = parsePlayerLine(s);
+            if (!p.number) return;
+            if (seen.has(p.number)) check.errors.push(`номер ${p.number} у двух игроков: ${seen.get(p.number)} и ${p.name}`);
+            else seen.set(p.number, p.name);
+        }));
         if (!national && d.code && !/^[A-ZА-ЯЁ]{2,4}$/.test(d.code)) check.errors.unshift('код на табло: 2–4 буквы (или оставьте пустым)');
         if (!national && d.year && !(Number(d.year) >= 1800 && Number(d.year) <= 2100)) check.errors.unshift('год основания: от 1800 до 2100');
         if (national) {
@@ -260,7 +280,7 @@ function renderEditorForm() {
         const d = refresh();
         if ($('btn-ed-save').disabled) return;
         const crestData = Object.fromEntries(Object.entries(d.crest).filter(([, v]) => v));
-        const payload = { type: d.type, rating: d.rating, squad: d.squad, playerRatings: d.playerRatings, crest: Object.keys(crestData).length ? crestData : undefined };
+        const payload = { type: d.type, rating: d.rating, squad: d.squad, playerRatings: d.playerRatings, playerNumbers: d.playerNumbers, crest: Object.keys(crestData).length ? crestData : undefined };
         if (d.type === 'national') Object.assign(payload, { kit: d.kit, code: d.code, flag: d.flag, cups: d.cups });
         else Object.assign(payload, { emoji: d.emoji, code: d.code, year: d.year });
         // Стандартная команда — правки под исходным названием, новое название — rename;

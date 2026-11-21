@@ -135,9 +135,9 @@
 .bk-col .bracket-team { padding: 6px 8px; gap: 6px; }
 .bt-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .bt-name .team-label-name { overflow: hidden; text-overflow: ellipsis; }
-.bracket-score { font-family: var(--font-display); font-size: 1rem; min-width: 18px; text-align: right; }
+.bracket-score { font-family: var(--font-display); font-size: 1rem; min-width: 24px; padding: 1px 6px; border-radius: 4px; text-align: center; }
 .bracket-team.winner { font-weight: 700; }
-.bracket-team.winner .bracket-score { color: var(--accent); }
+.bracket-team.winner .bracket-score { background: var(--accent); color: var(--accent-ink); } /* цифры контрастом к заливке — раньше сливались */
 .bracket-team.loser { opacity: 0.55; }
 .bm-sub { font-size: 11px; color: var(--muted); padding: 2px 8px 5px; }
 .bracket-match.placeholder { border-style: dashed; background: transparent; cursor: default; opacity: 0.75; }
@@ -250,7 +250,7 @@
 .player.team1.goalkeeper { --shirt: #a3e635; --shorts: #111827; --num: #0b1220; }
 .player.team2.goalkeeper { --shirt: #f472b6; --shorts: #111827; --num: #0b1220; }
 .player.goalkeeper { width: 26px; height: 35px; margin: -28px 0 0 -13px; }
-.player-fig { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: scaleX(var(--face, 1)); transition: transform 0.18s; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); }
+.player-fig { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; transform: scaleX(var(--face, 1)); transition: transform 0.12s ease-out; will-change: transform; }
 .pf-shadow { fill: rgba(0, 0, 0, 0.35); }
 .pf-shirt { fill: var(--shirt); stroke: rgba(0, 0, 0, 0.45); stroke-width: 0.6; }
 .pf-shorts { fill: var(--shorts); stroke: rgba(0, 0, 0, 0.4); stroke-width: 0.5; }
@@ -276,7 +276,7 @@
 @media (prefers-reduced-motion: reduce) { .player.running .pf-leg-l, .player.running .pf-leg-r, .player.running .player-fig { animation: none; } }
 
 /* Соперники после пропущенного гола */
-.player.dejected .player-fig { filter: saturate(0.55) brightness(0.85) drop-shadow(0 1px 1px rgba(0, 0, 0, 0.45)); translate: 0 1px; }
+.player.dejected .player-fig { filter: saturate(0.55) brightness(0.85); translate: 0 1px; }
 /* Карточка от судьи над игроком */
 .card-pop { position: absolute; left: 50%; top: -20px; width: 10px; height: 14px; margin-left: -5px; border-radius: 2px; z-index: 5;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); animation: cardPop 1.9s ease-out both; }
@@ -302,14 +302,14 @@
 
 /* ===== Время суток ===== */
 .football-field[data-time="day"]::before { background: radial-gradient(70% 90% at 10% -10%, rgba(255, 250, 220, 0.16), transparent 70%), radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.2) 100%); }
-.football-field[data-time="day"] .player-fig { filter: drop-shadow(3px 3px 1px rgba(0, 0, 0, 0.35)); }
+.football-field[data-time="day"] .pf-shadow { transform: translate(2px, 0) scale(1.15, 1); transform-origin: 11px 28.6px; fill: rgba(0, 0, 0, 0.42); }
 .football-field[data-time="evening"]::before { background: linear-gradient(160deg, rgba(255, 150, 60, 0.20), transparent 55%), radial-gradient(ellipse at center, transparent 55%, rgba(30, 10, 0, 0.32) 100%); }
 .football-field[data-time="night"] { --g1: #26733a; --g2: #1b5a2c; --g3: #123f1f; }
 .football-field[data-time="night"]::before { background:
     radial-gradient(45% 55% at 0% 0%, rgba(255, 255, 235, 0.22), transparent 70%), radial-gradient(45% 55% at 100% 0%, rgba(255, 255, 235, 0.22), transparent 70%),
     radial-gradient(45% 55% at 0% 100%, rgba(255, 255, 235, 0.18), transparent 70%), radial-gradient(45% 55% at 100% 100%, rgba(255, 255, 235, 0.18), transparent 70%),
     radial-gradient(ellipse at center, transparent 50%, rgba(0, 0, 10, 0.4) 100%), linear-gradient(rgba(5, 10, 35, 0.12), rgba(5, 10, 35, 0.12)); }
-.football-field[data-time="night"] .player-fig { filter: drop-shadow(-2px -2px 1px rgba(0, 0, 0, 0.25)) drop-shadow(2px 2px 1px rgba(0, 0, 0, 0.25)) drop-shadow(2px -2px 1px rgba(0, 0, 0, 0.2)); }
+.football-field[data-time="night"] .pf-shadow { fill: rgba(0, 0, 0, 0.22); }
 
 /* ===== Газон в непогоду: лужи, снег ===== */
 .pitch-surface { position: absolute; inset: 0; z-index: 0; pointer-events: none; border-radius: inherit; }
@@ -483,3 +483,4 @@
 .mu-records span { font-size: 0.7rem; color: var(--text-2); }
 .mu-seasons td, .mu-legends td { font-size: 0.8rem; }
 .mu-shelf > .muted { grid-column: 1 / -1; }
+.more-toggle td { text-align: center; padding: 8px !important; } .btn-more { border: 1px solid rgba(127,127,127,0.3); background: transparent; color: var(--accent); border-radius: 999px; padding: 5px 14px; font: 600 0.8rem/1.3 "Inter", sans-serif; cursor: pointer; } .btn-more:hover { border-color: var(--accent); }

@@ -89,8 +89,27 @@ function buildBaseRoster(teamName, teamRating) {
     const roster = starters.map(p => withMeta({ ...p, number: number++, rating: rate(p, true), starter: true }));
     Object.keys(lineIndex).forEach(k => delete lineIndex[k]); // у скамейки своя нумерация по линиям
     roster.push(...benchPool.map(p => withMeta({ ...p, number: number++, rating: rate(p, false), starter: false })));
+    applyNumberOverrides(teamName, roster);
     rosterCache[key] = roster;
     return roster;
+}
+
+// Свои номера из редактора: заданные — как указано, остальные получают свободные номера по порядку
+function applyNumberOverrides(teamName, roster) {
+    const nums = typeof PLAYER_NUMBER_OVERRIDES !== 'undefined' ? PLAYER_NUMBER_OVERRIDES[teamName] : null;
+    if (!nums || !Object.keys(nums).length) return;
+    const taken = new Set(), fixed = new Set();
+    roster.forEach(p => {
+        const n = Number(nums[p.name]);
+        if (n >= 1 && n <= 99 && !taken.has(n)) { p.number = n; taken.add(n); fixed.add(p); }
+    });
+    let next = 1;
+    roster.forEach(p => {
+        if (fixed.has(p)) return;
+        while (taken.has(next)) next++;
+        p.number = next;
+        taken.add(next);
+    });
 }
 
 // Короткая сводка состава (для статистики игроков)
@@ -476,7 +495,7 @@ class MatchSimulation {
         const mid = this.lineStrength('team1', 'MID') - this.lineStrength('team2', 'MID');
         const edge1 = this.lineStrength('team1', 'FWD') - this.lineStrength('team2', 'DEF');
         const edge2 = this.lineStrength('team2', 'FWD') - this.lineStrength('team1', 'DEF');
-        let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.008 + mid * 0.004 + (edge1 - edge2) * 0.002;
+        let p = 0.5 + (this.strength('team1') - this.strength('team2')) * 0.0095 + mid * 0.004 + (edge1 - edge2) * 0.002;
         if (isRealistic() && this.homeSide) p += this.homeSide === 'team1' ? 0.04 : -0.04;
         p += this.tacticalAttack('team1') - this.tacticalAttack('team2');
         return clamp(p, 0.25, 0.75);
@@ -631,7 +650,7 @@ class MatchSimulation {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p !== exclude);
         const posWeight = kind === 'corner' || kind === 'freekick'
             ? { FWD: 3, MID: 1, DEF: 3 }
-            : { FWD: 5, MID: 2.5, DEF: 0.7 };
+            : { FWD: 6.5, MID: 2.4, DEF: 0.55 };
         const setPiece = kind === 'corner' || kind === 'freekick';
         const sk = setPiece ? 'hea' : 'sho';
         const fx = setPiece ? ROLE_FX.set : ROLE_FX.open;
@@ -695,7 +714,7 @@ class MatchSimulation {
         const pOnTarget = clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
         // Навыки: удар (или игра головой) бьющего против реакции (или выходов) вратаря
         const skill = skillEdge(shooter, header ? 'hea' : 'sho') - skillEdge(gk, header ? 'out' : 'ref');
-        const pConvert = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + skill * 0.005 + this.finishBonus(side), 0.12, 0.5);
+        const pConvert = clamp(0.276 + (effRating(shooter) - effRating(gk)) * 0.0055 + skill * 0.005 + this.finishBonus(side), 0.12, 0.5);
         const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN * WEATHER[this.weather].goals, 0.005, 0.85);
         const pSave = Math.min(1 - pGoal, pOnTarget * (1 - pConvert) * clamp(0.6 + xg / XG_MEAN * 0.4, 0.6, 1.6));
         const u = Math.random();
@@ -938,6 +957,7 @@ class MatchSimulation {
         this.stats.redCards[side]++;
         this.addStat(s.team.id, player.number, 'redCards');
         this.log('card-red', side, `${text} — ${player.name}`, { player, lineupChanged: true });
+        this.passArmband(side, player);
 
         // Удалён вратарь: выпускаем запасного вместо полевого игрока
         if (player.position === 'GK') {
@@ -970,7 +990,19 @@ class MatchSimulation {
         s.appeared.add(fresh.number);
         this.stats.substitutions[side].push({ out: out.name, in: fresh.name, minute: this.minute });
         this.log('substitution', side, `Замена${reason ? ' (' + reason + ')' : ''}: ${out.name} → ${fresh.name}`, { lineupChanged: true, out: { number: out.number, name: out.name }, sub: { number: fresh.number, name: fresh.name } });
+        this.passArmband(side, out);
         return true;
+    }
+
+    // Капитан ушёл с поля (замена, удаление) — повязка переходит самому опытному из оставшихся
+    passArmband(side, leaving) {
+        const s = this.sides[side];
+        if (!leaving || s.captain !== leaving.number || !s.onPitch.length) return;
+        const next = autoCaptain(s.onPitch);
+        if (next == null || next === leaving.number) return;
+        s.captain = next;
+        const p = s.onPitch.find(x => x.number === next);
+        if (p) this.log('comment', side, `Капитанская повязка у нового игрока: ${p.name}`, { lineupChanged: true });
     }
 
     bestBenchFor(side, position) {

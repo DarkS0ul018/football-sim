@@ -59,6 +59,7 @@ const STAR_RATINGS = {
 
 // Рейтинги игроков из редактора: команда (название в игре) → { игрок: рейтинг }. Заполняет customdata.js.
 let PLAYER_RATING_OVERRIDES = {};
+let PLAYER_NUMBER_OVERRIDES = {}; // свои номера игроков из редактора: { команда: { имя: номер } }
 
 // Заданный рейтинг игрока или null (тогда он считается от рейтинга команды).
 // Рейтинг из редактора — точный. Звезда — не ниже уровня своей команды + 1 (в топ-клубе звезда не слабее партнёров).
@@ -71,10 +72,13 @@ function playerRatingOverride(teamName, playerName, teamRating = null) {
     return Math.min(99, Math.max(star, Math.round(tr + 1)));
 }
 
-// «Ламин Ямаль (94)» → { name: 'Ламин Ямаль', rating: 94 }
+// «10. Ламин Ямаль (94)» → { number: 10, name: 'Ламин Ямаль', rating: 94 }; номер и рейтинг — по желанию
 function parsePlayerLine(line) {
-    const m = String(line).trim().match(/^(.*?)\s*\((\d{2})\)\s*$/);
-    if (!m) return { name: String(line).trim(), rating: null };
-    const r = Number(m[2]);
-    return { name: m[1].trim(), rating: r >= 40 && r <= 99 ? r : null };
+    let s = String(line).trim();
+    let number = null, rating = null;
+    const n = s.match(/^(\d{1,2})\s*[.)#:-]?\s+(.*)$/) || s.match(/^#(\d{1,2})\s+(.*)$/);
+    if (n) { const v = Number(n[1]); if (v >= 1 && v <= 99) { number = v; s = n[2].trim(); } }
+    const r = s.match(/^(.*?)\s*\((\d{2})\)\s*$/);
+    if (r) { const v = Number(r[2]); s = r[1].trim(); if (v >= 40 && v <= 99) rating = v; }
+    return { name: s, rating, number };
 }

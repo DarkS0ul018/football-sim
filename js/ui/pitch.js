@@ -320,12 +320,25 @@ function stepPlayers(dt) {
         else { p.x += stepX; p.y += stepY / 0.66; }
         const el = p.el && p.el.isConnected ? p.el : (p.el = $(playerElId(p)));
         if (el) {
-            el.style.left = `${p.x}%`; el.style.top = `${p.y}%`;
-            const run = Math.hypot(p.vx, p.vy) > 8;
+            // Позицию пишем, только если игрок заметно сдвинулся (меньше работы браузеру)
+            if (Math.abs(p.x - (p._lx ?? -99)) > 0.02 || Math.abs(p.y - (p._ly ?? -99)) > 0.02) {
+                p._lx = p.x; p._ly = p.y;
+                el.style.left = `${p.x.toFixed(2)}%`; el.style.top = `${p.y.toFixed(2)}%`;
+            }
+            const speed = Math.hypot(p.vx, p.vy);
+            const run = p._run ? speed > 5.5 : speed > 9; // гистерезис: бег не мигает на пороге
             if (run !== p._run) { p._run = run; el.classList.toggle('running', run); }
-            // Разворот фигурки по направлению бега (стоя — лицом к воротам соперника)
-            const face = Math.abs(p.vx) > 1.5 ? (p.vx > 0 ? 1 : -1) : (p.side === 'team2' ? -1 : 1);
-            if (face !== p._face) { p._face = face; el.style.setProperty('--face', face); }
+            // Разворот по направлению бега — только если направление держится ~0.3 с
+            // (иначе у цели фигурка дёргалась туда-сюда); стоя долго — лицом к воротам соперника
+            const home = p.side === 'team2' ? -1 : 1;
+            let want = p._face ?? home;
+            if (Math.abs(p.vx) > 6 && Math.abs(p.vx) > Math.abs(p.vy) * 0.8) want = p.vx > 0 ? 1 : -1; // явно бежит вбок
+            else if (speed < 1) { p._still = (p._still || 0) + dt; if (p._still > 0.8) want = home; }
+            if (speed >= 1) p._still = 0;
+            if (want !== p._face) {
+                p._turn = (p._turn || 0) + dt;
+                if (p._face === undefined || p._turn > 0.45) { p._face = want; p._turn = 0; el.style.setProperty('--face', want); }
+            } else p._turn = 0;
         }
     }));
 }
@@ -570,22 +583,45 @@ function onGoalAnimation(sim, ev) {
     if (btn) btn.style.display = '';
     // В живом матче — празднование: автор бежит к угловому флажку, партнёры — к нему
     const cel = pitch.livePenalty ? Math.max(1400, Math.min(2600, (pitch.msPerMinute || 1000) * 2.2)) : 0;
+    // После празднования — розыгрыш с центра: мяч в центр, команды расходятся по своим половинам, свисток
+    const kick = cel ? kickoffMs() : 0;
     if (cel) {
         startCelebration(sim, ev, cel);
-        if (typeof holdForCelebration === 'function') holdForCelebration(cel);
+        if (typeof holdForCelebration === 'function') holdForCelebration(cel + kick);
     }
-    // Розыгрыш с центра: команды расходятся по своим половинам
     // (если к этому моменту уже началась следующая атака — не трогаем её: иначе её гол потеряется)
     const token = pitch.pathToken;
     setTimeout(() => {
         if (pitch.pathToken !== token) return;
-        pitch.kickoff = true;
-        pitch.holder = null;
-        pitch.path = [];
-        placeBall(50, 50);
-        pitch.focus = { x: 50, y: 50 };
-        highlightPlayer(null);
+        pitchKickoff();
+        if (kick) setTimeout(() => { if (pitch.pathToken === token && typeof playSound === 'function') playSound('whistle-short'); }, kick - 150);
     }, cel ? cel - 250 : Math.min(900, pitch.msPerMinute));
+}
+
+// Сколько длится расстановка на розыгрыш с центра (игроки успевают дойти до своих мест)
+function kickoffMs() {
+    return Math.round(Math.max(1100, Math.min(2200, (pitch.msPerMinute || 1000) * 1.6)));
+}
+
+// Мяч в центр, игроки — по своим половинам (после гола, в начале тайма)
+function pitchKickoff(instant = false) {
+    pitch.kickoff = true;
+    pitch.holder = null;
+    pitch.path = [];
+    pitch.overrides = new Map();
+    placeBall(50, 50);
+    pitch.focus = { x: 50, y: 50 };
+    highlightPlayer(null);
+    if (instant && pitch.sim) {
+        computeTargets();
+        ['team1', 'team2'].forEach(side => pitch.sim.sides[side].onPitch.forEach(p => {
+            if (p.tx === undefined) return;
+            p.x = p.tx; p.y = p.ty; p.vx = p.vy = 0;
+            const el = p.el && p.el.isConnected ? p.el : $(playerElId(p));
+            if (el) { el.style.left = `${p.x}%`; el.style.top = `${p.y}%`; }
+            p._lx = p.x; p._ly = p.y;
+        }));
+    }
 }
 
 function startCelebration(sim, ev, ms) {
@@ -898,7 +934,7 @@ function stepCamera(dt) {
     if (!field) return;
     if (!cameraOn() || !pitch.sim) {
         if (field.style.transform) { field.style.transform = ''; field.style.removeProperty('--cam-rz'); }
-        pitch.cam.rz = 0;
+        pitch.cam.rz = 0; pitch.cam._rzStr = undefined;
         return;
     }
     const c = pitch.cam;
@@ -935,7 +971,8 @@ function stepCamera(dt) {
         tx = Math.max(-lim, Math.min(lim, tx));
         ty = Math.max(-lim, Math.min(lim, ty * 0.8));
     }
-    field.style.setProperty('--cam-rz', `${c.rz.toFixed(2)}deg`);
+    const rzStr = Math.abs(c.rz) < 0.05 ? "0deg" : `${c.rz.toFixed(1)}deg`;
+    if (rzStr !== c._rzStr) { c._rzStr = rzStr; field.style.setProperty("--cam-rz", rzStr); } // меняем, только если повернулась камера
     field.style.transform = `perspective(1300px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.z.toFixed(3)}) rotate(${c.rz.toFixed(2)}deg) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
 }
 
@@ -946,7 +983,10 @@ function cameraPunch(seconds = 1.6) {
 
 // Ракурс «из-за спины бьющего» на штрафной и пенальти: точка между мячом и воротами, ворота — вверху кадра
 function cameraGoalView(side, ballX, ballY, ms = 2600) {
-    if (!cameraOn()) return;
+    if (!cameraOn() || prefs.spMode === "fast") return;
+    const mpm = typeof normalMatchInterval === "function" ? normalMatchInterval() : (pitch.msPerMinute || 1000);
+    if (prefs.spMode !== "show" && (mpm < 350 || (pitch.msPerMinute || 1000) < 350)) return; // на высокой скорости разворот камеры не успевает — остаёмся на общем плане
+    ms = Math.min(ms, prefs.spMode === "show" ? mpm * 3.2 : mpm * 2.2);
     const goalX = side === 'team1' ? 100 : 0;
     pitch.cam.shot = { kind: 'goal-view', until: performance.now() + ms,
         cx: ballX + (goalX - ballX) * 0.45, cy: ballY + (50 - ballY) * 0.3, rz: side === 'team1' ? -90 : 90 };

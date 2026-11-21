@@ -68,6 +68,17 @@ function cleanPlayerRatings(pr) {
     return Object.keys(out).length ? out : undefined;
 }
 
+// Свои номера игроков: { имя: 1–99 }, без повторов
+function cleanPlayerNumbers(pn) {
+    if (!pn || typeof pn !== "object") return undefined;
+    const out = {}, used = new Set();
+    Object.entries(pn).slice(0, 80).forEach(([n, v]) => {
+        const name = cleanText(n), num = Math.round(Number(v));
+        if (name && num >= 1 && num <= 99 && !used.has(num)) { out[name] = num; used.add(num); }
+    });
+    return Object.keys(out).length ? out : undefined;
+}
+
 function cleanHex(c, fallback) {
     return typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : fallback;
 }
@@ -192,6 +203,7 @@ function applyCustomData() {
     const custom = effectiveTeams();
     TEAM_ALIAS = {};
     PLAYER_RATING_OVERRIDES = {};
+    PLAYER_NUMBER_OVERRIDES = {};
     const shown = (key, o) => (o && o.rename) || key;
 
     // Справочники — к стандартным
@@ -225,6 +237,7 @@ function applyCustomData() {
             if (code || year) teamMeta[name] = [code, year];
             if (o && o.crest) customCrests[name] = o.crest;
             if (o && o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
+            if (o && o.playerNumbers) PLAYER_NUMBER_OVERRIDES[name] = { ...o.playerNumbers };
         });
         Object.entries(custom).forEach(([name, o]) => {
             if (!o.isNew || o.type !== type) return;
@@ -235,6 +248,7 @@ function applyCustomData() {
             if (o.code || o.year) teamMeta[name] = [o.code || null, o.year ?? null];
             if (o.crest) customCrests[name] = o.crest;
             if (o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
+            if (o.playerNumbers) PLAYER_NUMBER_OVERRIDES[name] = { ...o.playerNumbers };
         });
     });
     mixedTeams.names = [...russianTeams.names, ...worldTeams.names];
@@ -254,6 +268,7 @@ function applyCustomData() {
                 if (o.code) n.code = o.code;
                 if (o.crest) customCrests[name] = o.crest;
                 if (o.playerRatings) PLAYER_RATING_OVERRIDES[name] = { ...o.playerRatings };
+                if (o.playerNumbers) PLAYER_NUMBER_OVERRIDES[name] = { ...o.playerNumbers };
                 // Участие в турнирах сборных
                 if (Array.isArray(o.cups)) Object.entries(NATION_CUPS).forEach(([k, c]) => {
                     const has = c.names.includes(name), want = o.cups.includes(k);
@@ -281,6 +296,9 @@ function applyCustomData() {
             applyNation(name, NATIONS[name], o);
         });
     }
+
+    // Легендарные составы (Турнир легенд) — поверх пересобранных справочников
+    if (typeof registerLegends === 'function') registerLegends();
 
     // Сбрасываем кэши, построенные по старым данным
     Object.keys(rosterCache).forEach(k => delete rosterCache[k]);
@@ -311,7 +329,7 @@ function saveTeamOverride(key, data, oldKey = null) {
         : { code: cleanCode(data.code) || undefined, year: cleanYear(data.year) };
     const isNew = !isDefaultTeam(key);
     const rename = !isNew && data.rename ? cleanText(data.rename, 30) : '';
-    all.teams[key] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew, playerRatings: cleanPlayerRatings(data.playerRatings),
+    all.teams[key] = { ...data, ...extra, squad, kit, crest: crest || undefined, isNew, playerRatings: cleanPlayerRatings(data.playerRatings), playerNumbers: cleanPlayerNumbers(data.playerNumbers),
         rename: rename && rename !== key ? rename : undefined, hidden: data.hidden ? true : undefined };
     const ok = writeCustomData(all);
     applyCustomData();
@@ -392,6 +410,8 @@ function importCustomData(json) {
         if (isDefaultTeam(name) && o.hidden) clean.hidden = true;
         const pr = cleanPlayerRatings(o.playerRatings);
         if (pr) clean.playerRatings = pr;
+        const pn = cleanPlayerNumbers(o.playerNumbers);
+        if (pn) clean.playerNumbers = pn;
         const crest = cleanCrest(o.crest);
         if (crest) clean.crest = crest;
         clean.isNew = !isDefaultTeam(name);
