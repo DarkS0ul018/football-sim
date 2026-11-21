@@ -12,13 +12,13 @@ function renderQuickActions() {
     const btn = (id, icon, text, title = '') => `<button type="button" class="qa-btn" data-qa="${id}" title="${escapeHtml(title)}">${icon} <span>${text}</span></button>`;
     const out = [];
     const next = nextUserMatch();
-    if (next) out.push(btn('mine', '▶', 'Мой матч', `${next.team1.name} — ${next.team2.name} · ${next.roundName}`));
+    if (next) out.push(btn('mine', icon('play', 16), 'Мой матч', `${next.team1.name} — ${next.team2.name} · ${next.roundName}`));
     if (!hasHumans()) {
-        if (isRoundRobinStage() && getCurrentMatchday()) out.push(btn('round', '⏩', 'Досчитать тур'));
-        if (state.matches.some(m => !m.isFinished)) out.push(btn('stage', '⏭️', 'Досчитать этап'));
+        if (isRoundRobinStage() && getCurrentMatchday()) out.push(btn('round', icon('forward', 16), 'Досчитать тур'));
+        if (state.matches.some(m => !m.isFinished)) out.push(btn('stage', icon('forward', 16), 'Досчитать этап'));
     }
-    if (!state.champion) out.push(btn('all', '🏁', 'Досчитать турнир', 'Все оставшиеся матчи — сразу, до итогов'));
-    out.push(btn('calendar', '📅', 'Календарь'));
+    if (!state.champion) out.push(btn('all', icon('flag', 16), 'Досчитать турнир', 'Все оставшиеся матчи — сразу, до итогов'));
+    out.push(btn('calendar', icon('calendar', 16), 'Календарь'));
     box.innerHTML = out.join('');
 }
 

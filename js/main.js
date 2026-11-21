@@ -17,6 +17,7 @@ initSeriesScreen();
 initPassMap();
 initSettings();
 initTools();
+applyIcons();
 initShowcase();
 initPickerScreen();
 initMatchScreen();

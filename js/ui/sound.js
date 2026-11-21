@@ -218,7 +218,7 @@ function setSoundEnabled(on) {
 function updateSoundButton() {
     const btn = $('btn-sound');
     if (!btn) return;
-    btn.innerText = { on: '🔊', nocrowd: '🔉', off: '🔇' }[sound.mode];
+    btn.innerHTML = typeof icon === 'function' ? icon({ on: 'volume', nocrowd: 'volumeLow', off: 'volumeOff' }[sound.mode], 18) : { on: '🔊', nocrowd: '🔉', off: '🔇' }[sound.mode];
     btn.title = { on: 'Звук стадиона включён (нажмите — без трибун)', nocrowd: 'Без трибун: только свисток и удары (нажмите — выключить)', off: 'Звук выключен (нажмите — включить)' }[sound.mode];
 }
 

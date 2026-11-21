@@ -77,9 +77,10 @@ function renderHome() {
         </div>`).join('')}</div>` : '';
 
     // Турниры
-    $('home-cups').innerHTML = HOME_CUPS.map(c => {
+    $('home-cups').innerHTML = HOME_CUPS.map((c, n) => {
         const info = homeCupInfo(c);
-        return `<button type="button" class="home-tile ${c.cls}" data-cup="${c.id}">
+        const recent = (() => { try { return localStorage.getItem('footballSimPro.lastTile'); } catch (e) { return null; } })() === c.id;
+        return `<button type="button" class="home-tile ${c.cls}${recent ? ' recent' : ''}" data-cup="${c.id}" style="--n:${n}">${recent ? '<span class="ht-recent">Недавно</span>' : ''}
             <span class="ht-icon">${c.icon}</span>
             <span class="ht-title">${c.title}</span>
             <span class="ht-sub">${info.sub}</span>
@@ -99,10 +100,10 @@ function renderHome() {
 
     // Режимы
     const modes = [
-        { id: 'career', icon: '👔', title: 'Карьера', sub: 'Клуб сезон за сезоном или сборная на ЧМ и ЧЕ' },
-        { id: 'duo', icon: '👥', title: 'Вдвоём', sub: 'Каждый за свою команду на одном устройстве' },
-        { id: 'custom', icon: '⚙️', title: 'Свой турнир', sub: 'Любой формат, число команд, свои участники' },
-        { id: 'editor', icon: '✏️', title: 'Редактор', sub: 'Составы, рейтинги, эмблемы, свои команды и сборные' }
+        { id: 'career', icon: icon('briefcase', 30), title: 'Карьера', sub: 'Клуб сезон за сезоном или сборная на ЧМ и ЧЕ' },
+        { id: 'duo', icon: icon('users', 30), title: 'Вдвоём', sub: 'Каждый за свою команду на одном устройстве' },
+        { id: 'custom', icon: icon('sliders', 30), title: 'Свой турнир', sub: 'Любой формат, число команд, свои участники' },
+        { id: 'editor', icon: icon('edit', 30), title: 'Редактор', sub: 'Составы, рейтинги, эмблемы, свои команды и сборные' }
     ];
     $('home-modes').innerHTML = modes.map(m => `<button type="button" class="home-tile home-mode" data-mode="${m.id}">
         <span class="ht-icon">${m.icon}</span>
@@ -161,6 +162,7 @@ function applyHomePreset(cup, gameMode) {
 }
 
 function startHomePreset(cup, gameMode) {
+    try { localStorage.setItem('footballSimPro.lastTile', cup.id); } catch (e) { /* ignore */ }
     if (cup.euroCup) { startEuroCup(cup.euroCup, gameMode); return; }
     if (cup.rusCup) { startRussianCup(gameMode); return; }
     applyHomePreset(cup, gameMode);
