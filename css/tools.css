@@ -324,3 +324,32 @@
     radial-gradient(ellipse 40% 55% at 50% 50%, rgba(30, 60, 30, 0.35), transparent 75%),
     radial-gradient(ellipse 18% 30% at 12% 50%, rgba(30, 60, 30, 0.3), transparent 75%), radial-gradient(ellipse 18% 30% at 88% 50%, rgba(30, 60, 30, 0.3), transparent 75%),
     linear-gradient(rgba(240, 246, 255, 0.55), rgba(240, 246, 255, 0.55)); }
+
+/* ===== Аналитик: подсказка над полем ===== */
+.field-hud > .analyst-card { pointer-events: auto; }
+.analyst-card { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); width: min(420px, 92%); z-index: 5;
+    background: rgba(8, 16, 32, 0.92); border: 1px solid rgba(255, 255, 255, 0.12); border-left: 3px solid var(--accent);
+    border-radius: 10px; padding: 9px 12px; color: #eef3fb; font-size: 0.82rem; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    animation: anIn 0.35s ease-out; transition: opacity 0.3s, transform 0.3s; }
+.analyst-card.out { opacity: 0; transform: translate(-50%, 10px); }
+.analyst-card.applied { border-left-color: #4ade80; }
+.analyst-card .an-head { font-family: 'Oswald', sans-serif; letter-spacing: 0.04em; text-transform: uppercase; font-size: 0.72rem; color: var(--accent); margin-bottom: 3px; }
+.analyst-card .an-head .muted { color: rgba(255, 255, 255, 0.5); margin-left: 4px; }
+.analyst-card .an-text { line-height: 1.35; }
+.analyst-card .an-actions { display: flex; gap: 8px; margin-top: 7px; }
+.analyst-card button { border: 0; border-radius: 6px; padding: 5px 12px; font-weight: 700; font-size: 0.78rem; cursor: pointer; }
+.analyst-card .an-apply { background: var(--accent); color: var(--accent-ink); }
+.analyst-card .an-skip { background: rgba(255, 255, 255, 0.1); color: #eef3fb; }
+@keyframes anIn { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@media (max-width: 600px) { .analyst-card { font-size: 0.74rem; padding: 7px 9px; bottom: 6px; } }
+
+/* ===== Навыки игрока ===== */
+.pc-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 14px; margin: 10px 0 4px; }
+.pc-skill { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; font-size: 0.8rem; }
+.pc-skill b { font-variant-numeric: tabular-nums; }
+.pc-skill i { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: rgba(127, 127, 127, 0.2); overflow: hidden; display: block; }
+.pc-skill i::after { content: ''; display: block; height: 100%; width: var(--v); background: var(--c, var(--accent)); border-radius: inherit; }
+.pc-skill.best span::after { content: ' ★'; color: var(--accent); }
+.pc-skill.worst span { opacity: 0.7; }
+.tp-skill { font-size: 0.66rem; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(127, 127, 127, 0.16); color: var(--text-2); margin-left: 6px; white-space: nowrap; }
+@media (max-width: 420px) { .tactics-player .tp-skill { display: none; } }

@@ -56,6 +56,47 @@ function effectiveRating(player, slot = player.natPos || player.position) {
         + formBonus(player) + moraleBonus(player);
 }
 
+// ----- Навыки игроков -----
+// Из рейтинга, позиции и имени (стабильно для каждого игрока): у каждого есть сильная и слабая сторона.
+// Движок учитывает только отклонение навыка от «обычного» для позиции — общий баланс голов не меняется,
+// но быстрый нападающий чаще убегает в контратаку, снайпер точнее бьёт, а вратарь с реакцией больше тащит.
+const SKILL_LABELS = { pac: 'Скорость', sho: 'Удар', pas: 'Пас', tck: 'Отбор', hea: 'Игра головой', ref: 'Реакция', out: 'Выходы', dis: 'Игра ногами' };
+const SKILL_SHORT = { pac: 'СКР', sho: 'УДР', pas: 'ПАС', tck: 'ОТБ', hea: 'ГОЛ', ref: 'РЕА', out: 'ВЫХ', dis: 'НОГ' };
+const SKILL_PROFILE = {
+    GK:  { ref: 2, out: 0, dis: -4 },
+    DEF: { pac: -2, sho: -14, pas: -4, tck: 6, hea: 4 },
+    MID: { pac: 0, sho: -3, pas: 5, tck: -2, hea: -6 },
+    FWD: { pac: 3, sho: 6, pas: -2, tck: -16, hea: 0 }
+};
+const skillCache = new Map();
+
+function playerSkills(p) {
+    const pos = SKILL_PROFILE[p.natPos] ? p.natPos : (SKILL_PROFILE[p.position] ? p.position : 'MID');
+    const key = `${p.name}|${pos}|${p.rating}`;
+    if (skillCache.has(key)) return skillCache.get(key);
+    const prof = SKILL_PROFILE[pos], keys = Object.keys(prof);
+    const h = i => hashString(`${p.name}:skill${i}`);
+    const best = Math.floor(h(0) * keys.length) % keys.length;
+    let worst = Math.floor(h(1) * (keys.length - 1)) % (keys.length - 1);
+    if (worst >= best) worst++;
+    const out = { pos, best: keys[best], worst: keys[worst], edge: {} };
+    keys.forEach((k, i) => {
+        let d = (h(i + 2) - 0.5) * 6;              // ±3
+        if (i === best) d += 6;
+        if (i === worst) d -= 6;
+        out[k] = Math.round(Math.max(30, Math.min(99, p.rating + prof[k] + d)));
+        out.edge[k] = Math.round(d); // отклонение от «обычного» для позиции (без обрезки 99 — у звёзд тоже)
+    });
+    skillCache.set(key, out);
+    return out;
+}
+
+// Отклонение навыка (≈ −9…+9) для движка; в режиме «рандом» навыки не работают
+function skillEdge(p, k) {
+    if (!p || !p.name || (typeof isRealistic === 'function' && !isRealistic())) return 0;
+    return playerSkills(p).edge[k] || 0;
+}
+
 // ----- Форма и мораль -----
 // Форма — средняя оценка за последние матчи (оценки 3–10 из движка).
 // Мораль (5–100) растёт от побед, игрового времени и ярких матчей, падает от поражений и скамейки;

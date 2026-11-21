@@ -21,6 +21,7 @@ function playerRowHtml(p, opts = {}) {
             <span class="tp-num">${p.number}</span>
             <span class="tp-name" title="${p.name}">${p.name}</span>
             ${p.age ? `<span class="tr-age" title="Возраст">${p.age}</span>` : ''}
+            ${bestSkillTag({ ...p, natPos: p.natPos || p.position })}
             ${badges.join('')}
             ${moodHtml(p)}
             <span class="tp-fitness" title="Свежесть ${f}%"><span style="width:${f}%;background:${fitnessColor(f)}"></span></span>

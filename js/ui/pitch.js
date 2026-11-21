@@ -295,7 +295,7 @@ function stepPlayers(dt) {
         // Скорость меняется плавно (разгон, торможение, повороты), а не скачком
         let wantX = 0, wantY = 0;
         if (dist > 0.05) {
-            const fit = 0.75 + 0.25 * ((p.fitness ?? 100) / 100);
+            const fit = (0.75 + 0.25 * ((p.fitness ?? 100) / 100)) * (p._pace || (p._pace = 1 + clamp(skillEdge(p, 'pac'), -9, 9) * 0.02));
             const ov = pitch.overrides && pitch.overrides.get(p);
             const sprint = ov ? (ov.follow ? 2.3 : 2.1) : 1; // рывок: бег в зону удара, погоня за соперником
             const v = Math.min(vmax * fit * sprint * (p.position === 'GK' ? 0.7 : 1), dist * 3.2); // плавное торможение у цели

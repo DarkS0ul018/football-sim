@@ -191,6 +191,23 @@ function pcRatingClass(r) {
     return r >= 8 ? 'rt-top' : (r >= 7 ? 'rt-good' : (r >= 6 ? 'rt-mid' : 'rt-low'));
 }
 
+// Навыки игрока полосками; ★ — сильная сторона
+function skillsHtml(p) {
+    if (!p || !p.name || typeof playerSkills !== 'function') return '';
+    const sk = playerSkills(p);
+    const keys = Object.keys(SKILL_PROFILE[sk.pos]);
+    const color = v => v >= 85 ? '#4ade80' : v >= 75 ? 'var(--accent)' : v >= 62 ? '#f5c84b' : '#f87171';
+    return `<h4>Навыки</h4><div class="pc-skills">${keys.map(k => `<div class="pc-skill ${k === sk.best ? 'best' : ''} ${k === sk.worst ? 'worst' : ''}">
+        <span>${SKILL_LABELS[k]}</span><b>${sk[k]}</b><i style="--v:${sk[k]}%;--c:${color(sk[k])}"></i></div>`).join('')}</div>`;
+}
+
+// Сильная сторона игрока коротко: «СКР 88»
+function bestSkillTag(p) {
+    if (!p || !p.name || typeof playerSkills !== 'function') return '';
+    const sk = playerSkills(p);
+    return `<span class="tp-skill" title="${SKILL_LABELS[sk.best]}">${SKILL_SHORT[sk.best]} ${sk[sk.best]}</span>`;
+}
+
 function openPlayerCard(statId) {
     const p = playerStats[statId];
     if (!p) return;
@@ -234,6 +251,7 @@ function openPlayerCard(statId) {
             ${tile(p.motm || 0, 'лучший в матче')}
             ${tile(`${p.yellowCards || 0}/${p.redCards || 0}`, 'жёлт./красн.')}
         </div>
+        ${skillsHtml({ name: p.name, natPos: p.position, rating: p.rating })}
         ${log.length ? `<h4>Матчи</h4><div class="pc-log"><table class="stats-table"><tbody>${rows}</tbody></table></div>`
             : '<p class="muted">Ещё не выходил на поле в этом турнире.</p>'}
     </div>`;

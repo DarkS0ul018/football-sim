@@ -366,6 +366,59 @@ class MatchSimulation {
         });
     }
 
+    // ----- Аналитик: подсказка по ходу матча (для команды человека) -----
+    // Смотрит на ход игры и предлагает одно изменение. Если подсказку принять, пока ситуация не изменилась,
+    // команда 15 минут играет заметно лучше (s.advice): тактика попала в слабое место соперника.
+    analystHint(side) {
+        if (!isRealistic() || this.isOver || this.minute < 12) return null;
+        const s = this.sides[side], o = otherSide(side), opp = this.sides[o];
+        const st = this.stats;
+        const my = this.score[SIDE_KEY[side]], their = this.score[SIDE_KEY[o]];
+        const fit = sd => { const l = this.sides[sd].onPitch; return l.reduce((a, p) => a + (p.fitness ?? 100), 0) / Math.max(1, l.length); };
+        const fastest = s.onPitch.filter(p => p.position === 'FWD' || p.position === 'MID')
+            .sort((a, b) => playerSkills(b).pac - playerSkills(a).pac)[0];
+        const aerial = s.onPitch.filter(p => p.position !== 'GK').sort((a, b) => playerSkills(b).hea - playerSkills(a).hea)[0];
+        const oppGk = this.goalkeeper(o);
+        const hints = [];
+        if (my < their && this.minute >= 60 && s.style !== 'attack')
+            hints.push({ id: 'chase', text: `Проигрываем ${my}:${their} — пора рисковать: атака и высокая линия.`, apply: { style: 'attack', line: 'high' }, effect: { att: 0.04, fin: 0.02 } });
+        if (my - their === 1 && this.minute >= 75 && s.style !== 'defense')
+            hints.push({ id: 'hold', text: 'Ведём в один мяч — закрываемся низким блоком и доводим матч.', apply: { style: 'defense', line: 'low' }, effect: { oppFin: -0.03 } });
+        if (opp.line === 'high' && fastest && playerSkills(fastest).pac >= 80 && s.style !== 'counter')
+            hints.push({ id: 'counter', text: `У соперника высокая линия, а у нас быстрый ${fastest.name} (скорость ${playerSkills(fastest).pac}) — играем на контратаках за спину.`, apply: { style: 'counter' }, effect: { fin: 0.035 } });
+        if (st.possession[side] <= 41 && this.minute >= 15 && !['pressing', 'possession', 'defense', 'counter'].includes(s.style) && fit(side) > 70)
+            hints.push({ id: 'press', text: `Соперник владеет мячом (${st.possession[o]}%) — включаем прессинг, отбираем выше.`, apply: { style: 'pressing' }, effect: { att: 0.04 } });
+        if (st.shots[o] >= st.shots[side] + 4 && s.line !== 'low')
+            hints.push({ id: 'deep', text: `Нас вскрывают: удары ${st.shots[side]}–${st.shots[o]}. Опускаем линию обороны.`, apply: { line: 'low' }, effect: { oppFin: -0.03 } });
+        if (fit(o) < 62 && fit(side) > fit(o) + 6 && s.style !== 'pressing' && this.minute >= 55)
+            hints.push({ id: 'tired', text: 'Соперник выдохся — прессингуем, у нас больше сил.', apply: { style: 'pressing' }, effect: { att: 0.035, fin: 0.01 } });
+        if (s.style === 'pressing' && fit(side) < 58)
+            hints.push({ id: 'rest', text: 'Команда устала от прессинга — переходим на баланс, иначе пропустим.', apply: { style: 'balance' }, effect: { oppFin: -0.02 } });
+        if (aerial && playerSkills(aerial).hea >= 84 && skillEdge(oppGk, 'out') < 0 && s.style !== 'attack' && this.minute >= 20)
+            hints.push({ id: 'aerial', text: `${aerial.name} силён в воздухе (${playerSkills(aerial).hea}), а вратарь соперника слаб на выходах — больше навесов и угловых.`, apply: { style: 'attack' }, effect: { fin: 0.03 } });
+        return hints.find(h => !(s.hintsSeen || (s.hintsSeen = new Set())).has(h.id)) || null;
+    }
+
+    applyAdvice(side, hint) {
+        const s = this.sides[side];
+        (s.hintsSeen || (s.hintsSeen = new Set())).add(hint.id);
+        if (hint.apply.style) { s.style = hint.apply.style; }
+        if (hint.apply.line) { s.line = hint.apply.line; }
+        s.advice = { id: hint.id, until: this.minute + 15, ...hint.effect };
+        const parts = [hint.apply.style && STYLES[hint.apply.style].label, hint.apply.line && `линия ${LINES[hint.apply.line].label}`].filter(Boolean);
+        this.log('tactic', side, `Совет аналитика принят: ${parts.join(', ')}`);
+    }
+
+    dismissHint(side, hint) {
+        const s = this.sides[side];
+        (s.hintsSeen || (s.hintsSeen = new Set())).add(hint.id);
+    }
+
+    adviceBonus(side, key) {
+        const a = this.sides[side].advice;
+        return a && this.minute <= a.until ? (a[key] || 0) : 0;
+    }
+
     // Замена по решению игрока (номера из onPitch и bench)
     manualSubstitute(side, outNumber, inNumber) {
         const s = this.sides[side];
@@ -408,7 +461,7 @@ class MatchSimulation {
         let v = STYLES[s.style].attackShare + LINES[s.line].attackShare;
         v += (sh.FWD - 2) * 0.012 - (sh.DEF - 4) * 0.015;      // больше нападающих — больше атак
         if (s.style === 'possession' && opp.style === 'pressing') v -= 0.03; // прессинг мешает строить игру
-        return v;
+        return v + this.adviceBonus(side, 'att');
     }
 
     // Доля атак team1: середина поля решает, у кого мяч; атака против защиты — кто чаще доходит до ворот
@@ -431,7 +484,7 @@ class MatchSimulation {
         v += (myShape.FWD - 2) * 0.006;                         // больше нападающих в штрафной
         v -= (oppShape.DEF - 4) * 0.012;                        // пятёрка защитников мешает
         if (s.style === 'counter' && opp.line === 'high') v += 0.03; // контратака за спину высокой линии
-        return v;
+        return v + this.adviceBonus(side, 'fin') + this.adviceBonus(otherSide(side), 'oppFin');
     }
 
     tire() {
@@ -531,9 +584,12 @@ class MatchSimulation {
     playAttack(side) {
         // Контратака: мяч только что сменил владельца, а команда любит играть на выпадах
         const turnover = this.lastPlay && this.lastPlay.side !== side;
-        const counter = turnover && Math.random() < (this.sides[side].style === 'counter' ? 0.6 : 0.2);
+        // Быстрые нападающие чаще убегают в контратаку
+        const pace = clamp(1 + this.lineSkill(side, 'FWD', 'pac') * 0.05, 0.7, 1.35);
+        const counter = turnover && Math.random() < (this.sides[side].style === 'counter' ? 0.6 : 0.2) * pace;
         const pre = this.buildChain(side, counter ? 1 : 1 + (Math.random() < 0.5 ? 1 : 0));
-        const roll = Math.random();
+        // Защита с хорошим отбором чаще срывает атаку до удара (и наоборот)
+        const roll = clamp(Math.random() + this.lineSkill(otherSide(side), 'DEF', 'tck') * 0.006, 0, 0.9999);
         if (roll < 0.42) this.shot(side, 'open', pre, counter);
         else if (roll < 0.60) {
             this.stats.corners[side]++;
@@ -557,14 +613,21 @@ class MatchSimulation {
         const posWeight = kind === 'corner' || kind === 'freekick'
             ? { FWD: 3, MID: 1, DEF: 3 }
             : { FWD: 5, MID: 2.5, DEF: 0.7 };
-        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3));
+        const sk = kind === 'corner' || kind === 'freekick' ? 'hea' : 'sho';
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 3) * clamp(1 + skillEdge(p, sk) * 0.04, 0.6, 1.4));
+    }
+
+    // Средний навык линии (отклонение от обычного): скорость атаки, отбор защиты
+    lineSkill(side, pos, k) {
+        const list = this.sides[side].onPitch.filter(p => p.position === pos);
+        return list.length ? list.reduce((a, p) => a + skillEdge(p, k), 0) / list.length : 0;
     }
 
     pickAssister(side, scorer) {
         const field = this.sides[side].onPitch.filter(p => p.position !== 'GK' && p.number !== scorer.number);
         if (!field.length) return null;
         const posWeight = { MID: 4, FWD: 3, DEF: 1.2 };
-        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 2));
+        return weightedPick(field, p => posWeight[p.position] * Math.pow(effRating(p) / 75, 2) * clamp(1 + skillEdge(p, 'pas') * 0.04, 0.6, 1.4));
     }
 
     // pre — начало розыгрыша; cornerTaker — кто подавал угловой
@@ -585,7 +648,9 @@ class MatchSimulation {
         this.stats.xg[side] += xg;
         // Мастерство бьющего и вратаря, тактика — как раньше; xG смещает шанс относительно среднего момента
         const pOnTarget = clamp(0.35 + (effRating(shooter) - 80) * 0.004, 0.22, 0.5);
-        const pConvert = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + this.finishBonus(side), 0.12, 0.5);
+        // Навыки: удар (или игра головой) бьющего против реакции (или выходов) вратаря
+        const skill = skillEdge(shooter, header ? 'hea' : 'sho') - skillEdge(gk, header ? 'out' : 'ref');
+        const pConvert = clamp(0.29 + (effRating(shooter) - effRating(gk)) * 0.004 + skill * 0.005 + this.finishBonus(side), 0.12, 0.5);
         const pGoal = clamp(pOnTarget * pConvert * xg / XG_MEAN * WEATHER[this.weather].goals, 0.005, 0.85);
         const pSave = Math.min(1 - pGoal, pOnTarget * (1 - pConvert) * clamp(0.6 + xg / XG_MEAN * 0.4, 0.6, 1.6));
         const u = Math.random();

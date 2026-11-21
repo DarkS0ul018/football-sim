@@ -117,7 +117,7 @@ function renderManagePanel() {
     const row = (p, key, selected) => `
         <div class="tactics-player ${selected ? 'selected' : ''}" data-key="${key}">
             <span class="tp-slot">${p.position}</span><span class="tp-num">${p.number}</span>
-            <span class="tp-name">${p.name}${p.yellow ? ' 🟨' : ''}</span>
+            <span class="tp-name">${p.name}${p.yellow ? ' 🟨' : ''}${bestSkillTag(p)}</span>
             <span class="tp-fitness"><span style="width:${Math.round(p.fitness)}%;background:${fitnessColor(p.fitness)}"></span></span>
             <span class="tp-rating">${Math.round(effectiveRating(p, p.position))}</span>
         </div>`;
@@ -358,6 +358,7 @@ function startSimulation(m) {
             if (ev.type === 'substitution') later(() => showSubBoard(ev), 50);
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
+        if (!sim.isOver && sim.minute % 3 === 0) offerAnalystHint(sim);
         if (lineupChanged || sim.minute % 5 === 0 || events.some(e => e.type === 'card-yellow' || e.type === 'tactic' || e.type === 'card-red')) renderLineups(sim); // оценки обновляются раз в 5 минут
 
         const plan = animateMinute(sim, events, ms, span) || {};
@@ -681,4 +682,44 @@ function holdForCelebration(ms) {
             simulationInterval = setInterval(simStep, getMatchInterval());
         }
     }, ms);
+}
+
+// ----- Аналитик на скамейке: подсказка по ходу матча -----
+// Карточка над полем: «Применить» меняет тактику; если совет точный — 15 минут команда играет заметно лучше.
+let analystCard = null;
+function offerAnalystHint(sim) {
+    const side = userSide(sim.match);
+    if (analystCard && (!analystCard.isConnected || analystCard._sim !== sim)) { analystCard.remove(); analystCard = null; }
+    if (!side || analystCard) return;
+    const s = sim.sides[side];
+    if (s.lastHintMinute != null && sim.minute - s.lastHintMinute < 10) return;
+    const hint = sim.analystHint(side);
+    if (!hint) return;
+    s.lastHintMinute = sim.minute;
+    const host = $('field-hud') || $('football-field');
+    if (!host) return;
+    const el = document.createElement('div');
+    el.className = 'analyst-card';
+    el.innerHTML = `<div class="an-head">📊 Аналитик <span class="muted">${sim.minute}'</span></div>
+        <div class="an-text">${escapeHtml(hint.text)}</div>
+        <div class="an-actions"><button type="button" class="an-apply">Применить</button><button type="button" class="an-skip">Не сейчас</button></div>`;
+    host.appendChild(el);
+    analystCard = el;
+    el._sim = sim;
+    const close = () => { if (analystCard === el) analystCard = null; el.classList.add('out'); setTimeout(() => el.remove(), 300); };
+    const timer = setTimeout(() => { sim.dismissHint(side, hint); close(); }, Math.max(9000, getMatchInterval() * 8));
+    el.querySelector('.an-apply').onclick = () => {
+        clearTimeout(timer);
+        if (currentSim !== sim || sim.isOver) { close(); return; }
+        sim.newEvents = [];
+        sim.applyAdvice(side, hint);
+        if (hint.apply.style) getSquad(s.team).style = hint.apply.style;
+        sim.newEvents.forEach(ev => showSimEvent(sim.match, ev));
+        renderLineups(sim);
+        el.querySelector('.an-text').textContent = '✓ Команда перестроилась — 15 минут ждём эффекта.';
+        el.querySelector('.an-actions').remove();
+        el.classList.add('applied');
+        setTimeout(close, 2600);
+    };
+    el.querySelector('.an-skip').onclick = () => { clearTimeout(timer); sim.dismissHint(side, hint); close(); };
 }
