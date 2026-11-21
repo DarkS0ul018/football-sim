@@ -170,3 +170,29 @@
     .bk-col.center { width: 180px; }
     .bk-tree { gap: 22px; }
 }
+
+/* ===== Газон: узор стрижки по стадиону, свет прожекторов ===== */
+.football-field { --g1: #2f8a45; --g2: #236e37; --g3: #1c5c2d; --mow: rgba(255, 255, 255, 0.045);
+    background: radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%);
+    box-shadow: inset 0 0 0 3px rgba(255, 255, 255, 0.05), 0 10px 30px rgba(0, 0, 0, 0.35); }
+.football-field[data-pattern="stripes"] { background: repeating-linear-gradient(90deg, var(--mow) 0 5%, transparent 5% 10%), radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%); }
+.football-field[data-pattern="wide"] { background: repeating-linear-gradient(90deg, var(--mow) 0 8.33%, transparent 8.33% 16.66%), radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%); }
+.football-field[data-pattern="checks"] { background: repeating-linear-gradient(90deg, var(--mow) 0 6.25%, transparent 6.25% 12.5%), repeating-linear-gradient(0deg, var(--mow) 0 10%, transparent 10% 20%), radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%); }
+.football-field[data-pattern="diagonal"] { background: repeating-linear-gradient(45deg, var(--mow) 0 4.5%, transparent 4.5% 9%), radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%); }
+.football-field[data-pattern="rings"] { background: repeating-radial-gradient(circle at 50% 50%, var(--mow) 0 4%, transparent 4% 8%), radial-gradient(ellipse at center, var(--g1) 0%, var(--g2) 70%, var(--g3) 100%); }
+/* Свет прожекторов и мягкая виньетка по краям */
+.football-field::before { content: ''; position: absolute; inset: 0; pointer-events: none; z-index: 1; border-radius: inherit;
+    background: radial-gradient(60% 70% at 18% 0%, rgba(255, 255, 240, 0.10), transparent 70%), radial-gradient(60% 70% at 82% 100%, rgba(255, 255, 240, 0.08), transparent 70%),
+        radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.28) 100%); }
+.football-field .pitch-line { box-shadow: 0 0 2px rgba(255, 255, 255, 0.25); }
+/* Трибуны вокруг поля */
+.field-container { background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 18%), repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.025) 0 6px, transparent 6px 12px), var(--surface); }
+.legend-item.venue { margin-left: auto; color: var(--text-2); font-size: 0.8rem; }
+
+/* Мяч в полёте: тень остаётся на земле, сам мяч «поднимается» */
+.ball-shadow { position: absolute; width: 12px; height: 6px; margin: -3px 0 0 -6px; border-radius: 50%; background: rgba(0, 0, 0, 0.35); z-index: 55; pointer-events: none; filter: blur(1px); }
+.ball { will-change: left, top, transform; }
+.player { will-change: left, top; }
+.player.running .player-num { animation: runBob 0.36s ease-in-out infinite alternate; }
+@keyframes runBob { from { transform: translateY(0); } to { transform: translateY(-1.5px); } }
+@media (prefers-reduced-motion: reduce) { .player.running .player-num { animation: none; } }

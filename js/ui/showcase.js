@@ -31,7 +31,8 @@ function renderMatchPreview(m, sim) {
     if (!prefs.preview || !sim) { box.style.display = 'none'; return; }
     const [p1, pd, p2] = matchPrediction(sim);
     const w = WEATHER[sim.weather];
-    const venue = sim.homeSide ? `дома у «${sim.sides[sim.homeSide].team.name}»` : 'нейтральное поле';
+    const v = sim.venue || matchVenue(sim);
+    const venue = v.neutral ? v.name : `${v.name}${sim.venue ? ` · ${sim.venue.crowd.toLocaleString('ru-RU')} зрителей` : ''}`;
     const h2h = teamMatches(m.team1).filter(x => x !== m && x.isFinished && x.involves(m.team2)).map(x => {
         const a = x.aggregateScore;
         return `${escapeHtml(x.team1.name)} ${a.t1}:${a.t2} ${escapeHtml(x.team2.name)}`;

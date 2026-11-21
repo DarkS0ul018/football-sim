@@ -61,10 +61,16 @@ function renderField(sim) {
     pitch.lastGoal = null;
     $('btn-replay-goal') && ($('btn-replay-goal').style.display = 'none');
     applyMatchKits(sim.match);
+    applyVenue(sim);
     renderPlayers(sim);
     const ball = document.createElement('div');
     ball.className = 'ball';
     ball.id = 'match-ball';
+    field.querySelector('.ball-shadow')?.remove();
+    const shadow = document.createElement('div');
+    shadow.className = 'ball-shadow';
+    shadow.id = 'ball-shadow';
+    field.appendChild(shadow);
     ball.style.transition = 'none';
     field.appendChild(ball);
     pitch.sim = sim;
@@ -83,13 +89,23 @@ function setTransition(el, ms) {
 }
 
 // Мгновенно (или CSS-переходом — только для повтора) ставит мяч в точку
-function placeBall(x, y, ms = 0) {
+// h — высота полёта в пикселях: мяч поднимается и чуть растёт, тень остаётся на газоне
+function placeBall(x, y, ms = 0, h = 0) {
     const ball = $('match-ball');
     pitch.ball = { x, y };
     if (!ball) return;
     setTransition(ball, ms);
     ball.style.left = `${x}%`;
     ball.style.top = `${y}%`;
+    ball.style.transform = h > 0.5 ? `translateY(${-h}px) scale(${1 + h / 45})` : '';
+    const sh = $('ball-shadow');
+    if (sh) {
+        setTransition(sh, ms);
+        sh.style.left = `${x}%`;
+        sh.style.top = `${y}%`;
+        sh.style.opacity = h > 0.5 ? String(Math.max(0.35, 1 - h / 40)) : '0';
+        sh.style.transform = h > 0.5 ? `scale(${Math.max(0.6, 1 - h / 50)})` : '';
+    }
 }
 
 function highlightPlayer(player) {
@@ -267,17 +283,28 @@ function stepPlayers(dt) {
         if (p.tx === undefined) return;
         const dx = p.tx - p.x, dy = (p.ty - p.y) * 0.66; // поле вытянуто: по вертикали те же % короче
         const dist = Math.hypot(dx, dy);
+        // Скорость меняется плавно (разгон, торможение, повороты), а не скачком
+        let wantX = 0, wantY = 0;
         if (dist > 0.05) {
             const fit = 0.75 + 0.25 * ((p.fitness ?? 100) / 100);
             const ov = pitch.overrides && pitch.overrides.get(p);
             const sprint = ov ? (ov.follow ? 2.3 : 2.1) : 1; // рывок: бег в зону удара, погоня за соперником
-            const v = Math.min(vmax * fit * sprint * (p.position === 'GK' ? 0.7 : 1), dist * 4); // плавное торможение у цели
-            const k = Math.min(1, (v * dt) / dist);
-            p.x += dx * k;
-            p.y += (p.ty - p.y) * k;
+            const v = Math.min(vmax * fit * sprint * (p.position === 'GK' ? 0.7 : 1), dist * 3.2); // плавное торможение у цели
+            wantX = dx / dist * v; wantY = dy / dist * v;
         }
+        const acc = Math.min(1, dt * 6.5);
+        p.vx = (p.vx || 0) + (wantX - (p.vx || 0)) * acc;
+        p.vy = (p.vy || 0) + (wantY - (p.vy || 0)) * acc;
+        // не проскакиваем цель
+        const stepX = p.vx * dt, stepY = p.vy * dt;
+        if (Math.hypot(stepX, stepY) >= dist && dist > 0) { p.x = p.tx; p.y = p.ty; p.vx = p.vy = 0; }
+        else { p.x += stepX; p.y += stepY / 0.66; }
         const el = p.el && p.el.isConnected ? p.el : (p.el = $(playerElId(p)));
-        if (el) { el.style.left = `${p.x}%`; el.style.top = `${p.y}%`; }
+        if (el) {
+            el.style.left = `${p.x}%`; el.style.top = `${p.y}%`;
+            const run = Math.hypot(p.vx, p.vy) > 8;
+            if (run !== p._run) { p._run = run; el.classList.toggle('running', run); }
+        }
     }));
 }
 
@@ -287,10 +314,16 @@ function stepBall(dtMs) {
     if (seg.t === undefined) { seg.t = 0; seg.fromX = pitch.ball.x; seg.fromY = pitch.ball.y; seg.onStart && seg.onStart(); }
     seg.t += dtMs;
     const k = Math.min(1, seg.t / Math.max(1, seg.dur));
-    const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // мяч разгоняется и замедляется
+    // Удар — мяч сразу летит быстро и чуть гаснет; пас — разгоняется и замедляется
+    const e = seg.shot ? 1 - Math.pow(1 - k, 2.2) : (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2);
     // Пас адресату: мяч доворачивает к принимающему, где бы тот ни оказался
     if (seg.follow && seg.follow.x !== undefined) { seg.x = seg.follow.x; seg.y = seg.follow.y; }
-    placeBall(seg.fromX + (seg.x - seg.fromX) * e, seg.fromY + (seg.y - seg.fromY) * e);
+    // Длинная передача и навес — по дуге (высота по синусу), короткий пас и удар — низом
+    if (seg.loft === undefined) {
+        const d = Math.hypot(seg.x - seg.fromX, (seg.y - seg.fromY) * 0.66);
+        seg.loft = !seg.shot && d > 22 ? Math.min(18, d * 0.32) : 0;
+    }
+    placeBall(seg.fromX + (seg.x - seg.fromX) * e, seg.fromY + (seg.y - seg.fromY) * e, 0, seg.loft * Math.sin(Math.PI * k));
     if (k >= 1) {
         pitch.path.shift();
         seg.onArrive && seg.onArrive();
@@ -449,6 +482,7 @@ function animateMinute(sim, events, ms, span = 1) {
     pitch.path = wps.map((w, i) => ({
         x: w.x, y: w.y,
         follow: w.player && team.includes(w.player) && !w.corner && !w.penaltySpot ? w.player : null,
+        shot: !!(w.goal || w.save || w.miss),
         dur: Math.max(60, budget * lens[i] / total),
         onStart: () => { if (!fast && i > 0) playSound('kick'); },
         onArrive: () => {
@@ -603,7 +637,7 @@ function hideGoalTicker() {
 // ===== Стандарты: расстановка как в трансляции =====
 function stagePlace(side, p, r, y) {
     const pt = { x: abs(side, clampv(r, 2, 98)), y: clampv(y, 3, 97) };
-    p.x = pt.x; p.y = pt.y;
+    p.x = pt.x; p.y = pt.y; p.vx = p.vy = 0;
     pitch.overrides.set(p, pt);
 }
 
@@ -658,4 +692,26 @@ function showPitchBanner(text) {
     el.textContent = text;
     field.appendChild(el);
     setTimeout(() => el.remove(), 1800);
+}
+
+// ===== Стадион матча: узор газона и подпись =====
+function matchVenue(sim) {
+    const m = sim.match;
+    const home = sim.homeSide ? sim.sides[sim.homeSide].team : null;
+    const national = home && typeof NATIONS !== 'undefined' && NATIONS[home.name];
+    if (!home || national) {
+        const h = hashString('venue:' + m.team1.name + m.team2.name + (m.roundName || ''));
+        return { name: m.isFinal ? 'Нейтральное поле · финал' : 'Нейтральное поле', capacity: 60000, pattern: PITCH_PATTERNS[Math.floor(h * PITCH_PATTERNS.length)], neutral: true };
+    }
+    return stadiumOf(home.name);
+}
+
+function applyVenue(sim) {
+    const v = matchVenue(sim);
+    const field = $('football-field');
+    if (field) field.dataset.pattern = v.pattern;
+    const crowd = Math.round(v.capacity * (0.8 + hashString('crowd:' + sim.match.id + sim.leg + sim.match.team1.name) * 0.2));
+    setText('field-venue', `🏟️ ${v.name} · ${crowd.toLocaleString('ru-RU')} зрителей`);
+    sim.venue = { ...v, crowd };
+    return sim.venue;
 }
