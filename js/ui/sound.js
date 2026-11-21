@@ -128,7 +128,10 @@ function startCrowd() {
     low.start(); src.start(); lfo.start();
     sound.crowd = { src, gain, filter, extra: [low, lfo] };
     // Речёвки трибун время от времени
-    sound.chantTimer = setInterval(() => { if (Math.random() < 0.45) crowdChant(); }, 14000);
+    sound.chantTimer = setInterval(() => {
+        const r = Math.random();
+        if (r < 0.22) crowdChant(); else if (r < 0.4) crowdSong(); else if (r < 0.55) crowdDrums();
+    }, 12000);
 }
 
 function stopCrowd() {
@@ -192,13 +195,6 @@ function airHorn(t) {
     envelope(g, t, 0.03, 0.7, 0.3, 0.045);
 }
 
-// Трибуны оживляются, когда мяч у ворот
-function crowdIntensity(sim) {
-    if (!sound.crowd) return;
-    const nearGoal = Math.abs(pitch.ball.x - 50) / 50; // 0 в центре, 1 у ворот
-    const target = 0.04 + nearGoal * nearGoal * 0.09;
-    sound.crowd.gain.gain.setTargetAtTime(target, sound.ctx.currentTime, 0.3);
-}
 
 // Режимы звука: всё / без трибун / выключен
 const SOUND_MODES = ['on', 'nocrowd', 'off'];
@@ -229,4 +225,96 @@ function initSound() {
         setSoundMode(next);
         notify({ on: '🔊 Звук стадиона', nocrowd: '🔉 Без трибун', off: '🔇 Звук выключен' }[next]);
     });
+}
+
+// ===== Звук трансляции: барабаны, песня трибун, свист-неодобрение, нарастание перед ударом =====
+// Барабаны фан-сектора: «бум — бум — бум-бум-бум»
+function crowdDrums() {
+    const ctx = audio();
+    if (!ctx || !sound.crowd) return;
+    const t = ctx.currentTime + 0.05;
+    const hit = (at, peak) => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.frequency.setValueAtTime(110, at); o.frequency.exponentialRampToValueAtTime(45, at + 0.18);
+        o.connect(g).connect(sound.master);
+        envelope(g, at, 0.004, 0.02, 0.22, peak);
+        o.start(at); o.stop(at + 0.3);
+    };
+    for (let bar = 0; bar < 3; bar++) [0, 0.5, 1.0, 1.25, 1.5].forEach(dt => hit(t + bar * 2 + dt, 0.12));
+}
+
+// Песня трибун: сотни голосов тянут простую мелодию (гласная «о» — фильтры-форманты)
+function crowdSong() {
+    const ctx = audio();
+    if (!ctx || !sound.crowd) return;
+    const t0 = ctx.currentTime + 0.05;
+    const melody = [[0, 0.45], [4, 0.45], [7, 0.9], [4, 0.45], [0, 0.45], [2, 0.9], [-1, 0.45], [2, 0.45], [4, 1.3]];
+    const base = 196;
+    const out = ctx.createGain(); out.gain.value = 0.02;
+    const f1 = ctx.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 520; f1.Q.value = 1.4;
+    const f2 = ctx.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 900; f2.Q.value = 1.8;
+    f1.connect(out); f2.connect(out); out.connect(sound.master);
+    let t = t0;
+    melody.forEach(([semi, dur]) => {
+        const fr = base * Math.pow(2, semi / 12);
+        for (let v = 0; v < 5; v++) {
+            const o = ctx.createOscillator(), g = ctx.createGain();
+            o.type = 'sawtooth'; o.frequency.value = fr * (v % 2 ? 2 : 1) * (1 + (Math.random() - 0.5) * 0.018);
+            o.connect(g); g.connect(f1); g.connect(f2);
+            envelope(g, t + Math.random() * 0.04, 0.06, dur * 0.6, dur * 0.35, 0.5);
+            o.start(t); o.stop(t + dur + 0.2);
+        }
+        t += dur;
+    });
+}
+
+// Неодобрительный гул и свист: грубый фол, жёлтая, удаление
+function crowdBoo(strength = 1) {
+    const ctx = audio();
+    if (!ctx || !sound.crowd) return;
+    const t = ctx.currentTime;
+    const src = noiseSource(ctx, true);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 2;
+    f.frequency.setValueAtTime(380, t); f.frequency.linearRampToValueAtTime(260, t + 1.4);
+    const g = ctx.createGain();
+    src.connect(f).connect(g).connect(sound.master);
+    envelope(g, t, 0.2, 0.7, 0.6, 0.12 * strength);
+    src.start(t); src.stop(t + 1.8);
+    // свист с трибун
+    for (let i = 0; i < 4 * strength; i++) {
+        const o = ctx.createOscillator(), og = ctx.createGain(), at = t + Math.random() * 0.8;
+        o.frequency.setValueAtTime(1900 + Math.random() * 900, at);
+        o.frequency.linearRampToValueAtTime(1500 + Math.random() * 600, at + 0.5);
+        o.connect(og).connect(sound.master);
+        envelope(og, at, 0.03, 0.25, 0.2, 0.012);
+        o.start(at); o.stop(at + 0.6);
+    }
+}
+
+// «О-о-о-о!» — трибуны поднимаются, пока мяч летит к воротам
+function crowdRise(seconds = 1) {
+    const ctx = audio();
+    if (!ctx || !sound.crowd) return;
+    const t = ctx.currentTime, d = Math.max(0.4, Math.min(2.5, seconds));
+    const src = noiseSource(ctx, true);
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 0.9;
+    f.frequency.setValueAtTime(420, t); f.frequency.exponentialRampToValueAtTime(1100, t + d);
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.16, t + d); g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.35);
+    src.connect(f).connect(g).connect(sound.master);
+    src.start(t); src.stop(t + d + 0.4);
+}
+
+// Трибуны громче у ворот и в напряжённой концовке; домашний сектор громче, когда атакуют хозяева
+function crowdIntensity(sim) {
+    if (!sound.crowd) return;
+    const nearGoal = Math.abs(pitch.ball.x - 50) / 50;
+    let target = 0.04 + nearGoal * nearGoal * 0.09;
+    if (sim) {
+        const diff = Math.abs(sim.score.t1 - sim.score.t2);
+        if (sim.minute >= 75 && diff <= 1) target *= 1.35;
+        const homeAttack = sim.homeSide && sim.play && sim.play.side === sim.homeSide;
+        if (homeAttack) target *= 1.2;
+    }
+    sound.crowd.gain.gain.setTargetAtTime(Math.min(0.16, target), sound.ctx.currentTime, 0.3);
 }

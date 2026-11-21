@@ -341,10 +341,6 @@ function elevenHtml(team, val) {
     }).join('')}</div>`).join('')}</div>`;
 }
 
-function shortName(name) {
-    const parts = String(name).split(' ');
-    return parts.length > 1 ? parts[parts.length - 1] : name;
-}
 
 function renderRoundCover() {
     let host = $('round-cover');

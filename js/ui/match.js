@@ -8,8 +8,34 @@ let onSpeedChange = null;
 let currentSim = null; // симуляция игры, показанной на экране
 
 function getMatchInterval() {
-    // 1x = 1 сек на игровую минуту, 10x = 0.1 сек
+    // 1x = 1 сек на игровую минуту, 10x = 0.1 сек; в режиме «Хайлайты» спокойные минуты — 0.12 сек
+    return prefs.hlMode ? HL_FAST_MS : normalMatchInterval();
+}
+
+function normalMatchInterval() {
     return Math.max(50, 1000 - (currentMatchSpeed - 1) * 100);
+}
+
+// ----- Режим «Хайлайты»: спокойная игра пролетает, опасный момент — в темпе выбранной скорости -----
+const HL_FAST_MS = 120;
+function hlSpan(events, isShot) {
+    if (!prefs.hlMode) return 1;
+    const hot = isShot || events.some(e => ['goal', 'card-red', 'card-yellow', 'penalty-miss', 'half'].includes(e.type));
+    return hot ? Math.max(2, Math.round(normalMatchInterval() * (isShot ? 2 : 1) / HL_FAST_MS)) : 1;
+}
+
+function renderHlToggle() {
+    const b = $('btn-hl-mode');
+    if (!b) return;
+    b.classList.toggle('active', !!prefs.hlMode);
+    b.setAttribute('aria-pressed', String(!!prefs.hlMode));
+}
+
+function toggleHlMode() {
+    setPref('hlMode', !prefs.hlMode);
+    renderHlToggle();
+    if (onSpeedChange) onSpeedChange();
+    notify(prefs.hlMode ? '⚡ Хайлайты: спокойные минуты пролетают, моменты — в обычном темпе' : 'Обычный темп матча');
 }
 
 function later(fn, ms) {
@@ -350,20 +376,25 @@ function startSimulation(m) {
         let lineupChanged = false;
         const ms = getMatchInterval();
         const isShot = sim.play && sim.play.end && SHOT_ENDS.includes(sim.play.end.type);
-        const span = isShot && !sim.isOver ? 2 : 1;
+        const span = sim.isOver ? 1 : (prefs.hlMode ? hlSpan(events, isShot) : (isShot ? 2 : 1));
         if (span > 1) holdTicks = span - 1;
 
         events.forEach(ev => {
             if (ev.lineupChanged) lineupChanged = true;
             if (ev.type === 'card-red' || ev.type === 'card-yellow' || ev.type === 'half') playSound('whistle-short');
-            if (ev.type === 'card-red' || ev.type === 'card-yellow') later(() => showCardAnim(ev), ms * 0.7);
+            if (ev.type === 'card-red' || ev.type === 'card-yellow') later(() => { showCardAnim(ev); crowdBoo(ev.type === 'card-red' ? 1.5 : 0.7); }, ms * 0.7);
+            else if (ev.type === 'foul') later(() => playSound('whistle-short'), ms * 0.6);
             if (ev.type === 'substitution') later(() => showSubBoard(ev), 50);
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
         if (!sim.isOver && sim.minute % 3 === 0) offerAnalystHint(sim);
+        if (!sim.isOver && sim.minute % 5 === 0) renderPassMap(sim); // сеть передач и тепловая карта — по ходу матча
         if (lineupChanged || sim.minute % 5 === 0 || events.some(e => e.type === 'card-yellow' || e.type === 'tactic' || e.type === 'card-red')) renderLineups(sim); // оценки обновляются раз в 5 минут
 
         const plan = animateMinute(sim, events, ms, span) || {};
+        // Трибуны поднимаются, пока мяч летит к воротам (кроме пенальти — там свой показ)
+        if (isShot && plan.finishAt != null && plan.finishAt > 600 && !events.some(e => /пенальти/.test(e.text || '') || e.type === 'penalty-miss'))
+            later(() => crowdRise(Math.min(1.6, plan.finishAt / 1000 * 0.45)), plan.finishAt * 0.5);
         // Голы показываем, когда мяч влетит в ворота
         // (обычный setTimeout: таймеры поля сбрасываются каждую минуту, а гол должен показаться обязательно)
         const goalDelay = plan.goalAt != null ? plan.goalAt + 60 : ms * span * 0.85; // +60 мс: табло меняется, когда мяч уже в сетке
@@ -583,6 +614,7 @@ function initMatchScreen() {
     $('btn-manage-resume').onclick = resumeMatch;
     $('manage-autosubs').onchange = e => { if (currentSim) currentSim.sides[userSide(currentSim.match)].autoSubs = e.target.checked; };
 
+    if ($('btn-hl-mode')) { $('btn-hl-mode').onclick = toggleHlMode; renderHlToggle(); }
     $('match-speed').addEventListener('input', function () {
         currentMatchSpeed = parseInt(this.value);
         setText('speed-value', currentMatchSpeed + 'x');
@@ -658,7 +690,7 @@ function scoreHeadHtml(m, t1, t2, note = '') {
 }
 
 function halftimeHtml(m, sim) {
-    return `<div class="il-kicker">Перерыв</div>${scoreHeadHtml(m, sim.score.t1, sim.score.t2, '1-й тайм')}${goalsListHtml(sim)}${statsLineHtml(sim)}`;
+    return `<div class="il-kicker">Перерыв</div>${scoreHeadHtml(m, sim.score.t1, sim.score.t2, "1-й тайм")}${goalsListHtml(sim)}${statsLineHtml(sim)}${halftimeMapsHtml(sim)}`;
 }
 
 function extraTimeHtml(m, sim) {

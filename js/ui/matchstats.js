@@ -267,3 +267,37 @@ function initPassMap() {
     document.querySelectorAll('.pm-team').forEach(b => b.onclick = () => { passView.side = b.dataset.side; passView.player = ''; renderPassMap(passView.sim); });
     $('pm-player').onchange = e => { passView.player = e.target.value; renderPassMap(passView.sim); };
 }
+
+// Маленькая тепловая карта команды (для перерыва): где был мяч, команда атакует вправо
+function miniHeatSvg(sim, side) {
+    const touches = (sim.touches && sim.touches[side]) || {};
+    const W = 15, H = 10, grid = Array.from({ length: H }, () => new Array(W).fill(0));
+    const pts = Object.values(touches).flat();
+    pts.forEach(([x, y]) => {
+        const cx = Math.min(W - 1, Math.floor(x / 100 * W)), cy = Math.min(H - 1, Math.floor(y / 100 * H));
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const gx = cx + dx, gy = cy + dy;
+            if (gx >= 0 && gx < W && gy >= 0 && gy < H) grid[gy][gx] += dx || dy ? 0.35 : 1;
+        }
+    });
+    const max = Math.max(0.01, ...grid.flat());
+    let body = '';
+    grid.forEach((row, gy) => row.forEach((v, gx) => {
+        if (!v) return;
+        const k = v / max;
+        const color = k > 0.66 ? '255, 70, 40' : (k > 0.33 ? '255, 170, 40' : '255, 235, 90');
+        body += `<rect x="${(gx * 105 / W).toFixed(2)}" y="${(gy * 68 / H).toFixed(2)}" width="${(105 / W + 0.05).toFixed(2)}" height="${(68 / H + 0.05).toFixed(2)}" fill="rgba(${color}, ${(0.12 + k * 0.6).toFixed(2)})"/>`;
+    }));
+    // Доля касаний в трети соперника
+    const att = pts.length ? Math.round(pts.filter(p => p[0] > 66.6).length / pts.length * 100) : 0;
+    return { svg: `<svg viewBox="-2 -2 109 72" class="mini-heat">${SHOTMAP_PITCH}${body}<text class="pm-arrow" x="98" y="66">→</text></svg>`, att };
+}
+
+function halftimeMapsHtml(sim) {
+    if (!sim.touches) return '';
+    const cell = side => {
+        const h = miniHeatSvg(sim, side);
+        return `<div class="ht-map"><div class="ht-map-head">${escapeHtml(sim.sides[side].team.name)} <span class="muted">· в чужой трети ${h.att}%</span></div>${h.svg}</div>`;
+    };
+    return `<div class="ht-maps">${cell('team1')}${cell('team2')}</div>`;
+}

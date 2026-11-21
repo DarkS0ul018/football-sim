@@ -586,6 +586,7 @@ function startCelebration(sim, ev, ms) {
     if (!scorer) return;
     const flag = { x: abs(side, 96.5), y: scorer.y < 50 ? 5 : 95 };
     pitch.overrides.set(scorer, flag);
+    cameraFollow(scorer, ms * 0.85);
     team.filter(p => p !== scorer && p.position !== 'GK')
         .sort((a, b) => Math.hypot(a.x - scorer.x, a.y - scorer.y) - Math.hypot(b.x - scorer.x, b.y - scorer.y))
         .slice(0, 4).forEach(p => pitch.overrides.set(p, { follow: scorer }));
@@ -732,13 +733,14 @@ function stageFreeKick(side, team, foes, fk) {
     att.forEach((p, i) => stagePlace(side, p, 87 + (i % 2) * 3, 36 + i * (28 / Math.max(1, att.length - 1))));
     field.filter(p => !wall.includes(p)).slice(0, att.length).forEach((p, i) => stagePlace(side, p, 89.5 + (i % 2) * 2, 37.5 + i * (28 / Math.max(1, att.length - 1))));
     if (taker) stagePlace(side, taker, fk.r - 2.6, fk.y + (fk.y < 50 ? -2 : 2));
+    cameraGoalView(side, abs(side, fk.r), fk.y, 2800);
 }
 
 // Пенальти: мяч на точке, вратарь на линии, остальные за пределами штрафной
 function stagePenalty(side, team, foes, taker) {
     const gk = foes.find(p => p.position === 'GK');
     if (gk) stagePlace(side, gk, 99.2, 50);
-    cameraPunch(2.5);
+    cameraGoalView(side, abs(side, 88.5), 50, 3000);
     if (taker) stagePlace(side, taker, 86.8, 50.5);
     const others = [...team.filter(p => p !== taker && p.position !== 'GK'), ...foes.filter(p => p !== gk && p.position !== 'GK')];
     others.forEach((p, i) => {
@@ -885,28 +887,65 @@ function stepCamera(dt) {
     const field = $('football-field');
     if (!field) return;
     if (!cameraOn() || !pitch.sim) {
-        if (field.style.transform) field.style.transform = '';
+        if (field.style.transform) { field.style.transform = ''; field.style.removeProperty('--cam-rz'); }
+        pitch.cam.rz = 0;
         return;
     }
     const c = pitch.cam;
+    if (c.rz == null) c.rz = 0;
     const mobile = window.innerWidth < 760;
-    const base = mobile ? 1.1 : 1.2;
-    const zoomTarget = base + (c.boost > 0 ? 0.32 : 0);
+    const now = performance.now();
+    const shot = c.shot && now < c.shot.until ? c.shot : null;
+    if (c.shot && !shot) c.shot = null;
+    const replay = field.classList.contains('replaying');
     if (c.boost > 0) c.boost -= dt;
-    const bx = pitch.ball ? pitch.ball.x : 50, by = pitch.ball ? pitch.ball.y : 50;
-    const follow = Math.min(1, dt * (c.boost > 0 ? 3.5 : 2));
-    c.z += (zoomTarget - c.z) * Math.min(1, dt * 2.5);
-    c.x += (bx - c.x) * follow;
-    c.y += (by - c.y) * follow;
-    const lim = (1 - 1 / c.z) * 50; // край поля не выходит за кадр
-    const tx = Math.max(-lim, Math.min(lim, 50 - c.x));
-    const ty = Math.max(-lim, Math.min(lim, (50 - c.y) * 0.8));
-    field.style.transform = `perspective(1300px) rotateX(${CAM_TILT}deg) scale(${c.z.toFixed(3)}) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
+
+    // Цель камеры: ракурс момента или обычное ведение мяча
+    let tx0, ty0, zT, rzT = 0, tilt = CAM_TILT;
+    if (shot && shot.kind === 'goal-view') {
+        // Из-за спины бьющего: ворота сверху, поле повёрнуто и сильно наклонено
+        tx0 = shot.cx; ty0 = shot.cy; zT = mobile ? 2.1 : 2.35; rzT = shot.rz; tilt = 26;
+    } else if (shot && shot.kind === 'follow' && shot.target) {
+        // Крупный план игрока (празднование гола)
+        tx0 = shot.target.x; ty0 = shot.target.y; zT = mobile ? 1.9 : 2.1; tilt = 18;
+    } else {
+        tx0 = pitch.ball ? pitch.ball.x : 50; ty0 = pitch.ball ? pitch.ball.y : 50;
+        zT = (mobile ? 1.1 : 1.2) + (c.boost > 0 ? 0.32 : 0);
+        if (replay) { zT = mobile ? 1.15 : 1.25; tilt = 0; } // повтор — вид сверху
+    }
+    const k = Math.min(1, dt * (shot ? 3 : (c.boost > 0 ? 3.5 : 2)));
+    c.z += (zT - c.z) * Math.min(1, dt * 2.5);
+    c.x += (tx0 - c.x) * k;
+    c.y += (ty0 - c.y) * k;
+    c.rz += (rzT - c.rz) * Math.min(1, dt * 3.2);
+    c.tilt = (c.tilt ?? CAM_TILT) + (tilt - (c.tilt ?? CAM_TILT)) * Math.min(1, dt * 3);
+    let tx = 50 - c.x, ty = 50 - c.y;
+    if (Math.abs(c.rz) < 1) {
+        const lim = (1 - 1 / c.z) * 50; // край поля не выходит за кадр
+        tx = Math.max(-lim, Math.min(lim, tx));
+        ty = Math.max(-lim, Math.min(lim, ty * 0.8));
+    }
+    field.style.setProperty('--cam-rz', `${c.rz.toFixed(2)}deg`);
+    field.style.transform = `perspective(1300px) rotateX(${c.tilt.toFixed(2)}deg) scale(${c.z.toFixed(3)}) rotate(${c.rz.toFixed(2)}deg) translate(${tx.toFixed(2)}%, ${ty.toFixed(2)}%)`;
 }
 
 // Наезд камеры на момент (гол, пенальти)
 function cameraPunch(seconds = 1.6) {
     pitch.cam.boost = seconds;
+}
+
+// Ракурс «из-за спины бьющего» на штрафной и пенальти: точка между мячом и воротами, ворота — вверху кадра
+function cameraGoalView(side, ballX, ballY, ms = 2600) {
+    if (!cameraOn()) return;
+    const goalX = side === 'team1' ? 100 : 0;
+    pitch.cam.shot = { kind: 'goal-view', until: performance.now() + ms,
+        cx: ballX + (goalX - ballX) * 0.45, cy: ballY + (50 - ballY) * 0.3, rz: side === 'team1' ? -90 : 90 };
+}
+
+// Крупный план игрока
+function cameraFollow(target, ms = 2000) {
+    if (!cameraOn() || !target) return;
+    pitch.cam.shot = { kind: 'follow', target, until: performance.now() + ms };
 }
 
 // ----- Переключатель камеры прямо на поле: «ТВ-камера» ведёт мяч, «Всё поле» — неподвижный общий план -----
@@ -922,6 +961,7 @@ function renderCameraToggle() {
 function toggleCamera() {
     setPref('camera', !cameraOn());
     pitch.cam.boost = 0;
+    pitch.cam.shot = null;
     renderCameraToggle();
 }
 
