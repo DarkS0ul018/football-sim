@@ -195,7 +195,7 @@ function setMatchInProgress(inProgress) {
 const EVENT_ICONS = {
     'goal': '⚽', 'shot': '🧤', 'shot-off': '💨', 'corner': '🚩', 'foul': '⚠️',
     'card-yellow': '🟨', 'card-red': '🟥', 'substitution': '🔄', 'injury': '🚑',
-    'half': '⏱️', 'weather': '🌤️', 'freekick': '🎯', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️', 'stoppage': '⏱️', 'offside': '🚩', 'var': '📺'
+    'half': '⏱️', 'weather': '🌤️', 'freekick': '🎯', 'tactic': '📋', 'penalties': '🎲', 'penalty-goal': '✅', 'penalty-miss': '❌', 'finish': '🏁', 'comment': '🎙️', 'stoppage': '⏱️', 'offside': '🚩', 'var': '📺', 'post': '🥅'
 };
 
 function addMatchEvent(match, minute, type, text, team = null, extraCls = '') {
@@ -369,7 +369,7 @@ function startSimulation(m) {
 
     // Атака с ударом показывается две минуты: следующий шаг движка пропускается
     let holdTicks = 0;
-    const SHOT_ENDS = ['goal', 'save', 'off', 'wall', 'penalty-goal', 'penalty-miss'];
+    const SHOT_ENDS = ['goal', 'save', 'off', 'post', 'wall', 'penalty-goal', 'penalty-miss'];
 
     function step() {
         if (holdTicks > 0) { holdTicks--; return; }
@@ -401,6 +401,7 @@ function startSimulation(m) {
         });
         if (lineupChanged) { renderPlayers(sim); renderSubstitutions(sim); }
         if (!sim.isOver && sim.minute % 3 === 0) offerAnalystHint(sim);
+        if (!sim.isOver && !sim.plus && [15, 30, 60, 75].includes(sim.minute)) later(() => showStatsPlate(sim), ms * 0.3); // плашка статистики
         if (!sim.isOver && sim.minute % 5 === 0) renderPassMap(sim); // сеть передач и тепловая карта — по ходу матча
         if (lineupChanged || sim.minute % 5 === 0 || events.some(e => e.type === 'card-yellow' || e.type === 'tactic' || e.type === 'card-red')) renderLineups(sim); // оценки обновляются раз в 5 минут
 

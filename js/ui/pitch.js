@@ -62,6 +62,7 @@ function renderField(sim) {
     hideGoalTicker();
     pitch.lastGoal = null;
     $('btn-replay-goal') && ($('btn-replay-goal').style.display = 'none');
+    $('btn-replay-behind') && ($('btn-replay-behind').style.display = 'none');
     applyMatchKits(sim.match);
     applyVenue(sim);
     renderPlayers(sim);
@@ -286,6 +287,7 @@ function pitchFrame(ts) {
         stepBall(dt * 1000);
         computeTargets();
         stepPlayers(dt);
+        stepReferee(dt);
     }
     if (document.getElementById('football-field')?.offsetParent !== null) stepCamera(dt);
     pitch.raf = requestAnimationFrame(pitchFrame);
@@ -512,7 +514,13 @@ function animateMinute(sim, events, ms, span = 1) {
         const offender = byNum(foes, end.offender);
         if (victim && offender) pitch.overrides.set(offender, { follow: victim }); // догоняет фолимого
         if (victim && !wps.some(w => w.player === victim)) wps.push({ ...lead(victim), player: victim });
-        if (wps.length) wps[wps.length - 1].foul = true;
+        if (wps.length) { const last = wps[wps.length - 1]; last.foul = true; last.victim = victim; last.offender = offender; last.hard = events.some(e => e.type === 'card-yellow' || e.type === 'card-red'); }
+    }
+    // Атака сорвалась без удара: защитник идёт в подкат и забирает мяч
+    if (!end && (play.kind === 'attack' || play.kind === 'counter') && wps.length && !fast) {
+        const last = wps[wps.length - 1];
+        const tackler = foes.filter(p => p.position !== 'GK').sort((a, b) => Math.hypot(a.x - last.x, a.y - last.y) - Math.hypot(b.x - last.x, b.y - last.y))[0];
+        if (tackler) { pitch.overrides.set(tackler, { x: last.x, y: last.y }); wps.push({ x: last.x + (side === 'team1' ? -2 : 2), y: last.y, tackle: tackler }); }
     }
 
     // Финал эпизода
@@ -534,7 +542,12 @@ function animateMinute(sim, events, ms, span = 1) {
             wps.push({ x: goalX, y: 44 + Math.random() * 12, goal: true });
         } else if (end.type === 'save') {
             const gk = byNum(foes, end.keeper) || foes.find(p => p.position === 'GK');
-            wps.push({ x: gk ? gk.x : goalX, y: gk ? gk.y : 50, player: gk, save: true });
+            wps.push({ x: gk ? gk.x : goalX, y: gk ? gk.y : 50, player: gk, save: true, diveDir: (end.at ? end.at.y : 50) >= (gk ? gk.y : 50) ? 1 : -1 });
+        } else if (end.type === 'post') {
+            // Штанга или перекладина: мяч звенит о каркас и отскакивает обратно в поле
+            const postY = end.bar ? 46 + Math.random() * 8 : (Math.random() < 0.5 ? 44.4 : 55.6);
+            wps.push({ x: side === 'team1' ? 99.2 : 0.8, y: postY, post: true, bar: !!end.bar });
+            wps.push({ x: abs(side, 84 + Math.random() * 5), y: clampv(postY + (Math.random() - 0.5) * 30, 25, 75), rebound: true });
         } else if (end.type === 'off') {
             wps.push({ x: goalX, y: Math.random() < 0.5 ? 30 + Math.random() * 8 : 62 + Math.random() * 8, miss: true });
         }
@@ -560,9 +573,35 @@ function animateMinute(sim, events, ms, span = 1) {
         onArrive: () => {
             if (w.banner) showPitchBanner(w.banner);
             if (w.out) { pitch.holder = null; highlightPlayer(null); showBallTag('аут'); return; }
+            if (w.post) { pitch.holder = null; highlightPlayer(null); playSound('post'); showBallTag(w.bar ? 'перекладина!' : 'штанга!', 1200); return; }
+            if (w.rebound) { pitch.holder = null; highlightPlayer(null); return; }
+            if (w.tackle) {
+                // Подкат: защитник выбивает мяч, владение переходит к сопернику
+                const el = $(playerElId(w.tackle));
+                if (el) { el.classList.add('tackling'); setTimeout(() => el.classList.remove('tackling'), 650); }
+                pitch.holder = w.tackle; pitch.possession = opp; highlightPlayer(w.tackle);
+                return;
+            }
             if (w.offside) { pitch.holder = null; highlightPlayer(null); showOffsideFlag(); return; }
             if (w.wait) { if (w.whistle) playSound('whistle-short'); return; } // пауза закончилась — подача
+            if (w.foul && w.victim && !fast) {
+                // Фол: игрок падает (после жёсткого — катается по газону), соперники идут спорить с судьёй
+                const vEl = $(playerElId(w.victim));
+                if (vEl) { vEl.classList.add(w.hard ? 'rolling' : 'fallen'); setTimeout(() => vEl.classList.remove('fallen', 'rolling'), w.hard ? 1600 : 1000); }
+                if (w.hard && pitch.ref && w.offender) {
+                    const mates = foes.filter(p => p !== w.offender && p.position !== 'GK')
+                        .sort((a, b) => Math.hypot(a.x - pitch.ref.x, a.y - pitch.ref.y) - Math.hypot(b.x - pitch.ref.x, b.y - pitch.ref.y)).slice(0, 2);
+                    mates.forEach((p, i) => pitch.overrides && pitch.overrides.set(p, { x: pitch.ref.x + (i ? 2 : -2), y: pitch.ref.y + 2 }));
+                }
+            }
             if (w.save) {
+                // Вратарь прыгает в сторону мяча
+                const gkEl = w.player ? $(playerElId(w.player)) : null;
+                if (gkEl && !fast) {
+                    gkEl.style.setProperty('--dive', (w.diveDir || 1) > 0 ? '1' : '-1');
+                    gkEl.classList.add('diving');
+                    setTimeout(() => gkEl.classList.remove('diving'), 750);
+                }
                 pitch.holder = w.player || null;               // мяч у вратаря соперника — дальше атакует он
                 pitch.possession = opp;
                 highlightPlayer(null);
@@ -625,6 +664,7 @@ function onGoalAnimation(sim, ev) {
     cameraPunch(1.8);
     const btn = $('btn-replay-goal');
     if (btn) btn.style.display = '';
+    if ($('btn-replay-behind')) $('btn-replay-behind').style.display = '';
     // В живом матче — празднование: автор бежит к угловому флажку, партнёры — к нему
     const cel = pitch.livePenalty ? Math.max(1400, Math.min(2600, (pitch.msPerMinute || 1000) * 2.2)) : 0;
     // После празднования — розыгрыш с центра: мяч в центр, команды расходятся по своим половинам, свисток
@@ -711,13 +751,13 @@ function showSubBoard(ev) {
 // Проигрывает записанные кадры атаки: и мяч, и движение игроков
 let replayRunning = false;
 
-function replayLastGoal() {
+function replayLastGoal(angle = "top") {
     const g = pitch.lastGoal;
-    if (g) replayFrames(g.frames, `${g.ev.minute}' · ${g.ev.player ? g.ev.player.name : ''}`, g.ev.side, true);
+    if (g) replayFrames(g.frames, `${g.ev.minute}' · ${g.ev.player ? g.ev.player.name : ''}${angle === "behind" ? " · из-за ворот" : ""}`, g.ev.side, true, { angle, slow: angle === "behind" ? 1.6 : 1 });
 }
 
 // Повтор любого момента: кадры атаки в замедлении (гол — с сеткой и рёвом трибун)
-function replayFrames(frames, label, side, isGoal) {
+function replayFrames(frames, label, side, isGoal, opts = {}) {
     const g = { frames, ev: { side } };
 
     if (!g || !g.frames || replayRunning) return;
@@ -739,7 +779,15 @@ function replayFrames(frames, label, side, isGoal) {
     };
     applyFrame(g.frames[0], 0);
 
-    const seg = 900;
+    const seg = Math.round(900 * (opts.slow || 1));
+    // Ракурс «из-за ворот»: камера за воротами, медленнее (работает и при неподвижной камере)
+    if (opts.angle === "behind") {
+        const lastB = g.frames[g.frames.length - 1].ball;
+        const goalX = side === "team1" ? 100 : 0;
+        pitch.cam.forced = true;
+        pitch.cam.shot = { kind: "goal-view", until: performance.now() + 400 + seg * g.frames.length + 900,
+            cx: lastB.x, cy: lastB.y, goalX, followBall: true, rz: side === "team1" ? -90 : 90 };
+    }
     g.frames.slice(1).forEach((fr, i) => {
         setTimeout(() => {
             applyFrame(fr, seg);
@@ -762,6 +810,7 @@ function replayFrames(frames, label, side, isGoal) {
         highlightPlayer(pitch.holder);
         pitch.frozen = false;
         replayRunning = false;
+        if (pitch.cam.forced) { pitch.cam.forced = false; pitch.cam.shot = null; }
         if (resume) resumeAfterReplay();
     }, end + 1400);
 }
@@ -984,7 +1033,7 @@ function cameraOn() {
 function stepCamera(dt) {
     const field = $('football-field');
     if (!field) return;
-    if (!cameraOn() || !pitch.sim) {
+    if ((!cameraOn() && !pitch.cam.forced) || !pitch.sim) {
         if (field.style.transform) { field.style.transform = ''; field.style.removeProperty('--cam-rz'); }
         pitch.cam.rz = 0; pitch.cam._rzStr = undefined;
         return;
@@ -1002,7 +1051,9 @@ function stepCamera(dt) {
     let tx0, ty0, zT, rzT = 0, tilt = CAM_TILT;
     if (shot && shot.kind === 'goal-view') {
         // Из-за спины бьющего: ворота сверху, поле повёрнуто и сильно наклонено
-        tx0 = shot.cx; ty0 = shot.cy; zT = mobile ? 2.1 : 2.35; rzT = shot.rz; tilt = 26;
+        if (shot.followBall && pitch.ball) { tx0 = pitch.ball.x + (shot.goalX - pitch.ball.x) * 0.3; ty0 = 50 + (pitch.ball.y - 50) * 0.7; zT = mobile ? 1.7 : 1.85; }
+        else { tx0 = shot.cx; ty0 = shot.cy; zT = mobile ? 2.1 : 2.35; }
+        rzT = shot.rz; tilt = 26;
     } else if (shot && shot.kind === 'follow' && shot.target) {
         // Крупный план игрока (празднование гола)
         tx0 = shot.target.x; ty0 = shot.target.y; zT = mobile ? 1.9 : 2.1; tilt = 18;
@@ -1234,4 +1285,61 @@ function fanCelebrate(side, sim) {
     band.classList.add(`jump-${side}`);
     setTimeout(() => band.classList.remove(`jump-${side}`), 2600);
     if (sim && (sim.derby || sim.minute >= 80)) fanFlares(side, 4500);
+}
+
+// ===== Главный судья: держится рядом с эпизодом, но не мешает игре =====
+function ensureReferee() {
+    const field = $('football-field');
+    if (!field) return null;
+    let el = field.querySelector('.player.referee');
+    if (!el) {
+        el = document.createElement('div');
+        el.className = 'player referee';
+        el.innerHTML = playerInnerHtml('', 'Судья');
+        el.title = 'Главный судья';
+        field.appendChild(el);
+        pitch.ref = { x: 50, y: 40, vx: 0, vy: 0 };
+    }
+    return el;
+}
+
+function stepReferee(dt) {
+    const el = ensureReferee();
+    if (!el || !pitch.ball) return;
+    const r = pitch.ref || (pitch.ref = { x: 50, y: 40, vx: 0, vy: 0 });
+    // Цель: по диагонали от мяча, в 10–14 % от него, ближе к центру поля
+    const bx = pitch.ball.x, by = pitch.ball.y;
+    const tx = clampv(bx + (bx > 50 ? -11 : 11), 8, 92), ty = clampv(by + (by > 50 ? -14 : 14), 6, 94);
+    const dx = tx - r.x, dy = (ty - r.y) * 0.66, dist = Math.hypot(dx, dy);
+    const vmax = 13 * speedScale();
+    const v = Math.min(vmax, dist * 2.4);
+    const wantX = dist > 0.05 ? dx / dist * v : 0, wantY = dist > 0.05 ? dy / dist * v : 0;
+    const acc = Math.min(1, dt * 5);
+    r.vx += (wantX - r.vx) * acc; r.vy += (wantY - r.vy) * acc;
+    r.x += r.vx * dt; r.y += r.vy * dt / 0.66;
+    if (Math.abs(r.x - (r._lx ?? -9)) > 0.03 || Math.abs(r.y - (r._ly ?? -9)) > 0.03) {
+        r._lx = r.x; r._ly = r.y;
+        el.style.left = `${r.x.toFixed(2)}%`; el.style.top = `${r.y.toFixed(2)}%`;
+    }
+    if (Math.abs(r.vx) > 4) { const f = r.vx > 0 ? 1 : -1; if (f !== r._f) { r._f = f; el.style.setProperty('--face', f); } }
+}
+
+// ===== Плашка статистики каждые 15 минут =====
+function showStatsPlate(sim) {
+    const host = hudHost();
+    if (!host || !sim) return;
+    host.querySelector('.stats-plate')?.remove();
+    const st = sim.stats;
+    const t1 = sim.sides.team1.team, t2 = sim.sides.team2.team;
+    const code = t => (typeof teamShort === 'function' ? teamShort(t.name) : t.name.slice(0, 3).toUpperCase());
+    const row = (label, a, b) => `<div class="sp-row"><b>${a}</b><span>${label}</span><b>${b}</b></div>`;
+    const el = document.createElement('div');
+    el.className = 'stats-plate';
+    el.innerHTML = `<div class="sp-head"><span>${escapeHtml(code(t1))}</span><em>${sim.minute}'</em><span>${escapeHtml(code(t2))}</span></div>
+        ${row('владение', st.possession.team1 + '%', st.possession.team2 + '%')}
+        ${row('удары', st.shots.team1, st.shots.team2)}
+        ${row('в створ', st.shotsOnTarget.team1, st.shotsOnTarget.team2)}
+        ${row('xG', st.xg.team1.toFixed(1), st.xg.team2.toFixed(1))}`;
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 3600);
 }

@@ -777,6 +777,13 @@ class MatchSimulation {
             player: shooter.number, name: shooter.name, keeper: gk ? gk.number : null };
         this.shotLog.push(shotInfo);
         if (result === 'off') {
+            // Иногда мяч попадает в штангу или перекладину (чаще — после опасных ударов)
+            if (Math.random() < 0.08 + Math.min(0.08, xg * 0.25)) {
+                shotInfo.result = 'post';
+                play.end = { type: 'post', shooter: shooter.number, at, xg, header, bar: Math.random() < 0.3 };
+                this.log('post', side, `${play.end.bar ? 'Перекладина' : 'Штанга'}! ${shooter.name} был в сантиметрах от гола`, { player: shooter, xg });
+                return;
+            }
             play.end = { type: 'off', shooter: shooter.number, at, xg, header };
             this.log('shot-off', side, `Удар мимо — ${shooter.name}`, { player: shooter, xg });
             return;

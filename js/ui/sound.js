@@ -88,6 +88,18 @@ function playSound(name) {
         }
         case 'pen-goal': crowdBurst(ctx, t, 900, 1.0, 0.3); break;
         case 'miss': crowdBurst(ctx, t, 400, 0.4, 0.12); break;
+        case 'post': {
+            // Звон металла: штанга или перекладина
+            [1250, 1870, 2620].forEach((fr, i) => {
+                const o = ctx.createOscillator(), g = ctx.createGain();
+                o.type = 'sine'; o.frequency.value = fr;
+                o.connect(g).connect(sound.master);
+                envelope(g, t, 0.002, 0.01, 0.6 - i * 0.12, 0.12 / (i + 1));
+                o.start(t); o.stop(t + 0.8);
+            });
+            crowdBurst(ctx, t + 0.1, 520, 0.9, 0.22); // «у-у-ух!»
+            break;
+        }
     }
 }
 
